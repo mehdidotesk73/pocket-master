@@ -91,7 +91,7 @@ const zeros = computed(() => props.record.lines.filter((l) => l.amount === 0))
 
 .big {
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 600;
   font-size: clamp(2rem, 9vw, 2.75rem);
   line-height: 1;
 }

@@ -12,6 +12,8 @@ Track feature development, improvements, and known issues here. Move completed w
 - **v0.3.0 — files + averaged projection items** — data is `records/<date>.json` + `projection.json`
   + `template.json` (store `MIGRATIONS[1]`, settings split in `loadFrom`); `evaluateAveraged` (rate /
   amount over a date range, manual override) feeds `project`; `AveragedEditor`, `SignedMoneyInput`.
+- **v0.4.0 — editor looks** — `styles/themes.css`, `lib/themes.ts`, `lib/useTheme.ts` copied from
+  markdown-editor; app tokens mapped in `styles/vars.css`; look switcher in the `App.vue` header.
 
 ## Next (Current Sprint)
 
@@ -52,7 +54,6 @@ One-time setup — tick these off as they're done:
 
 - Per-row share % for split cards (dropped in v0.2.0; for now enter your part as the amount)
 - Edit the template outside the New record sheet (e.g. reorder rows)
-- Light theme
 - Cross-device sync (optional linked-folder backup: remoteStorage.js / Drive `drive.file` / Dropbox PKCE)
 - Category-level expense logging; CSV export of records; editing a past record in place
 - Single-file export/import

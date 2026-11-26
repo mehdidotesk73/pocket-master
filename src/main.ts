@@ -1,12 +1,14 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import { installErrorCapture } from './debug'
-// Fonts are bundled (and precached) so the app looks right offline.
-import '@fontsource/red-hat-display/latin-800.css'
-import '@fontsource/red-hat-text/latin-400.css'
-import '@fontsource/red-hat-text/latin-600.css'
-import '@fontsource/red-hat-text/latin-700.css'
+// Fraunces is the display serif every look shares (same as the Markdown Lab
+// editor); bundled and precached so headings look right offline.
+import '@fontsource/fraunces/latin-500.css'
+import '@fontsource/fraunces/latin-600.css'
+import './styles/themes.css'
 import './styles/vars.css'
+// Sets data-theme on <html> at import time, before the first paint.
+import './lib/useTheme'
 
 const app = createApp(App)
 

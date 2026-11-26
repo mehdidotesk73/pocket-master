@@ -1,0 +1,400 @@
+/* Theme looks, copied from the Markdown Lab editor
+   (github.com/mehdidotesk73/markdown-editor, src/styles/vars.css) so both
+   apps share one visual language. Keep this file in step with that one rather
+   than editing looks here; app-specific tokens live in vars.css.
+
+/* Markdown Lab themes: five looks from the user's theme canvas, each a token
+   block keyed by data-theme, chosen from the menu beside the Dark / Light
+   button (lib/themes.ts lists them; lib/useTheme.ts sets data-theme on <html>).
+     Dark: Navy & Brass (default), Graphite, Midnight & Champagne.
+     Light: Porcelain (default), Fog.
+   :root holds the base tokens every block starts from (they were the Sage
+   look's; Sage, Original, Smoke & Sand and Monochrome were tried and dropped
+   by the user). Every look shares one display serif (--font-display).
+   Dark / Light flips between the viewer's chosen dark and light look.
+   Buttons (UiButton) are compact and matte: the --btn-* tokens.
+   Accents have one job each — focus/links, green = saved, amber = unsaved
+   (always a small ● mark, never tinted glass), red = errors. Components use
+   these tokens, never colour literals. The PDF export is separate (always
+   black on white; lib/pdf). */
+
+:root {
+  /* GitHub-style alerts in the preview (A5): one muted hue per type, for dark looks;
+     light looks override below. Document content, not chrome, so not the accents. */
+  --alert-note: #85a9d6;
+  --alert-tip: #8fc7a2;
+  --alert-important: #b29ad8;
+  --alert-warning: #d6b06a;
+  --alert-caution: #e58a7e;
+  /* Code highlighting (Shiki's css-variables theme; lib/highlight.ts). Muted, one hue per job. */
+  --code-foreground: var(--paper-text);
+  --code-token-keyword: #c79bd6;
+  --code-token-constant: #e0a87a;
+  --code-token-function: #8cb4e6;
+  --code-token-parameter: #d8c79a;
+  --code-token-string: #a5cf95;
+  --code-token-string-expression: #a5cf95;
+  --code-token-punctuation: color-mix(in srgb, var(--paper-text) 62%, transparent);
+  --code-token-comment: color-mix(in srgb, var(--paper-text) 48%, transparent);
+  --code-token-link: #8cb4e6;
+  /* surfaces */
+  --bg: #141815;
+  --bg-elev: #181c19;
+  --bg-elev-2: #1d221e;
+  --bg-input: #1d221e;
+  --border: #2a302b;
+  --border-strong: #353c36;
+  --text: #e6e9e1;
+  --text-muted: #8b9286;
+  --on-accent: #10130f; /* text on a solid accent */
+  --on-amber: #1d1405;
+
+  /* accents */
+  --accent-blue: #a9c4b0; /* "interaction": focus rings, carets, links — sage-tinted */
+  --accent-green: #8fc7a2;
+  --accent-amber: #d1a85c;
+  --danger: #e58a7e;
+  --danger-bg: #3a2420;
+
+  /* roles */
+  --ok: var(--accent-green);
+  --warn: var(--accent-amber);
+
+  /* menus, modals, shadows */
+  --shadow-rgb: 0, 0, 0;
+  --overlay-bg: rgba(24, 28, 25, 0.94);
+  --backdrop: rgba(6, 8, 7, 0.62);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --radius: 0.55rem;
+
+  /* page backdrop (body): a soft sage glow from the top left */
+  --bg-image: radial-gradient(900px 500px at 15% -10%, rgba(180, 200, 170, 0.08), transparent 60%);
+
+  /* "Paper": the inside of the editor + preview panes. Never pure white. */
+  --paper-bg: #181c19;
+  --paper-head: #1d221e;
+  --paper-text: #d7dbd2;
+  --paper-muted: #848b80;
+  --paper-border: #2a302b;
+  --paper-code-bg: #1d221e;
+  --paper-link: #a9c4b0;
+  --paper-quote: #5f6c62;
+  --paper-selection: rgba(200, 215, 190, 0.2);
+  --shadow-underline: rgba(226, 232, 218, 0.55); /* the focus shadow's underline */
+
+  /* Liquid glass (UiButton, tab bar). No accent hue in the glass: selection
+     is carried by light and shadow. */
+  --liquid-white: 90 22% 88%; /* "H S% L%": every light on the glass */
+  --liquid-light: 90 22% 88%; /* the light collected inside */
+  --liquid-smoke: rgba(230, 240, 225, 0.04); /* ordinary glass body */
+  --liquid-milk: rgba(226, 232, 218, 0.16); /* light pooling at the bar's bottom */
+  --liquid-deep: 135 14% 4%; /* "H S% L%": deep glass for the main action / selected well */
+  --liquid-deep-a: 0.6;
+  --glass-body-a: 0.05; /* ordinary glass: how much light tints its body */
+  --liquid-drop: 0.5; /* drop-shadow strength */
+  --well-shade: 0.65; /* the selected well's inner shadow */
+  --well-lip: 0.3; /* its lit lower lip */
+  --primary-bg: linear-gradient(transparent, transparent); /* no-op: the glass shows */
+  --primary-text: hsl(var(--liquid-white));
+  --primary-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --btn-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+
+  /* Matte buttons (UiButton): flat fills, hairline border, no glow. */
+  --btn-radius: 0.4rem;
+  --btn-bg: #222823;
+  --btn-bg-hover: #29302a;
+  --btn-bg-press: #1c211d;
+  --btn-border: #303731;
+  --btn-border-hover: #3b433c;
+  --btn-text: #dfe3da;
+  --btn-primary-bg: #c9d3c4; /* pale sage, dark text */
+  --btn-primary-hover: #d6dfd1;
+  --btn-primary-press: #b8c3b3;
+  --btn-primary-text: #141815;
+
+  /* Every look uses the same serif for the title and headings (Fraunces, bundled). */
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+
+  /* Typography */
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Porcelain — light, warm, dot grid. */
+:root[data-theme='porcelain'] {
+  --alert-note: #3b679f;
+  --alert-tip: #3f8a5c;
+  --alert-important: #7556a3;
+  --alert-warning: #9c6a1d;
+  --alert-caution: #b5483b;
+  --code-token-keyword: #8a3f9e;
+  --code-token-constant: #a85a1c;
+  --code-token-function: #2f5f9e;
+  --code-token-parameter: #7a6320;
+  --code-token-string: #3d7a2f;
+  --code-token-string-expression: #3d7a2f;
+  --code-token-link: #2f5f9e;
+  --bg: #f2f0eb;
+  --bg-elev: #faf9f6;
+  --bg-elev-2: #f3f1ec;
+  --bg-input: #faf9f6;
+  --border: #e4e0d8;
+  --border-strong: #d6d1c6;
+  --text: #26262a;
+  --text-muted: #7c7a76;
+  --on-accent: #f6f4ef;
+
+  --accent-blue: #5a6b80;
+  --accent-green: #3f8a5c;
+  --accent-amber: #c58a3a;
+  --danger: #b5483b;
+  --danger-bg: #f6e3df;
+
+  --shadow-rgb: 70, 58, 40;
+  --overlay-bg: rgba(250, 249, 246, 0.95);
+  --backdrop: rgba(60, 50, 35, 0.28);
+  --shadow: 0 12px 32px rgba(70, 58, 40, 0.18);
+
+  --bg-image: radial-gradient(rgba(40, 36, 30, 0.07) 1px, transparent 1px) 0 0 / 18px 18px;
+
+  --paper-bg: #faf9f6;
+  --paper-head: #f3f1ec;
+  --paper-text: #2e2e33;
+  --paper-muted: #8a877f;
+  --paper-border: #e4e0d8;
+  --paper-code-bg: #f1eee8;
+  --paper-link: #4a5f7a;
+  --paper-quote: #d3cdc1;
+  --paper-selection: rgba(120, 100, 70, 0.16);
+  --shadow-underline: rgba(38, 38, 42, 0.4);
+
+  --liquid-white: 0 0% 100%;
+  --liquid-light: 0 0% 100%;
+  --liquid-smoke: rgba(255, 255, 255, 0.55);
+  --liquid-milk: rgba(255, 255, 255, 0.55);
+  --liquid-deep: 42 18% 86%;
+  --liquid-deep-a: 0.95;
+  --glass-body-a: 0.55;
+  --liquid-drop: 0.16;
+  --well-shade: 0.22;
+  --well-lip: 0.95;
+  --primary-bg: linear-gradient(180deg, #3b3b41, #1f1f23); /* a solid ink pill */
+  --primary-text: #f6f4ef;
+  --primary-text-shadow: none;
+  --btn-text-shadow: none;
+
+  --btn-bg: #fbfaf7;
+  --btn-bg-hover: #f2efe9;
+  --btn-bg-press: #e9e5dd;
+  --btn-border: #dcd7cc;
+  --btn-border-hover: #cfc9bc;
+  --btn-text: #2b2b30;
+  --btn-primary-bg: #2b2b30; /* dark ink */
+  --btn-primary-hover: #3a3a40;
+  --btn-primary-press: #1f1f23;
+  --btn-primary-text: #f6f4ef;
+
+
+  color-scheme: light;
+}
+
+/* ---- The other looks from the theme canvas (one block each; generated from the
+   canvas palettes: surfaces, paper and matte-button tokens follow each look).
+   Anything a block leaves out falls back to Sage on :root. ---- */
+
+/* Graphite — dark. */
+:root[data-theme='graphite'] {
+  --bg: #17181a;
+  --bg-elev: #1d1e21;
+  --bg-elev-2: #222326;
+  --bg-input: #222326;
+  --border: #2c2d31;
+  --border-strong: #3f4043;
+  --text: #ecebe8;
+  --text-muted: #8e8c88;
+  --on-accent: #17181a;
+  --accent-blue: #d4d1ca;
+  --accent-amber: #d6b26a;
+  --overlay-bg: rgba(29, 30, 33, 0.94);
+  --bg-image: linear-gradient(180deg, #1c1d20, #141517);
+  --paper-bg: #1d1e21;
+  --paper-head: #222326;
+  --paper-text: #d9d7d2;
+  --paper-muted: #85837e;
+  --paper-border: #2c2d31;
+  --paper-code-bg: #222326;
+  --paper-link: #d4d1ca;
+  --paper-quote: #4b4b4c;
+  --paper-selection: rgba(236, 232, 224, 0.2);
+  --shadow-underline: rgba(236, 232, 224, 0.55);
+  --liquid-white: 40 24% 90%;
+  --liquid-light: 40 24% 90%;
+  --liquid-smoke: rgba(236, 232, 224, 0.04);
+  --btn-bg: #292a2d;
+  --btn-bg-hover: #323336;
+  --btn-bg-press: #1a1b1e;
+  --btn-border: #36363a;
+  --btn-border-hover: #454649;
+  --btn-text: #e3e3e0;
+  --btn-primary-bg: #d3d0c9;
+  --btn-primary-hover: #dbd8d3;
+  --btn-primary-press: #bdbab4;
+  --btn-primary-text: #17181a;
+}
+
+/* Midnight & Champagne — dark. */
+:root[data-theme='midnight'] {
+  --bg: #08090c;
+  --bg-elev: #0e0f13;
+  --bg-elev-2: #121318;
+  --bg-input: #121318;
+  --border: #1e2026;
+  --border-strong: #333438;
+  --text: #ece6da;
+  --text-muted: #7d7a74;
+  --on-accent: #08090c;
+  --accent-blue: #cdbfa2;
+  --accent-amber: #d9b46c;
+  --overlay-bg: rgba(14, 15, 19, 0.94);
+  --bg-image: radial-gradient(1200px 600px at 50% -25%, rgba(214, 190, 140, 0.08), transparent 60%);
+  --paper-bg: #0e0f13;
+  --paper-head: #121318;
+  --paper-text: #d8d3c8;
+  --paper-muted: #77746e;
+  --paper-border: #1e2026;
+  --paper-code-bg: #121318;
+  --paper-link: #cdbfa2;
+  --paper-quote: #3d3d3f;
+  --paper-selection: rgba(232, 214, 178, 0.2);
+  --shadow-underline: rgba(232, 214, 178, 0.55);
+  --liquid-white: 40 54% 80%;
+  --liquid-light: 40 54% 80%;
+  --liquid-smoke: rgba(232, 214, 178, 0.04);
+  --btn-bg: #1a1a1f;
+  --btn-bg-hover: #232428;
+  --btn-bg-press: #0b0c10;
+  --btn-border: #282a2f;
+  --btn-border-hover: #393a3d;
+  --btn-text: #e3ddd2;
+  --btn-primary-bg: #cebe9f;
+  --btn-primary-hover: #d7cab0;
+  --btn-primary-press: #b6a88d;
+  --btn-primary-text: #08090c;
+}
+
+/* Navy & Brass — dark (navy deepened at the user's request). */
+:root[data-theme='navy'] {
+  --bg: #080e1a;
+  --bg-elev: #0c1423;
+  --bg-elev-2: #101929;
+  --bg-input: #101929;
+  --border: #1b2740;
+  --border-strong: #303a4f;
+  --text: #e9e4d8;
+  --text-muted: #848c9c;
+  --on-accent: #080e1a;
+  --accent-blue: #c2ad87;
+  --accent-amber: #d6b880;
+  --overlay-bg: rgba(12, 20, 35, 0.94);
+  --bg-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 8px), linear-gradient(180deg, #0b1322, #070c17);
+  --paper-bg: #0c1423;
+  --paper-head: #101929;
+  --paper-text: #dcd8cf;
+  --paper-muted: #7f8797;
+  --paper-border: #1b2740;
+  --paper-code-bg: #101929;
+  --paper-link: #c2ad87;
+  --paper-quote: #3e495e;
+  --paper-selection: rgba(214, 184, 128, 0.2);
+  --shadow-underline: rgba(214, 184, 128, 0.55);
+  --liquid-white: 39 51% 67%;
+  --liquid-light: 39 51% 67%;
+  --liquid-smoke: rgba(214, 184, 128, 0.04);
+  --btn-bg: #18202f;
+  --btn-bg-hover: #212937;
+  --btn-bg-press: #0a111e;
+  --btn-border: #253048;
+  --btn-border-hover: #364054;
+  --btn-text: #e0dbd0;
+  --btn-primary-bg: #bea475;
+  --btn-primary-hover: #cab58e;
+  --btn-primary-press: #a8926a;
+  --btn-primary-text: #080e1a;
+}
+
+/* Fog — light, cool. */
+:root[data-theme='fog'] {
+  --alert-note: #3b679f;
+  --alert-tip: #3f8a5c;
+  --alert-important: #7556a3;
+  --alert-warning: #9c6a1d;
+  --alert-caution: #b5483b;
+  --code-token-keyword: #8a3f9e;
+  --code-token-constant: #a85a1c;
+  --code-token-function: #2f5f9e;
+  --code-token-parameter: #7a6320;
+  --code-token-string: #3d7a2f;
+  --code-token-string-expression: #3d7a2f;
+  --code-token-link: #2f5f9e;
+  --bg: #e8ebef;
+  --bg-elev: #f7f8fa;
+  --bg-elev-2: #eef1f4;
+  --bg-input: #f7f8fa;
+  --border: #dde2e8;
+  --border-strong: #cacfd5;
+  --text: #22262c;
+  --text-muted: #6f7781;
+  --on-accent: #f7f8fa;
+  --accent-blue: #4f6684;
+  --accent-green: #3f8a5c;
+  --accent-amber: #c48a3f;
+  --danger: #b5483b;
+  --danger-bg: #f6e3df;
+  --shadow-rgb: 40, 50, 64;
+  --overlay-bg: rgba(247, 248, 250, 0.95);
+  --backdrop: rgba(40, 50, 64, 0.28);
+  --shadow: 0 12px 32px rgba(40, 50, 64, 0.18);
+  --bg-image: linear-gradient(180deg, #eef0f3, #e2e6ea);
+  --paper-bg: #f7f8fa;
+  --paper-head: #eef1f4;
+  --paper-text: #2a2f36;
+  --paper-muted: #7a828c;
+  --paper-border: #dde2e8;
+  --paper-code-bg: #edf0f3;
+  --paper-link: #45607f;
+  --paper-quote: #cfd6de;
+  --paper-selection: rgba(40, 50, 64, 0.16);
+  --shadow-underline: rgba(34, 38, 44, 0.4);
+  --liquid-white: 0 0% 100%;
+  --liquid-light: 0 0% 100%;
+  --liquid-smoke: rgba(255, 255, 255, 0.5);
+  --liquid-milk: rgba(255, 255, 255, 0.5);
+  --liquid-deep: 214 18% 86%;
+  --liquid-deep-a: 0.95;
+  --glass-body-a: 0.5;
+  --liquid-drop: 0.14;
+  --well-shade: 0.2;
+  --well-lip: 0.95;
+  --primary-bg: linear-gradient(180deg, #353b45, #22272e);
+  --primary-text: #f3f5f7;
+  --primary-text-shadow: none;
+  --btn-text-shadow: none;
+  --btn-bg: #fafbfc;
+  --btn-bg-hover: #eef1f4;
+  --btn-bg-press: #e3e7ec;
+  --btn-border: #d5dbe2;
+  --btn-border-hover: #c6cdd6;
+  --btn-text: #262a31;
+  --btn-primary-bg: #2b3038;
+  --btn-primary-hover: #3a404a;
+  --btn-primary-press: #1f2329;
+  --btn-primary-text: #f3f5f7;
+  color-scheme: light;
+}

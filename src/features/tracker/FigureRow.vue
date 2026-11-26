@@ -20,7 +20,7 @@ defineProps<{ figures: Figure[] }>()
 
 <style scoped>
 .value.pos {
-  color: var(--accent);
+  color: var(--pos);
 }
 .value.neg {
   color: var(--negative);

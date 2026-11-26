@@ -62,7 +62,7 @@ const chart = computed(() => {
   const from = dayNum(l.date) - CHART_PAST_DAYS
   const past = records.value.filter((r) => dayNum(r.date) >= from).map((r) => ({ x: dayNum(r.date), y: r.left }))
   const series: ChartSeries[] = [
-    { label: 'Records', color: 'var(--accent)', points: past, dots: true, width: 2.5 },
+    { label: 'Records', color: 'var(--pos)', points: past, dots: true, width: 2.5 },
     {
       label: 'Projection',
       color: 'var(--projection)',

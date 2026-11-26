@@ -245,7 +245,7 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   z-index: 90;
-  background: rgba(3, 7, 22, 0.7);
+  background: var(--backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -267,7 +267,7 @@ onBeforeUnmount(() => {
     max-height: calc(100dvh - 3rem);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow);
   }
 }
 
@@ -371,7 +371,7 @@ onBeforeUnmount(() => {
 }
 
 .amount.neg {
-  color: #ff8a73;
+  color: var(--negative);
 }
 
 .sign {
@@ -381,13 +381,13 @@ onBeforeUnmount(() => {
   border: 1.5px solid currentColor;
   background: transparent;
   font-size: 1.1rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1;
   padding: 0;
 }
 
 .sign.pos {
-  color: var(--accent);
+  color: var(--pos);
 }
 
 .sign.neg {
@@ -411,7 +411,7 @@ onBeforeUnmount(() => {
 }
 
 .ok {
-  color: var(--accent);
+  color: var(--pos);
   margin: 0.5rem 0 0;
 }
 
@@ -441,9 +441,9 @@ onBeforeUnmount(() => {
 
 .totals .left b {
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 600;
   font-size: 1.2rem;
-  color: var(--accent);
+  color: var(--pos);
 }
 
 .totals .left b.neg {

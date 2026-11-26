@@ -199,7 +199,7 @@ const describe = computed(() => (a: Averaged) => {
 
 .result {
   margin: 0.5rem 0 0;
-  color: var(--accent);
+  color: var(--pos);
 }
 
 .result.none {

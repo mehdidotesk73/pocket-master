@@ -1,39 +1,31 @@
-/* Theme tokens (spec §6). Dark navy is the only theme for now; the template's
-   generic names (--bg-elev, --text, …) are kept as aliases so the shell and
-   Help modal pick up the palette without changes. */
+/* App layer over the theme looks in themes.css (shared with the Markdown Lab
+   editor). Components use these tokens, never colour literals, so every look
+   (Navy & Brass, Graphite, Midnight & Champagne, Porcelain, Fog) applies.
+
+   Each accent has one job:
+     --accent      interaction: focus rings, links, the selected tab
+     --pos         money you have / coming in, the records line on charts
+     --negative    money you owe / going out, errors
+     --projection  the projection line, draft bars, warnings
+     --assets      the assets line on the Past chart */
 
 :root {
-  --bg: #0b1433;
-  --panel: #121d45;
-  --panel-2: #18245a;
-  --line: #25336b;
-  --ink: #eef1fb;
-  --mute: #9aa6cf;
-  --accent: #4fc1c6;
-  --projection: #f7e463;
-  --negative: #e8452c;
-  --assets: #7d8cff;
+  --panel: var(--bg-elev);
+  --panel-2: var(--bg-elev-2);
+  --line: var(--border);
+  --ink: var(--text);
+  --mute: var(--text-muted);
+  --accent: var(--accent-blue);
+  --pos: var(--accent-green);
+  --negative: var(--danger);
+  --projection: var(--accent-amber);
+  --assets: var(--alert-note);
 
-  /* template aliases */
-  --bg-elev: var(--panel);
-  --bg-elev-2: var(--panel-2);
-  --text: var(--ink);
-  --text-muted: var(--mute);
-  --border: var(--line);
-  --accent-blue: var(--accent);
-  --danger: var(--negative);
+  --tap: 44px; /* phone-sized controls */
+  --font-text: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
 
-  --radius: 0.75rem;
-  --tap: 44px;
-  --font-display: 'Red Hat Display', system-ui, -apple-system, sans-serif;
-  --font-text: 'Red Hat Text', system-ui, -apple-system, sans-serif;
-
-  color-scheme: dark;
   font-family: var(--font-text);
-  font-size: 16px;
-  line-height: 1.45;
-  color: var(--ink);
-  background: var(--bg);
   -webkit-text-size-adjust: 100%;
 }
 
@@ -45,12 +37,15 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--bg);
   color: var(--ink);
   overflow-x: hidden;
 }
 
+/* The look's page backdrop (a glow, Porcelain's dot grid, Navy's fine hatching). */
 body {
+  min-height: 100svh;
+  background: var(--bg-image), var(--bg);
+  background-attachment: fixed;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -58,8 +53,8 @@ h1,
 h2,
 h3 {
   font-family: var(--font-display);
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+  letter-spacing: -0.005em;
 }
 
 button,
@@ -113,7 +108,7 @@ a:hover {
 }
 
 .pos {
-  color: var(--accent);
+  color: var(--pos);
 }
 
 .muted {
@@ -124,43 +119,72 @@ a:hover {
   font-size: 0.85rem;
 }
 
+/* Buttons: matte, like the editor's UiButton (flat fill, hairline border, no
+   glow), from the look's --btn-* tokens; phone-height so they're easy to tap. */
 .btn {
   min-height: var(--tap);
   padding: 0 1rem;
-  border-radius: 0.6rem;
-  border: 1px solid var(--line);
-  background: var(--panel-2);
-  color: var(--ink);
-  font-weight: 600;
+  border-radius: var(--btn-radius);
+  border: 1px solid var(--btn-border);
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  font-weight: 550;
+  letter-spacing: 0.005em;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
   white-space: nowrap;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
 }
 
-.btn:hover:not(:disabled) {
-  border-color: var(--accent);
+.btn:not(:disabled):hover {
+  background: var(--btn-bg-hover);
+  border-color: var(--btn-border-hover);
+}
+
+.btn:not(:disabled):active {
+  background: var(--btn-bg-press);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
 }
 
 .btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #06232a;
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+}
+
+.btn.primary:not(:disabled):hover {
+  background: var(--btn-primary-hover);
+  border-color: var(--btn-primary-hover);
+}
+
+.btn.primary:not(:disabled):active {
+  background: var(--btn-primary-press);
 }
 
 .btn.danger {
-  border-color: var(--negative);
   color: var(--negative);
-  background: transparent;
 }
 
 .btn.ghost {
   background: transparent;
+  border-color: transparent;
+}
+
+.btn.ghost:not(:disabled):hover {
+  background: var(--btn-bg-hover);
+  border-color: var(--btn-border);
 }
 
 .btn.block {
@@ -175,15 +199,20 @@ a:hover {
   padding: 0 0.7rem;
   border-radius: 0.5rem;
   border: 1px solid var(--line);
-  background: var(--bg);
+  background: var(--bg-input);
   color: var(--ink);
 }
 
 .input:focus,
 .select:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
-  border-color: transparent;
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+::placeholder {
+  color: var(--mute);
+  opacity: 0.8;
 }
 
 .input.num {
@@ -225,7 +254,7 @@ input[type='date'].input {
 
 .figure .value {
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 600;
   font-size: 1.45rem;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
@@ -253,7 +282,7 @@ input[type='date'].input {
   background: var(--panel);
   border: 1px solid var(--projection);
   border-radius: var(--radius) var(--radius) 0 0;
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow);
 }
 
 .draft-bar .msg {
