@@ -14,6 +14,8 @@ Track feature development, improvements, and known issues here. Move completed w
   amount over a date range, manual override) feeds `project`; `AveragedEditor`, `SignedMoneyInput`.
 - **v0.4.0 — editor looks** — `styles/themes.css`, `lib/themes.ts`, `lib/useTheme.ts` copied from
   markdown-editor; app tokens mapped in `styles/vars.css`; look switcher in the `App.vue` header.
+- **v0.5.0 — clipboard export/import** — `buildTransferJSON` / `parseImportText` in `useTracker.ts`,
+  `lib/clipboard.ts`, `BackupModal` Export (zip / clipboard) and Import (file / paste) sections.
 
 ## Next (Current Sprint)
 

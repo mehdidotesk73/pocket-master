@@ -69,6 +69,10 @@ const exportNudge = computed(() => {
         <button class="btn primary" @click="openNew">+ New record</button>
       </div>
       <BalanceSheet :record="latest" />
+      <div class="transfer">
+        <button class="btn" @click="emit('backup')">Export</button>
+        <button class="btn" @click="emit('backup')">Import</button>
+      </div>
     </template>
 
     <section v-else class="card empty">
@@ -82,7 +86,10 @@ const exportNudge = computed(() => {
         Save a new record whenever you check your accounts. The latest one is your live position, the
         earlier ones are your past, and Future looks ahead from the latest one.
       </p>
-      <button class="btn primary" @click="openNew">+ New record</button>
+      <div class="empty-actions">
+        <button class="btn primary" @click="openNew">+ New record</button>
+        <button class="btn" @click="emit('backup')">Import</button>
+      </div>
     </section>
 
     <RecordModal v-if="showModal" @close="showModal = false" />
@@ -90,6 +97,18 @@ const exportNudge = computed(() => {
 </template>
 
 <style scoped>
+.transfer,
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.transfer {
+  margin-top: 1rem;
+  justify-content: flex-end;
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;

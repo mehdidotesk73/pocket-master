@@ -122,10 +122,18 @@ OPFS root
   error banner saying nothing will be kept.
 - **Persistence:** `navigator.storage.persist()` on start; the footer shows installed / persistent /
   usage, with a warning when not installed or not persistent.
-- **Export/import:** zip (fflate) of `index.json` + `<id>.<ext>` (so `records/<date>.json`,
-  `projection.json`, `template.json`); zips in the old `files/<flat id>.<ext>` layout still import. iOS → share sheet ("Save to
-  Files"); desktop Chromium → save dialog; else download. Import accepts that zip or a prototype JSON
-  `{ settings, records[] }`, then asks merge vs replace. Today nudges for a backup after 14 days.
+- **Export/import** (`BackupModal`, opened from Present, the footer and the backup nudge):
+  - *Zip file*: fflate zip of `index.json` + `<id>.<ext>` (`records/<date>.json`, `projection.json`,
+    `template.json`); zips in the old `files/<flat id>.<ext>` layout still import. iOS → share sheet
+    ("Save to Files"); desktop Chromium → save dialog; else download.
+  - *Clipboard*: `buildTransferJSON` → one JSON document `{ app: 'pocket-master', format: 1,
+    exportedAt, projection, template, records[] }` (records newest first). Refused above
+    `CLIPBOARD_LIMIT_BYTES` (500 KB) so a paste can't stall a phone; a few years of weekly records is
+    well under. `lib/clipboard.ts` falls back to `execCommand('copy')`.
+  - *Import*: a zip, a JSON file or a paste all become an `ImportBundle` (`readImport` /
+    `parseImportText`, which also accepts the prototype's `{ settings, records }`), validated and
+    normalized before the Merge / Replace choice. Paste uses `navigator.clipboard.readText()`
+    (iOS shows its Paste bubble) and falls back to a textarea when refused.
 - `localStorage` holds only UI prefs: selected tab, last export time, install-banner dismissal.
 
 ## §3b — Screens

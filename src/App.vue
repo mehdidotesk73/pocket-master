@@ -263,7 +263,7 @@ function openHelp() {
           · {{ usageLabel }} used
         </span>
 
-        <button class="reload-btn" @click="showBackup = true">Backup</button>
+        <button class="reload-btn" @click="showBackup = true">Export / Import</button>
 
         <button
           class="reload-btn logs-btn"

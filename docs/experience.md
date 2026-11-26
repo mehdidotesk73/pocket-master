@@ -341,6 +341,12 @@ typed number positive.
 
 ## Version History
 
+### v0.5.0 — 2026-11-26
+- **Added:** export to clipboard as one JSON document (500 KB cap) and import by pasting (clipboard
+  read, or a paste box when the browser refuses); zip export/import unchanged
+- **Added:** Export / Import buttons on the Present tab (and Import on the empty state); the footer
+  button is now "Export / Import"
+
 ### v0.4.0 — 2026-11-26
 - **Changed:** styling and themes now come from the Markdown Lab editor: five looks (Navy & Brass
   default, Graphite, Midnight & Champagne, Porcelain, Fog), Dark/Light switch + look menu in the

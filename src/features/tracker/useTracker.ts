@@ -257,47 +257,100 @@ async function saveTemplate(rows: TemplateLine[]) {
 
 // ---------------------------------------------------------------- import
 
-export type ImportBundle = { kind: 'zip' | 'prototype'; files: { id: string; ext: string; text: string }[]; recordCount: number }
+export type ImportBundle = {
+  kind: 'zip' | 'json' | 'prototype'
+  files: { id: string; ext: string; text: string }[]
+  recordCount: number
+}
 
-/** Read a .zip backup or a prototype .json export; validates without writing. */
+/** Identifies the clipboard / JSON export format. Bump `format` if its shape changes. */
+export const TRANSFER_APP = 'pocket-master'
+export const TRANSFER_FORMAT = 1
+/** Clipboard copies above this size are refused (use the zip): big pastes stall phones. */
+export const CLIPBOARD_LIMIT_BYTES = 500 * 1024
+
+/**
+ * Everything as one readable JSON document: the same three kinds of data as the
+ * files, `records` newest first. This is what Copy to clipboard puts on the clipboard.
+ */
+export function buildTransferJSON(p: ProjectionFile, t: TemplateFile, recs: BalanceRecord[]): string {
+  const doc = {
+    app: TRANSFER_APP,
+    format: TRANSFER_FORMAT,
+    exportedAt: new Date().toISOString(),
+    projection: p,
+    template: t,
+    records: [...recs].sort((a, b) => b.date.localeCompare(a.date)),
+  }
+  return JSON.stringify(doc, null, 1)
+}
+
+/**
+ * Parse pasted or uploaded JSON: this app's export (above) or the prototype's
+ * `{ settings, records }`. Validates and normalizes without writing anything.
+ */
+export function parseImportText(text: string): ImportBundle {
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(text.trim())
+  } catch {
+    throw new Error('That isn’t valid JSON. Copy the whole export (it starts with { and ends with }) and try again.')
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('That JSON isn’t an export from this app.')
+
+  const files: ImportBundle['files'] = []
+  const add = (id: string, value: unknown) => files.push({ id, ext: 'json', text: JSON.stringify(value) })
+  let kind: ImportBundle['kind']
+
+  if (parsed.app === TRANSFER_APP) {
+    if (num(parsed.format, 0) > TRANSFER_FORMAT) {
+      throw new Error('That export was made by a newer version of the app. Tap “Reload latest” first.')
+    }
+    kind = 'json'
+    if (parsed.projection) add(PROJECTION_ID, normalizeProjection(parsed.projection))
+    if (parsed.template) add(TEMPLATE_ID, normalizeTemplate(parsed.template))
+  } else if (parsed.settings || Array.isArray(parsed.records)) {
+    kind = 'prototype'
+    if (parsed.settings) {
+      add(PROJECTION_ID, normalizeProjection(parsed.settings))
+      add(TEMPLATE_ID, normalizeTemplate(parsed.settings))
+    }
+  } else {
+    throw new Error('That JSON isn’t an export from this app (no projection, template or records in it).')
+  }
+  let skipped = 0
+  for (const raw of Array.isArray(parsed.records) ? parsed.records : []) {
+    const rec = normalizeRecord(raw)
+    if (rec) add(recordId(rec.date), rec)
+    else skipped++
+  }
+  if (skipped) logDebug(`Import skipped ${skipped} record(s) without a valid date`, 'warn')
+  if (!files.length) throw new Error('That export is empty: no records, projection or template.')
+  return { kind, files, recordCount: files.filter((f) => f.id.startsWith('records/')).length }
+}
+
+/** Read a .zip backup or a .json export (this app's or the prototype's); validates without writing. */
 async function readImport(file: File): Promise<ImportBundle> {
   const bytes = new Uint8Array(await file.arrayBuffer())
   const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b
-  let files: ImportBundle['files']
-  let kind: ImportBundle['kind']
-  if (isZip) {
-    files = Store.readZip(bytes).files
-    kind = 'zip'
-    // Older backups carry the combined settings file: split it like loadFrom does.
-    const legacy = files.find((f) => f.id === LEGACY_SETTINGS_ID)
-    if (legacy && !files.some((f) => f.id === PROJECTION_ID)) {
-      const parsed = JSON.parse(legacy.text)
-      files = files.filter((f) => f !== legacy)
-      files.push({ id: PROJECTION_ID, ext: 'json', text: JSON.stringify(normalizeProjection(parsed)) })
-      files.push({ id: TEMPLATE_ID, ext: 'json', text: JSON.stringify(normalizeTemplate(parsed)) })
-    }
-  } else {
-    let parsed: { settings?: unknown; records?: unknown[] }
-    try {
-      parsed = JSON.parse(new TextDecoder().decode(bytes))
-    } catch {
-      throw new Error('That file isn’t a backup zip or a JSON export.')
-    }
-    if (!parsed || (!parsed.settings && !Array.isArray(parsed.records))) {
-      throw new Error('That JSON doesn’t have “settings” or “records”, so it isn’t an export from the prototype.')
-    }
-    files = []
-    kind = 'prototype'
-    if (parsed.settings) {
-      files.push({ id: PROJECTION_ID, ext: 'json', text: JSON.stringify(normalizeProjection(parsed.settings)) })
-      files.push({ id: TEMPLATE_ID, ext: 'json', text: JSON.stringify(normalizeTemplate(parsed.settings)) })
-    }
-    for (const raw of parsed.records ?? []) {
-      const rec = normalizeRecord(raw)
-      if (rec) files.push({ id: recordId(rec.date), ext: 'json', text: JSON.stringify(rec) })
-    }
+  if (!isZip) return parseImportText(new TextDecoder().decode(bytes))
+
+  let files = Store.readZip(bytes).files
+  // Older backups carry the combined settings file: split it like loadFrom does.
+  const legacy = files.find((f) => f.id === LEGACY_SETTINGS_ID)
+  if (legacy && !files.some((f) => f.id === PROJECTION_ID)) {
+    const parsed = JSON.parse(legacy.text)
+    files = files.filter((f) => f !== legacy)
+    files.push({ id: PROJECTION_ID, ext: 'json', text: JSON.stringify(normalizeProjection(parsed)) })
+    files.push({ id: TEMPLATE_ID, ext: 'json', text: JSON.stringify(normalizeTemplate(parsed)) })
   }
-  return { kind, files, recordCount: files.filter((f) => f.id.startsWith('records/')).length }
+  return { kind: 'zip', files, recordCount: files.filter((f) => f.id.startsWith('records/')).length }
+}
+
+/** The current data as clipboard JSON, with its size in bytes. */
+function exportText(): { text: string; bytes: number } {
+  const text = buildTransferJSON(projection.value, template.value, records.value)
+  return { text, bytes: new TextEncoder().encode(text).byteLength }
 }
 
 async function applyImport(bundle: ImportBundle, mode: 'merge' | 'replace') {
@@ -339,5 +392,6 @@ export function useTracker() {
     setHorizon,
     readImport,
     applyImport,
+    exportText,
   }
 }
