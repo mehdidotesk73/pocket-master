@@ -341,6 +341,13 @@ typed number positive.
 
 ## Version History
 
+### v0.6.3 — 2026-11-26
+- **Added:** drag to reorder rows in the New record sheet (grip on the left; swaps when the gap left
+  behind is larger than the covered neighbour's visible part; arrow keys on the grip too). New records
+  follow the latest record's row order
+- **Changed:** negative money shows in parentheses everywhere — ($730.48) — including amount fields
+  when not being edited; `parseMoney` accepts the parenthesis form
+
 ### v0.6.2 — 2026-11-26
 - **Changed:** the +/− toggle in the New record sheet is quieter (muted sign, no ring)
 - **Changed:** default record rows are Checking, Discover, Capital One, Amex, Macy's, Saving; a

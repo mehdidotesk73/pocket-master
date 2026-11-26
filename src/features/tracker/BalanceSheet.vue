@@ -28,7 +28,7 @@ const zeros = computed(() => props.record.lines.filter((l) => l.amount === 0))
     <h3 class="group">Liabilities</h3>
     <div v-for="l in liabilities" :key="l.id" class="row">
       <span class="name">{{ l.name }}</span>
-      <span class="money">{{ fmtMoney(-l.amount) }}</span>
+      <span class="money">{{ fmtMoney(l.amount) }}</span>
     </div>
     <div v-if="!liabilities.length" class="row muted small">None</div>
     <div class="row total">

@@ -39,7 +39,13 @@ function onMag(v: number) {
     >
       {{ negative ? '−' : '+' }}
     </button>
-    <MoneyInput :model-value="mag()" :class="negative ? 'neg' : 'pos'" :aria-label="ariaLabel" @update:model-value="onMag" />
+    <MoneyInput
+      :model-value="mag()"
+      :negative="negative"
+      :class="negative ? 'neg' : 'pos'"
+      :aria-label="ariaLabel"
+      @update:model-value="onMag"
+    />
   </div>
 </template>
 

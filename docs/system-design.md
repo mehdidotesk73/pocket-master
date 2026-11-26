@@ -147,7 +147,10 @@ sections (start collapsed); Records holds the Import / Export tag buttons. Futur
 duplicate / delete), chart, and a compact item list; "+ Add" menu → `ItemModal` per kind (built on
 `SheetModal`); summaries in `projectionText.ts`. Edits save immediately. Backup (export/import + storage health) is `BackupModal`, opened from the footer
 and from Present's backup nudge. The New record sheet (`RecordModal`) is a compact list: name · ±
-toggle · amount · ✕. The sign is a button because the iPhone decimal keypad has no minus key; typing a
+toggle · amount · ✕, with a drag grip on the left (pointer events; a row swaps with its neighbour
+once the gap it leaves exceeds the neighbour's still-visible height, i.e. past its midpoint). New
+records take the latest record's row order. Negative money displays as ($1.00) everywhere
+(`fmtMoney`, `fmtPlain`; fields show it only when not focused). The sign is a button because the iPhone decimal keypad has no minus key; typing a
 leading `-` on a keyboard also flips it.
 
 ## §4 — Calculations (`src/lib/finance.ts`)

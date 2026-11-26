@@ -32,13 +32,19 @@ const usd0 = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0,
 })
 
-/** $1,234.56 / −$1,234.56 (with a real minus sign). */
+/** $1,234.56, and negatives in parentheses: ($1,234.56). `sign` adds + to positives. */
 export function fmtMoney(dollars: number, opts: { whole?: boolean; sign?: boolean } = {}): string {
   const v = Object.is(dollars, -0) ? 0 : dollars
   const s = (opts.whole ? usd0 : usd).format(Math.abs(v))
-  if (v < 0 && Math.round(Math.abs(v) * 100) !== 0) return `−${s}`
+  if (v < 0 && Math.round(Math.abs(v) * 100) !== 0) return `(${s})`
   if (opts.sign && v > 0) return `+${s}`
   return s
+}
+
+/** A bare amount for a field that isn't being edited: 730.48, or (730.48) when negative. */
+export function fmtPlain(dollars: number): string {
+  const s = Math.abs(dollars).toFixed(2)
+  return dollars < 0 && Math.round(Math.abs(dollars) * 100) !== 0 ? `(${s})` : s
 }
 
 /** Cents → formatted dollars. */
@@ -47,13 +53,16 @@ export function fmtCents(cents: number, opts: { whole?: boolean; sign?: boolean 
 }
 
 /**
- * Parse what someone typed into a money field. Accepts "1,234.50", "$12", " 7 ".
+ * Parse what someone typed into a money field. Accepts "1,234.50", "$12", " 7 ",
+ * "-3" and the accounting form "(730.48)" for negatives.
  * Returns null for empty or unparseable input.
  */
 export function parseMoney(input: string | number | null | undefined): number | null {
   if (input == null) return null
   if (typeof input === 'number') return Number.isFinite(input) ? roundMoney(input) : null
-  const cleaned = input.replace(/[$,\s]/g, '').replace(/[−–]/g, '-')
+  let cleaned = input.replace(/[$,\s]/g, '').replace(/[−–]/g, '-')
+  const paren = /^\((.*)\)$/.exec(cleaned)
+  if (paren) cleaned = `-${paren[1].replace(/^-/, '')}`
   if (cleaned === '' || cleaned === '-' || cleaned === '.') return null
   const n = Number(cleaned)
   return Number.isFinite(n) ? roundMoney(n) : null

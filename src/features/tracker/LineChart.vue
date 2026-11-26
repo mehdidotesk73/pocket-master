@@ -109,7 +109,7 @@ const geom = computed(() => {
 const fmtAxis = (v: number) => {
   const a = Math.abs(v)
   const s = a >= 10_000 ? `$${Math.round(a / 1000)}k` : a >= 1000 ? `$${(a / 1000).toFixed(1).replace(/\.0$/, '')}k` : `$${Math.round(a)}`
-  return v < 0 ? `−${s}` : s
+  return v < 0 ? `(${s})` : s
 }
 
 // ---- tap / hover readout

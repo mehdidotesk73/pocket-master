@@ -20,6 +20,7 @@ Track feature development, improvements, and known issues here. Move completed w
   `RecordRange` and `extrapolate`; `FutureView`, `ItemModal`, `ProjectionModal`, `SheetModal`.
 - **v0.6.1 — side menu** — `components/SideMenu.vue` (☰ → Records → Import / Export).
 - **v0.6.2 — quieter ± and new default rows** — `defaultTemplate`, `isPreviousDefault` in `loadFrom`.
+- **v0.6.3 — drag reorder + (negatives)** — `RecordModal` grip/pointer drag, `fmtMoney`/`fmtPlain`/`parseMoney`.
 
 ## Next (Current Sprint)
 
