@@ -4,7 +4,7 @@
 // delete. Items are edited in the Future tab itself.
 import { computed, ref } from 'vue'
 import { HORIZON_PRESETS, MAX_HORIZON_DAYS, type ProjectionFile, defaultProjection, startValueCents } from '../../lib/finance'
-import { fmtCents, fmtDate } from '../../lib/money'
+import { fmtCents, fmtDateTime } from '../../lib/money'
 import SheetModal from './SheetModal.vue'
 import { useTracker } from './useTracker'
 
@@ -114,7 +114,7 @@ async function remove() {
     </label>
 
     <div class="field">
-      <span>Starts from the latest record{{ latest ? ` (${fmtDate(latest.date)})` : '' }}</span>
+      <span>Starts from the latest record{{ latest ? ` (${fmtDateTime(latest.at)})` : '' }}</span>
       <div class="seg" role="radiogroup" aria-label="Starting lines">
         <button role="radio" :aria-checked="!pickLines" :class="{ on: !pickLines }" @click="pickLines = false">
           All lines (left so far)

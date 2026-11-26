@@ -21,6 +21,8 @@ Track feature development, improvements, and known issues here. Move completed w
 - **v0.6.1 — side menu** — `components/SideMenu.vue` (☰ → Records → Import / Export).
 - **v0.6.2 — quieter ± and new default rows** — `defaultTemplate`, `isPreviousDefault` in `loadFrom`.
 - **v0.6.3 — drag reorder + (negatives)** — `RecordModal` grip/pointer drag, `fmtMoney`/`fmtPlain`/`parseMoney`.
+- **v0.7.0 — timestamped records** — `BalanceRecord.at`, `recordId(at)`, `normalizeRecord`/`loadFrom`
+  migration, `RecordModal` `editing` prop, Past rows open records.
 
 ## Next (Current Sprint)
 

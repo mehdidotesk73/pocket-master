@@ -139,3 +139,50 @@ export function monthLabel(mi: number): string {
   const { y, m } = monthFromIndex(mi)
   return m === 1 ? `Jan ’${String(y).slice(2)}` : MONTHS[m - 1]
 }
+
+// ---------------------------------------------------------------- date + time (records)
+//
+// A record's moment is a local date-time 'YYYY-MM-DDTHH:MM:SS' (no zone: it's
+// "when on my calendar", like the dates above). Its date part drives every
+// day-based calculation; the time only orders records and places them on charts.
+
+export type LocalDateTime = string
+
+export function isLocalDateTime(v: unknown): v is LocalDateTime {
+  return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(v) && isISODate(v.slice(0, 10))
+}
+
+const p2 = (n: number) => String(n).padStart(2, '0')
+
+/** Now (or a given instant) as a local date-time. */
+export function nowLocal(now: Date = new Date()): LocalDateTime {
+  return `${today(now)}T${p2(now.getHours())}:${p2(now.getMinutes())}:${p2(now.getSeconds())}`
+}
+
+/** An ISO instant (e.g. a savedAt timestamp) as a local date-time, or null. */
+export function localFromISO(iso: string): LocalDateTime | null {
+  const t = Date.parse(iso)
+  return Number.isFinite(t) ? nowLocal(new Date(t)) : null
+}
+
+/** Day number with the time of day as a fraction (for charts). */
+export function atNum(at: LocalDateTime): number {
+  const [h, m, s] = at.slice(11).split(':').map(Number)
+  return dayNum(at.slice(0, 10)) + (h * 3600 + m * 60 + s) / 86_400
+}
+
+/** File-name-safe form: 2026-11-26T14-05-33. */
+export function atKey(at: LocalDateTime): string {
+  return at.replace(/:/g, '-')
+}
+
+/** "2:05 PM" */
+export function fmtTime(at: LocalDateTime): string {
+  const [h, m] = at.slice(11).split(':').map(Number)
+  return `${((h + 11) % 12) + 1}:${p2(m)} ${h < 12 ? 'AM' : 'PM'}`
+}
+
+/** "Nov 26, 2026, 2:05 PM" (year dropped when `short`). */
+export function fmtDateTime(at: LocalDateTime, opts: { short?: boolean } = {}): string {
+  return `${fmtDate(at.slice(0, 10), opts)}, ${fmtTime(at)}`
+}

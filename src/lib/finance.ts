@@ -8,7 +8,20 @@
 // All arithmetic is in integer cents. Amounts are signed everywhere:
 // positive = money you have / money coming in, negative = owed / going out.
 
-import { type ISODate, addDays, clampedDate, dayNum, daysInMonth, fromCents, monthIndex, parseDate, toCents, ymd } from './money'
+import {
+  type ISODate,
+  type LocalDateTime,
+  addDays,
+  clampedDate,
+  dayNum,
+  daysInMonth,
+  fromCents,
+  isISODate,
+  monthIndex,
+  parseDate,
+  toCents,
+  ymd,
+} from './money'
 
 // ---------------------------------------------------------------- types
 
@@ -20,7 +33,10 @@ export interface RecordLine {
 }
 
 export interface BalanceRecord {
-  schema: 2
+  schema: 3
+  /** When the balance sheet was taken (local). Records are identified and ordered by this. */
+  at: LocalDateTime
+  /** The date part of `at`; every day-based calculation uses it. */
   date: ISODate
   savedAt: string
   lines: RecordLine[]
@@ -159,14 +175,21 @@ export function sheet(lines: Pick<RecordLine, 'amount'>[]): Sheet {
   return { assets: fromCents(a), liabilities: fromCents(l), left: fromCents(a - l) }
 }
 
-/** Build a complete record (with stored totals) from its lines. */
-export function makeRecord(date: ISODate, lines: RecordLine[], savedAt = new Date().toISOString()): BalanceRecord {
-  return { schema: 2, date, savedAt, lines, ...sheet(lines) }
+/** Oldest first, by date and time. */
+export const byAt = (a: Pick<BalanceRecord, 'at'>, b: Pick<BalanceRecord, 'at'>) => a.at.localeCompare(b.at)
+
+/**
+ * Build a complete record (with stored totals) from its lines. `at` is a local
+ * date-time; a bare date is taken as noon that day.
+ */
+export function makeRecord(at: LocalDateTime | ISODate, lines: RecordLine[], savedAt = new Date().toISOString()): BalanceRecord {
+  const when = isISODate(at) ? `${at}T12:00:00` : at
+  return { schema: 3, at: when, date: when.slice(0, 10), savedAt, lines, ...sheet(lines) }
 }
 
-/** Insert or replace by date; result sorted by date ascending. One record per date. */
+/** Insert, or replace the record with the same `at`; result oldest first. Same-day records coexist. */
 export function upsertRecord(records: BalanceRecord[], rec: BalanceRecord): BalanceRecord[] {
-  return [...records.filter((r) => r.date !== rec.date), rec].sort((a, b) => a.date.localeCompare(b.date))
+  return [...records.filter((r) => r.at !== rec.at), rec].sort(byAt)
 }
 
 /** Every line name that appears in any record, in first-seen order (newest records first). */
@@ -263,7 +286,7 @@ export interface ItemResult {
 }
 
 export function recordsInRange(records: BalanceRecord[], range: RecordRange): BalanceRecord[] {
-  const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date))
+  const sorted = [...records].sort(byAt)
   if (range.mode === 'all' || !sorted.length) return sorted
   if (range.mode === 'last') {
     const cut = dayNum(sorted[sorted.length - 1].date) - Math.max(0, Math.round(range.days))
@@ -350,7 +373,7 @@ function split(items: ProjectionItem[]) {
 
 /** Results for the computed items (shown in the editor even before a projection exists). */
 export function itemResults(proj: ProjectionFile, records: BalanceRecord[], today: ISODate): Record<string, ItemResult> {
-  const latest = [...records].sort((a, b) => a.date.localeCompare(b.date)).pop() ?? null
+  const latest = [...records].sort(byAt).pop() ?? null
   const out: Record<string, ItemResult> = {}
   for (const it of proj.items) {
     if (it.kind === 'averaged') out[it.id] = evaluateAveraged(it, records, proj)
@@ -360,7 +383,7 @@ export function itemResults(proj: ProjectionFile, records: BalanceRecord[], toda
 }
 
 export function project(proj: ProjectionFile, records: BalanceRecord[], today: ISODate): Projection | null {
-  const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date))
+  const sorted = [...records].sort(byAt)
   const latest = sorted[sorted.length - 1]
   if (!latest) return null
   const horizonDays = Math.min(MAX_HORIZON_DAYS, Math.max(1, Math.round(proj.horizonDays)))

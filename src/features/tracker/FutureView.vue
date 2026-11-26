@@ -5,7 +5,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ChevronDown, Plus, Settings2 } from '@lucide/vue'
 import { HORIZON_PRESETS, type ItemKind, type ProjectionItem, describeSource, startValueCents } from '../../lib/finance'
-import { dayNum, fmtDate, fmtMoney } from '../../lib/money'
+import { atNum, dayNum, fmtDate, fmtDateTime, fmtMoney } from '../../lib/money'
 import ItemModal from './ItemModal.vue'
 import LineChart, { type ChartMarker, type ChartSeries } from './LineChart.vue'
 import ProjectionModal from './ProjectionModal.vue'
@@ -50,14 +50,14 @@ const chart = computed(() => {
   const from = dayNum(l.date) - CHART_PAST_DAYS
   const past = records.value
     .filter((r) => dayNum(r.date) >= from)
-    .map((r) => ({ x: dayNum(r.date), y: startValueCents(r, proj.start) / 100 }))
+    .map((r) => ({ x: atNum(r.at), y: startValueCents(r, proj.start) / 100 }))
   const series: ChartSeries[] = [
     { label: 'Records', color: 'var(--pos)', points: past, dots: true, width: 2.5 },
     {
       label: 'Projection',
       color: 'var(--projection)',
       dashed: true,
-      points: [f.start, ...f.series].map((pt) => ({ x: dayNum(pt.date), y: pt.value })),
+      points: [{ x: atNum(l.at), y: f.start.value }, ...f.series.map((pt) => ({ x: dayNum(pt.date), y: pt.value }))],
     },
   ]
   const markers: ChartMarker[] =
@@ -138,7 +138,7 @@ const rows = computed(() =>
         <h2 class="finding" :class="{ neg: future.min.value < 0 }">{{ heading }}</h2>
         <p class="muted small from">
           Starts at <b class="money">{{ fmtMoney(future.start.value) }}</b> from {{ startText }} on
-          {{ fmtDate(future.start.date) }} ·
+          {{ latest ? fmtDateTime(latest.at) : fmtDate(future.start.date) }} ·
           <button class="link" @click="showSetup = 'edit'">change</button>
         </p>
         <div class="horizon" role="radiogroup" aria-label="Days ahead">

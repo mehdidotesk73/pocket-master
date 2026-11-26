@@ -27,14 +27,14 @@ describe('clipboard export / paste import', () => {
     expect(Object.keys(byId).sort()).toEqual([
       'projections/checking',
       'projections/everything',
-      'records/2026-10-01',
-      'records/2026-11-26',
+      'records/2026-10-01T12-00-00',
+      'records/2026-11-26T12-00-00',
       'template',
     ])
     expect(byId['projections/everything']).toEqual(projection)
     expect(byId['projections/checking']).toEqual(checking)
     expect(byId.template).toEqual(defaultTemplate())
-    expect(byId['records/2026-11-26'].left).toBe(6988.12)
+    expect(byId['records/2026-11-26T12-00-00'].left).toBe(6988.12)
   })
 
   it('tolerates whitespace around a paste and recomputes totals', () => {

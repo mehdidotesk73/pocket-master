@@ -7,16 +7,18 @@
 // The sign is a ± toggle because the iPhone decimal keypad has no minus key.
 // Negative amounts read as (730.48) until the field is focused; while typing,
 // it's just the number. Rows reorder by dragging the grip on the left.
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { GripVertical } from '@lucide/vue'
 import { type BalanceRecord, type RecordLine, type TemplateLine, newId, sheet } from '../../lib/finance'
-import { fmtDate, fmtMoney, isISODate, parseMoney, today } from '../../lib/money'
+import { fmtDateTime, fmtMoney, isISODate, isLocalDateTime, nowLocal, parseMoney } from '../../lib/money'
 import { markUnsaved } from '../../lib/storage/store'
 import { useTracker } from './useTracker'
 
-const emit = defineEmits<{ (e: 'close'): void; (e: 'saved', date: string): void }>()
+/** Open on an existing record to change it; otherwise it's a new record taken now. */
+const props = defineProps<{ editing?: BalanceRecord }>()
+const emit = defineEmits<{ (e: 'close'): void; (e: 'saved', at: string): void }>()
 
-const { template, records, latest, recordDates, saveRecord, saveTemplate } = useTracker()
+const { template, latest, recordTimes, saveRecord, saveTemplate, deleteRecord } = useTracker()
 
 interface Row {
   id: string
@@ -25,7 +27,12 @@ interface Row {
   text: string // magnitude as typed
 }
 
-const date = ref(today())
+// The record's moment: a date and a time (HH:MM). Seconds are kept from when
+// the sheet opened (or from the record) so two quick saves never collide.
+const start = props.editing?.at ?? nowLocal()
+const date = ref(start.slice(0, 10))
+const time = ref(start.slice(11, 16))
+const seconds = start.slice(17, 19)
 const rows = reactive<Row[]>([])
 const touched = ref(false)
 const saving = ref(false)
@@ -64,21 +71,18 @@ function fill(from: BalanceRecord | null, useRecordRows = false) {
     }),
   )
 }
-fill(latest.value)
-
-// Picking the date of an existing record (before typing anything) loads that record as it was saved.
-watch(date, (d) => {
-  if (touched.value) return
-  const existing = records.value.find((r) => r.date === d)
-  if (existing) fill(existing, true)
-  else fill(latest.value)
-})
+if (props.editing) fill(props.editing, true)
+else fill(latest.value)
 
 function onBodyInput(e: Event) {
-  if ((e.target as HTMLInputElement).type !== 'date') touched.value = true
+  const t = (e.target as HTMLInputElement).type
+  if (t !== 'date' && t !== 'time') touched.value = true
 }
 
-const isUpdate = computed(() => recordDates.value.has(date.value))
+const isUpdate = !!props.editing
+const at = computed(() => `${date.value}T${/^\d{2}:\d{2}$/.test(time.value) ? time.value : '12:00'}:${seconds}`)
+/** Another record already at this exact moment (saving would replace it). */
+const clash = computed(() => at.value !== props.editing?.at && recordTimes.value.has(at.value))
 
 const magnitude = (r: Row) => Math.abs(parseMoney(r.text) ?? 0)
 const signed = (r: Row) => (r.negative ? -1 : 1) * magnitude(r)
@@ -205,8 +209,8 @@ async function saveAsTemplate() {
 
 async function save() {
   error.value = ''
-  if (!isISODate(date.value)) {
-    error.value = 'Pick a valid date.'
+  if (!isISODate(date.value) || !isLocalDateTime(at.value)) {
+    error.value = 'Pick a valid date and time.'
     return
   }
   if (hasInvalid.value) {
@@ -215,15 +219,27 @@ async function save() {
   }
   saving.value = true
   try {
-    await saveRecord(date.value, draftLines.value)
+    await saveRecord(at.value, draftLines.value, props.editing?.at)
     markUnsaved('record-modal', false)
-    emit('saved', date.value)
+    emit('saved', at.value)
     emit('close')
   } catch (e) {
     error.value = `Couldn’t save: ${(e as Error).message}`
   } finally {
     saving.value = false
   }
+}
+
+const confirmDelete = ref(false)
+async function remove() {
+  if (!props.editing) return
+  if (!confirmDelete.value) {
+    confirmDelete.value = true
+    return
+  }
+  await deleteRecord(props.editing.at)
+  markUnsaved('record-modal', false)
+  emit('close')
 }
 
 function close() {
@@ -256,12 +272,18 @@ onBeforeUnmount(() => {
       </header>
 
       <div class="body" @input="onBodyInput">
-        <label class="date-row">
-          <span>Date</span>
-          <input v-model="date" class="input" type="date" required />
-        </label>
-        <p v-if="isUpdate" class="note small">
-          A record for {{ fmtDate(date) }} already exists. Saving replaces it.
+        <div class="date-row">
+          <label class="when">
+            <span>Date</span>
+            <input v-model="date" class="input" type="date" required />
+          </label>
+          <label class="when time">
+            <span>Time</span>
+            <input v-model="time" class="input" type="time" required />
+          </label>
+        </div>
+        <p v-if="clash" class="note small">
+          There's already a record at {{ fmtDateTime(at) }}. Saving replaces it; change the time to keep both.
         </p>
 
         <p class="hint small muted">
@@ -332,6 +354,9 @@ onBeforeUnmount(() => {
         </div>
         <p v-if="error" class="err small">{{ error }}</p>
         <div class="actions">
+          <button v-if="isUpdate" class="btn danger del" @click="remove">
+            {{ confirmDelete ? 'Tap again to delete' : 'Delete' }}
+          </button>
           <button class="btn ghost" @click="close">Cancel</button>
           <button class="btn primary" :disabled="saving" @click="save">
             {{ saving ? 'Saving…' : isUpdate ? 'Update record' : 'Save record' }}
@@ -410,10 +435,24 @@ onBeforeUnmount(() => {
 
 .date-row {
   display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 0.75rem;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 0.5rem;
+}
+
+.when {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.when > span {
+  font-size: 0.8rem;
   font-weight: 600;
+  color: var(--mute);
+}
+
+.del {
+  margin-right: auto;
 }
 
 .note {

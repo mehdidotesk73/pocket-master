@@ -26,12 +26,13 @@ import {
   everydayItem,
   itemResults,
   lineNames,
+  byAt,
   makeRecord,
   newId,
   project,
   upsertRecord,
 } from '../../lib/finance'
-import { isISODate, roundMoney, today } from '../../lib/money'
+import { atKey, isISODate, isLocalDateTime, localFromISO, roundMoney, today } from '../../lib/money'
 import { Store, getStore, init } from '../../lib/storage/store'
 import { logDebug } from '../../debug'
 
@@ -42,7 +43,8 @@ const PROJECTIONS_PREFIX = 'projections/'
 const LEGACY_PROJECTION_ID = 'projection'
 /** v0.2: projection items, template and horizon together. */
 const LEGACY_SETTINGS_ID = 'settings'
-const recordId = (date: string) => `records/${date}`
+/** records/2026-11-26T14-05-33: one file per balance sheet, so a day can have several. */
+export const recordId = (at: string) => `records/${atKey(at)}`
 
 const projections = shallowRef<ProjectionFile[]>([defaultProjection()])
 const template = shallowRef<TemplateFile>(defaultTemplate())
@@ -220,16 +222,28 @@ export function isPreviousDefault(t: TemplateFile): boolean {
   )
 }
 
+/**
+ * A record's moment. Records from before v0.7 have only a date: they take the
+ * local time they were saved at when that falls on the same day, else noon.
+ */
+function recordAt(r: Record<string, unknown>): string | null {
+  if (isLocalDateTime(r.at)) return r.at
+  if (!isISODate(r.date)) return null
+  const saved = typeof r.savedAt === 'string' ? localFromISO(r.savedAt) : null
+  return saved && saved.startsWith(r.date) ? saved : `${r.date}T12:00:00`
+}
+
 export function normalizeRecord(raw: unknown): BalanceRecord | null {
   const r = (raw ?? {}) as Record<string, unknown>
-  if (!isISODate(r.date) || !Array.isArray(r.lines)) return null
+  const at = recordAt(r)
+  if (!at || !Array.isArray(r.lines)) return null
   const lines: RecordLine[] = arr(r.lines).map((l) => ({
     id: str(l.id) || newId(),
     name: str(l.name, 'Unnamed'),
     amount: 'kind' in l ? legacySigned(l) : roundMoney(num(l.amount)),
   }))
   // Totals are recomputed rather than trusted.
-  return makeRecord(r.date, lines, str(r.savedAt) || new Date().toISOString())
+  return makeRecord(at, lines, str(r.savedAt) || new Date().toISOString())
 }
 
 // ---------------------------------------------------------------- load
@@ -294,13 +308,21 @@ async function loadFrom(store: Store) {
   for (const m of store.list('records/')) {
     try {
       const rec = normalizeRecord(await store.readJSON(m.id))
-      if (rec) recs.push(rec)
-      else logDebug(`Skipped malformed record ${m.id}`, 'warn')
+      if (!rec) {
+        logDebug(`Skipped malformed record ${m.id}`, 'warn')
+        continue
+      }
+      // Pre-v0.7 files are named by date only: rename to the date-time name.
+      if (m.id !== recordId(rec.at)) {
+        if (!store.has(recordId(rec.at))) await store.writeJSON(recordId(rec.at), rec)
+        await store.remove(m.id)
+      }
+      recs.push(rec)
     } catch (e) {
       logDebug(`Couldn’t read ${m.id}: ${(e as Error).message}`, 'error')
     }
   }
-  records.value = recs.sort((a, b) => a.date.localeCompare(b.date))
+  records.value = recs.sort(byAt)
 }
 
 let loading: Promise<void> | null = null
@@ -321,15 +343,22 @@ export function loadTracker(): Promise<void> {
 
 // ---------------------------------------------------------------- writes
 
-async function saveRecord(date: string, lines: RecordLine[]) {
-  const rec = makeRecord(date, lines)
-  records.value = upsertRecord(records.value, rec)
-  await getStore().writeJSON(recordId(date), rec)
+/**
+ * Save a balance sheet taken at `at`. When editing, `replacing` is the record's
+ * original moment: if the time was changed, the old file goes.
+ */
+async function saveRecord(at: string, lines: RecordLine[], replacing?: string) {
+  const rec = makeRecord(at, lines)
+  let list = upsertRecord(records.value, rec)
+  if (replacing && replacing !== at) list = list.filter((r) => r.at !== replacing)
+  records.value = list
+  await getStore().writeJSON(recordId(at), rec)
+  if (replacing && replacing !== at) await getStore().remove(recordId(replacing))
 }
 
-async function deleteRecord(date: string) {
-  records.value = records.value.filter((r) => r.date !== date)
-  await getStore().remove(recordId(date))
+async function deleteRecord(at: string) {
+  records.value = records.value.filter((r) => r.at !== at)
+  await getStore().remove(recordId(at))
 }
 
 /** Create or replace one projection file. */
@@ -388,7 +417,7 @@ export function buildTransferJSON(ps: ProjectionFile[], t: TemplateFile, recs: B
     exportedAt: new Date().toISOString(),
     projections: ps,
     template: t,
-    records: [...recs].sort((a, b) => b.date.localeCompare(a.date)),
+    records: [...recs].sort((a, b) => byAt(b, a)),
   }
   return JSON.stringify(doc, null, 1)
 }
@@ -438,7 +467,7 @@ export function parseImportText(text: string): ImportBundle {
   let skipped = 0
   for (const raw of Array.isArray(parsed.records) ? parsed.records : []) {
     const rec = normalizeRecord(raw)
-    if (rec) add(recordId(rec.date), rec)
+    if (rec) add(recordId(rec.at), rec)
     else skipped++
   }
   if (skipped) logDebug(`Import skipped ${skipped} record(s) without a valid date`, 'warn')
@@ -488,7 +517,7 @@ function exportText(): { text: string; bytes: number } {
 
 const latest = computed(() => records.value[records.value.length - 1] ?? null)
 const previous = computed(() => records.value[records.value.length - 2] ?? null)
-const recordDates = computed(() => new Set(records.value.map((r) => r.date)))
+const recordTimes = computed(() => new Set(records.value.map((r) => r.at)))
 const knownLines = computed(() => lineNames(records.value))
 const selected = computed(() => projections.value.find((p) => p.id === selectedId.value) ?? projections.value[0])
 
@@ -511,7 +540,7 @@ export function useTracker() {
     loadError,
     latest,
     previous,
-    recordDates,
+    recordTimes,
     knownLines,
     currentProjection,
     projectFor,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defaultTemplate } from '../../lib/finance'
-import { isPreviousDefault, normalizeProjection, normalizeRecord, normalizeTemplate } from './useTracker'
+import { isPreviousDefault, normalizeProjection, normalizeRecord, normalizeTemplate, recordId } from './useTracker'
 
 // The combined settings file the app wrote before projection.json / template.json existed.
 const oldSettings = {
@@ -133,5 +133,23 @@ describe('default template', () => {
     expect(isPreviousDefault(old)).toBe(true)
     expect(isPreviousDefault({ ...old, rows: old.rows.slice(1) })).toBe(false)
     expect(isPreviousDefault(defaultTemplate())).toBe(false)
+  })
+})
+
+describe('record moments (v0.7)', () => {
+  it('a date-only record takes its saved time when that was the same day, else noon', () => {
+    const lines = [{ id: 'a', name: 'A', amount: 1 }]
+    const sameDay = new Date(2026, 10, 26, 14, 5, 33).toISOString()
+    expect(normalizeRecord({ date: '2026-11-26', savedAt: sameDay, lines })?.at).toBe('2026-11-26T14:05:33')
+    const later = new Date(2026, 10, 28, 9, 0, 0).toISOString()
+    expect(normalizeRecord({ date: '2026-11-26', savedAt: later, lines })?.at).toBe('2026-11-26T12:00:00')
+    expect(normalizeRecord({ date: '2026-11-26', lines })?.at).toBe('2026-11-26T12:00:00')
+  })
+
+  it('keeps an explicit moment and names the file by it', () => {
+    const r = normalizeRecord({ at: '2026-11-26T08:15:00', date: 'ignored', lines: [] })
+    expect(r?.at).toBe('2026-11-26T08:15:00')
+    expect(r?.date).toBe('2026-11-26')
+    expect(recordId(r!.at)).toBe('records/2026-11-26T08-15-00')
   })
 })

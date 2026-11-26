@@ -21,8 +21,9 @@ import {
 import { addDays, clampedDate, monthIndex } from './money'
 
 const rec = (date: string, left: number, lines: RecordLine[] = []): BalanceRecord => ({
-  schema: 2,
-  date,
+  schema: 3,
+  at: date.length > 10 ? date : `${date}T12:00:00`,
+  date: date.slice(0, 10),
   savedAt: '',
   lines,
   assets: left,
@@ -77,13 +78,26 @@ describe('records', () => {
     })
   })
 
-  it('a same-date save replaces the record and doesn’t duplicate it', () => {
+  it('keeps several records on one day, in time order; the same moment replaces', () => {
     let list: BalanceRecord[] = []
-    list = upsertRecord(list, makeRecord('2026-11-02', [line('a', 5)]))
-    list = upsertRecord(list, makeRecord('2026-11-01', [line('a', 1)]))
-    list = upsertRecord(list, makeRecord('2026-11-02', [line('a', 9)]))
-    expect(list.map((r) => r.date)).toEqual(['2026-11-01', '2026-11-02'])
-    expect(list[1].left).toBe(9)
+    list = upsertRecord(list, makeRecord('2026-11-02T18:30:00', [line('a', 5)]))
+    list = upsertRecord(list, makeRecord('2026-11-02T08:05:10', [line('a', 1)]))
+    list = upsertRecord(list, makeRecord('2026-11-01', [line('a', 0)]))
+    expect(list.map((r) => r.at)).toEqual(['2026-11-01T12:00:00', '2026-11-02T08:05:10', '2026-11-02T18:30:00'])
+    list = upsertRecord(list, makeRecord('2026-11-02T18:30:00', [line('a', 9)]))
+    expect(list.length).toBe(3)
+    expect(list[2].left).toBe(9)
+    expect(list[2].date).toBe('2026-11-02')
+  })
+
+  it('the latest record by time is where a projection starts', () => {
+    const p = project(proj({ horizonDays: 1 }), [rec('2026-11-26T20:00:00', 500), rec('2026-11-26T08:00:00', 100)], TODAY)
+    expect(p!.start.value).toBe(500)
+  })
+
+  it('records on the same day count as zero days apart in rates', () => {
+    const recs = [rec('2026-01-01T09:00:00', 1000), rec('2026-01-01T21:00:00', 900), rec('2026-01-31T12:00:00', 700)]
+    expect(evaluateAveraged(avg({}), recs, proj()).value).toBeCloseTo((-300 / 30) * 30.44, 2)
   })
 
   it('lists line names across records, newest spelling first, without duplicates', () => {

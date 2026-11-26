@@ -341,6 +341,13 @@ typed number positive.
 
 ## Version History
 
+### v0.7.0 — 2026-11-26
+- **Changed:** each record has a date and time (`at`), its own file
+  `records/<YYYY-MM-DDTHH-MM-SS>.json`; any number per day. Old date-only records get their saved
+  time (or noon) and are renamed on load
+- **Added:** time field in the record sheet; "Edit latest" on Present; tap a Past row to open,
+  update (including date/time) or delete a record
+
 ### v0.6.3 — 2026-11-26
 - **Added:** drag to reorder rows in the New record sheet (grip on the left; swaps when the gap left
   behind is larger than the covered neighbour's visible part; arrow keys on the grip too). New records

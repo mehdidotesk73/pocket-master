@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { BalanceRecord } from '../../lib/finance'
-import { fmtDate, fmtMoney } from '../../lib/money'
+import { fmtDateTime, fmtMoney } from '../../lib/money'
 
 const props = defineProps<{ record: BalanceRecord }>()
 
@@ -13,7 +13,7 @@ const zeros = computed(() => props.record.lines.filter((l) => l.amount === 0))
 
 <template>
   <section class="card sheet">
-    <h2>Balance sheet <span class="muted small">· {{ fmtDate(record.date) }}</span></h2>
+    <h2>Balance sheet <span class="muted small">· {{ fmtDateTime(record.at) }}</span></h2>
 
     <h3 class="group">Assets</h3>
     <div v-for="l in assets" :key="l.id" class="row">

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { dayNum, fmtDate, fmtMoney } from '../../lib/money'
+import { type LocalDateTime, atNum, fmtDate, fmtDateTime, fmtMoney, fmtTime } from '../../lib/money'
+import type { BalanceRecord } from '../../lib/finance'
+import RecordModal from './RecordModal.vue'
 import FigureRow, { type Figure } from './FigureRow.vue'
 import LineChart, { type ChartSeries } from './LineChart.vue'
 import { useTracker } from './useTracker'
@@ -23,32 +25,34 @@ const figures = computed<Figure[]>(() => {
       tone: change < 0 ? 'neg' : 'pos',
       sub: r.length > 1 ? `${fmtDate(first.date, { short: true })} → ${fmtDate(last.date, { short: true })}` : 'one record so far',
     },
-    { label: 'Highest', value: fmtMoney(hi.left), sub: fmtDate(hi.date), tone: hi.left < 0 ? 'neg' : undefined },
-    { label: 'Lowest', value: fmtMoney(lo.left), sub: fmtDate(lo.date), tone: lo.left < 0 ? 'neg' : undefined },
+    { label: 'Highest', value: fmtMoney(hi.left), sub: fmtDateTime(hi.at, { short: true }), tone: hi.left < 0 ? 'neg' : undefined },
+    { label: 'Lowest', value: fmtMoney(lo.left), sub: fmtDateTime(lo.at, { short: true }), tone: lo.left < 0 ? 'neg' : undefined },
   ]
 })
 
 const series = computed<ChartSeries[]>(() => {
   const r = records.value
   return [
-    { label: 'Left so far', color: 'var(--pos)', dots: true, width: 2.5, points: r.map((x) => ({ x: dayNum(x.date), y: x.left })) },
-    { label: 'Assets', color: 'var(--assets)', width: 1.25, points: r.map((x) => ({ x: dayNum(x.date), y: x.assets })) },
-    { label: 'Liabilities', color: 'var(--negative)', width: 1.25, points: r.map((x) => ({ x: dayNum(x.date), y: x.liabilities })) },
+    { label: 'Left so far', color: 'var(--pos)', dots: true, width: 2.5, points: r.map((x) => ({ x: atNum(x.at), y: x.left })) },
+    { label: 'Assets', color: 'var(--assets)', width: 1.25, points: r.map((x) => ({ x: atNum(x.at), y: x.assets })) },
+    { label: 'Liabilities', color: 'var(--negative)', width: 1.25, points: r.map((x) => ({ x: atNum(x.at), y: x.liabilities })) },
   ]
 })
 
 const newestFirst = computed(() => [...records.value].reverse())
 
-const confirming = ref<string | null>(null)
-async function onDelete(date: string) {
-  if (confirming.value !== date) {
-    confirming.value = date
-    setTimeout(() => confirming.value === date && (confirming.value = null), 4000)
+const confirming = ref<LocalDateTime | null>(null)
+async function onDelete(at: LocalDateTime) {
+  if (confirming.value !== at) {
+    confirming.value = at
+    setTimeout(() => confirming.value === at && (confirming.value = null), 4000)
     return
   }
   confirming.value = null
-  await deleteRecord(date)
+  await deleteRecord(at)
 }
+
+const editing = ref<BalanceRecord | null>(null)
 </script>
 
 <template>
@@ -80,28 +84,35 @@ async function onDelete(date: string) {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in newestFirst" :key="r.date">
-                <td class="date">{{ fmtDate(r.date, { short: true }) }} <span class="yr">’{{ r.date.slice(2, 4) }}</span></td>
+              <tr v-for="r in newestFirst" :key="r.at" class="rec" @click="editing = r">
+                <td class="date">
+                  <button class="open" :aria-label="`Open the record of ${fmtDateTime(r.at)}`" @click.stop="editing = r">
+                    <span>{{ fmtDate(r.date, { short: true }) }} <span class="yr">’{{ r.date.slice(2, 4) }}</span></span>
+                    <span class="tm">{{ fmtTime(r.at) }}</span>
+                  </button>
+                </td>
                 <td class="r money">{{ fmtMoney(r.assets, { whole: true }) }}</td>
                 <td class="r money">{{ fmtMoney(r.liabilities, { whole: true }) }}</td>
                 <td class="r money left" :class="{ neg: r.left < 0 }">{{ fmtMoney(r.left) }}</td>
                 <td class="del">
                   <button
                     class="del-btn"
-                    :class="{ armed: confirming === r.date }"
-                    :aria-label="confirming === r.date ? `Confirm delete ${r.date}` : `Delete ${r.date}`"
-                    @click="onDelete(r.date)"
+                    :class="{ armed: confirming === r.at }"
+                    :aria-label="confirming === r.at ? `Confirm delete ${fmtDateTime(r.at)}` : `Delete ${fmtDateTime(r.at)}`"
+                    @click.stop="onDelete(r.at)"
                   >
-                    {{ confirming === r.date ? 'Delete?' : '✕' }}
+                    {{ confirming === r.at ? 'Delete?' : '✕' }}
                   </button>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-        <p class="muted small">To fix a record, open New record on the Present tab, pick its date, and save.</p>
+        <p class="muted small">Tap a record to open it, change it, or delete it. You can save several on the same day.</p>
       </section>
     </template>
+
+    <RecordModal v-if="editing" :editing="editing" @close="editing = null" />
   </div>
 </template>
 
@@ -151,6 +162,30 @@ td {
 
 .yr {
   color: var(--mute);
+}
+
+.rec {
+  cursor: pointer;
+}
+
+.rec:hover td {
+  background: var(--panel-2);
+}
+
+.open {
+  display: grid;
+  padding: 0.25rem 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tm {
+  color: var(--mute);
+  font-size: 0.78em;
 }
 
 .del {

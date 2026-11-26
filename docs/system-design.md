@@ -96,13 +96,13 @@ No network data. Everything lives in the Origin Private File System of the produ
 OPFS root
 ├── index.<seq>.json            manifest: schemaVersion + each file's current {id, ext, rev, size, updatedAt}
 ├── files/
-│   ├── records/<date>.<rev>.json   one BalanceRecord per date
+│   ├── records/<YYYY-MM-DDTHH-MM-SS>.<rev>.json   one BalanceRecord per moment
 │   ├── projections/<id>.<rev>.json one ProjectionFile per projection
 │   └── template.<rev>.json         TemplateFile
 └── tmp/                        scratch, emptied on start
 ```
 
-- **Stored data is exactly three kinds of file**, by store id: `records/<YYYY-MM-DD>`,
+- **Stored data is exactly three kinds of file**, by store id: `records/<YYYY-MM-DDTHH-MM-SS>`,
   `projections/<id>`, `template`. Every '/' in an id is a real folder; each part is URL-encoded with '.' escaped (the dot
   separates name, revision and extension). Totals, averages and the projection are computed in the
   app and never stored. Which projection is on screen is a per-device preference in localStorage.
@@ -157,6 +157,10 @@ leading `-` on a keyboard also flips it.
 
 All sums in integer cents.
 
+- **Records** (schema 3) carry `at`, a local date-time `YYYY-MM-DDTHH:MM:SS`, plus its `date` part.
+  Several per day; ordered and identified by `at` (`byAt`, `upsertRecord`); all day-based math
+  uses `date`. Pre-v0.7 date-only records take their savedAt local time when it's the same day,
+  else noon, and their files are renamed on load (`loadFrom`). Charts place records at `atNum(at)`.
 - **Records** are lists of line items `{ id, name, amount }` with a **signed** amount: positive =
   asset, negative = liability. No line kinds. (Schema 1 had kinds and card share %; `normalizeRecord`
   converts those on load, cards at their share.)
