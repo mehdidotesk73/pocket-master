@@ -123,7 +123,8 @@ OPFS root
   error banner saying nothing will be kept.
 - **Persistence:** `navigator.storage.persist()` on start; the footer shows installed / persistent /
   usage, with a warning when not installed or not persistent.
-- **Export/import** (`BackupModal`, opened from Present, the footer and the backup nudge):
+- **Export/import** (`BackupModal` with `section: 'export' | 'import'`, opened from the side menu
+  ☰ → Records → Import / Export (`components/SideMenu.vue`), and Export from Present's backup nudge):
   - *Zip file*: fflate zip of `index.json` + `<id>.<ext>` (`records/<date>.json`, `projection.json`,
     `template.json`); zips in the old `files/<flat id>.<ext>` layout still import. iOS → share sheet
     ("Save to Files"); desktop Chromium → save dialog; else download.
@@ -141,7 +142,8 @@ OPFS root
 ## §3b — Screens
 
 Three tabs, **Past · Present · Future** (default Present): `HistoryView`, `TodayView`,
-`FutureView`. Future = projection picker (+ `ProjectionModal` for name / start lines / days ahead /
+`FutureView`. The header's ☰ (top left) opens `SideMenu`, a drawer from the left with collapsible
+sections (start collapsed); Records holds the Import / Export tag buttons. Future = projection picker (+ `ProjectionModal` for name / start lines / days ahead /
 duplicate / delete), chart, and a compact item list; "+ Add" menu → `ItemModal` per kind (built on
 `SheetModal`); summaries in `projectionText.ts`. Edits save immediately. Backup (export/import + storage health) is `BackupModal`, opened from the footer
 and from Present's backup nudge. The New record sheet (`RecordModal`) is a compact list: name · ±

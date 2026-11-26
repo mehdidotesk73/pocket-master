@@ -1,6 +1,6 @@
 # Export and Import
 
-Your records live only on this device, inside this app. Tap **Export** or **Import** on the Present tab (or **Export / Import** in the footer).
+Your records live only on this device, inside this app. Open the menu (**☰**, top left), tap **Records**, then **Import** or **Export**.
 
 ## Export
 

@@ -341,6 +341,10 @@ typed number positive.
 
 ## Version History
 
+### v0.6.1 — 2026-11-26
+- **Changed:** Import / Export moved into a side menu (☰ top left → Records, collapsed by default),
+  each opening only its own half of the sheet; removed from the Present tab and the footer
+
 ### v0.6.0 — 2026-11-26
 - **Changed:** several projections, each `projections/<id>.json` with its own name, starting lines
   (all, or picked lines of the latest record), days ahead and items; the old single projection

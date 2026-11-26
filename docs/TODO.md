@@ -18,6 +18,7 @@ Track feature development, improvements, and known issues here. Move completed w
   `lib/clipboard.ts`, `BackupModal` Export (zip / clipboard) and Import (file / paste) sections.
 - **v0.6.0 — multiple projections** — `projections/<id>` files, `StartLines`, item union with
   `RecordRange` and `extrapolate`; `FutureView`, `ItemModal`, `ProjectionModal`, `SheetModal`.
+- **v0.6.1 — side menu** — `components/SideMenu.vue` (☰ → Records → Import / Export).
 
 ## Next (Current Sprint)
 

@@ -11,14 +11,14 @@ Your latest record is your live position. Earlier records become your history, a
 - **Past**: how left so far, assets and liabilities have moved across all your records.
 - **Present**: your latest balance sheet, and the button to save a new record.
 - **Future**: projections of where your money is heading: everything, or just the lines you pick (like checking and cards), with monthly, one-time, averaged and month-end items.
-- **Export / Import** (on Present, and in the footer): back up as a zip file or copy everything to the clipboard; restore from either.
+- **Menu** (☰, top left) → **Records** → **Export** / **Import**: back up as a zip file or copy everything to the clipboard; restore from either.
 
 ## Where is my data?
 
 Only on this device, inside this app. Nothing is sent anywhere, and there are no accounts.
 
 - **Use the installed app.** On iPhone: open the site in Safari, tap **Share** (or **⋯** then Share), then **Add to Home Screen**. The installed app, a Safari tab and a Chrome tab each keep **separate** data that never mixes.
-- **Back up now and then** with **Export** on the Present tab. Deleting the app from your Home Screen, or clearing website data in Settings, deletes your records.
+- **Back up now and then** with **Export** in the menu (☰ → Records). Deleting the app from your Home Screen, or clearing website data in Settings, deletes your records.
 - **Private browsing** starts empty and forgets everything when the tab closes.
 - **One device only.** There's no sync between your phone and computer yet. To move data, export on one and import on the other.
 
@@ -26,7 +26,7 @@ Only on this device, inside this app. Nothing is sent anywhere, and there are no
 
 **Q: Why is my change not showing?**
 
-A: The app keeps a copy of itself so it works offline. When a new version is out, **Update available** appears at the top. If you have unsaved edits it waits until you save. You can also tap **Reload latest** in the footer.
+A: The app keeps a copy of itself so it works offline. When a new version is out, an **Update** button appears at the top left. If you have unsaved edits it waits until you save. You can also tap **Reload latest** in the footer.
 
 **Q: Can I use this offline?**
 

@@ -8,7 +8,8 @@ import { useVersionCheck } from './lib/useVersionCheck'
 import { refreshHealth } from './lib/storage/store'
 import { useStore } from './lib/storage/useStore'
 import { loadTracker, useTracker } from './features/tracker/useTracker'
-import { ChevronDown, CircleHelp, Moon, Sun } from '@lucide/vue'
+import { ChevronDown, CircleHelp, Menu, Moon, Sun } from '@lucide/vue'
+import SideMenu from './components/SideMenu.vue'
 import { useTheme } from './lib/useTheme'
 import { THEMES } from './lib/themes'
 import TodayView from './features/tracker/TodayView.vue'
@@ -50,7 +51,13 @@ function initialTab(): Tab {
   }
   return 'present'
 }
-const showBackup = ref(false)
+// Side menu (☰) and the Export / Import sheet it opens.
+const showMenu = ref(false)
+const transfer = ref<'export' | 'import' | null>(null)
+function openTransfer(section: 'export' | 'import') {
+  showMenu.value = false
+  transfer.value = section
+}
 
 // ---- look: Dark / Light flips between the chosen looks; the menu picks one (as in the editor)
 const { theme, mode, chosen, setTheme, toggleTheme } = useTheme()
@@ -151,13 +158,23 @@ function openHelp() {
   <main class="app">
     <header>
       <div class="title-row">
+        <div class="head-left">
+        <button
+          class="head-btn"
+          aria-label="Menu"
+          title="Menu"
+          :aria-expanded="showMenu"
+          @click="showMenu = true"
+        >
+          <Menu class="ic" aria-hidden="true" />
+        </button>
         <div class="update-slot" ref="updateSlot">
           <button
             v-if="updateAvailable"
             class="update-btn"
             @click="showUpdatePanel = !showUpdatePanel"
           >
-            Update available
+            Update
           </button>
           <div
             v-if="showUpdatePanel && updateAvailable"
@@ -171,6 +188,7 @@ function openHelp() {
               Update ready — Reload
             </button>
           </div>
+        </div>
         </div>
         <h1 class="app-title">Pocket Master</h1>
         <div class="head-right">
@@ -243,7 +261,7 @@ function openHelp() {
       <div v-if="!loaded" class="loading muted">Loading your data…</div>
       <template v-else>
         <HistoryView v-if="tab === 'past'" />
-        <TodayView v-else-if="tab === 'present'" @backup="showBackup = true" />
+        <TodayView v-else-if="tab === 'present'" @backup="openTransfer('export')" />
         <FutureView v-else />
       </template>
     </div>
@@ -263,7 +281,6 @@ function openHelp() {
           · {{ usageLabel }} used
         </span>
 
-        <button class="reload-btn" @click="showBackup = true">Export / Import</button>
 
         <button
           class="reload-btn logs-btn"
@@ -315,7 +332,8 @@ function openHelp() {
       </div>
     </footer>
 
-    <BackupModal v-if="showBackup" @close="showBackup = false" />
+    <SideMenu :open="showMenu" @close="showMenu = false" @export="openTransfer('export')" @import="openTransfer('import')" />
+    <BackupModal v-if="transfer" :key="transfer" :section="transfer" @close="transfer = null" />
     <HelpModal :open="showHelp" :initial-doc="helpDoc" @close="showHelp = false" />
   </main>
 </template>
@@ -409,10 +427,17 @@ function openHelp() {
   white-space: nowrap;
 }
 
-.update-slot {
+.head-left {
   grid-column: 1;
   justify-self: start;
   align-self: start;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.update-slot {
   position: relative;
 }
 

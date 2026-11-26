@@ -12,6 +12,8 @@ import { noteExported, refreshHealth, storeState } from '../../lib/storage/store
 import { exportAll, formatBytes } from '../../lib/storage/useStore'
 import { CLIPBOARD_LIMIT_BYTES, type ImportBundle, parseImportText, useTracker } from './useTracker'
 
+/** Which half to show: the side menu opens one or the other. */
+const props = defineProps<{ section: 'export' | 'import' }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 const { records, projections, readImport, applyImport, exportText } = useTracker()
 
@@ -141,19 +143,19 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
 
 <template>
   <div class="backdrop" @click.self="emit('close')">
-    <div class="panel" role="dialog" aria-modal="true" aria-label="Export and import">
+    <div class="panel" role="dialog" aria-modal="true" :aria-label="props.section === 'export' ? 'Export' : 'Import'">
       <header class="head">
-        <h2>Export / Import</h2>
+        <h2>{{ props.section === 'export' ? 'Export records' : 'Import records' }}</h2>
         <button class="x" aria-label="Close" @click="emit('close')">✕</button>
       </header>
 
       <div class="body">
+        <template v-if="props.section === 'export'">
         <p class="muted small">
           Everything is stored only on this device, inside this app. Deleting the app from your Home Screen
           deletes the data too, so export now and then.
         </p>
 
-        <h3>Export</h3>
         <div class="data-actions">
           <button class="btn primary" :disabled="busy" @click="doExport">Zip file</button>
           <button class="btn" :disabled="busy || clipTooBig" @click="doCopy">Copy to clipboard</button>
@@ -168,8 +170,13 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
             record. Paste it into a note or message to keep it.
           </template>
         </p>
+        </template>
 
-        <h3>Import</h3>
+        <template v-else>
+        <p class="muted small">
+          Bring back records from a zip you exported, a JSON file, or text you copied. You'll choose whether to merge
+          or replace before anything changes.
+        </p>
         <div class="data-actions">
           <button class="btn" :disabled="busy" @click="fileInput?.click()">Zip or JSON file…</button>
           <button class="btn" :disabled="busy" @click="doPaste">Paste from clipboard</button>
@@ -221,10 +228,12 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
           </p>
         </div>
 
+        </template>
+
         <p v-if="msg" class="ok small" role="status">{{ msg }}</p>
         <p v-if="err" class="err small" role="alert">{{ err }}</p>
 
-        <dl class="health small">
+        <dl v-if="props.section === 'export'" class="health small">
           <dt>Last export</dt>
           <dd>{{ storeState.lastExport ? fmtDate(storeState.lastExport.slice(0, 10)) : 'never' }}</dd>
           <dt>Files</dt>
