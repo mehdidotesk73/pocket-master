@@ -333,7 +333,21 @@ drafts or in-flight writes that's data loss. Use `registerType: 'prompt'` and ca
 Versioning the index by filename (`index.<seq>.json`, highest readable wins) gives the same crash
 safety with only create/write/delete.
 
+### The iPhone Decimal Keypad Has No Minus Key
+
+`inputmode="decimal"` is the right keypad for money, but on iOS it has digits and a decimal point
+only. Any field that needs a sign needs its own control. Records use a +/− toggle per row and keep the
+typed number positive.
+
 ## Version History
+
+### v0.2.0 — 2026-11-26
+- **Changed:** records are signed line items (no kinds; positive = asset, negative = liability);
+  schema 1 data converts on load
+- **Added:** compact New record list with ± toggle, add/remove rows, *Save as template*
+- **Changed:** tabs are Past / Present / Future; Setup removed, backup moved to a footer sheet
+- **Removed:** per-card share % (enter your part as the amount)
+- **Fixed:** Home Screen name is "Pocket Master" (manifest `short_name`)
 
 ### v0.1.0 — 2026-11-26
 - **Added:** Budget tracker — Today (balance sheet + new-record sheet), Projection (recurring,

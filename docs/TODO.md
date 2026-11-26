@@ -6,6 +6,9 @@ Track feature development, improvements, and known issues here. Move completed w
 
 - **Budget tracker v0.1.0** — all four tabs, OPFS storage with safe saves, export/import (zip and
   prototype JSON), install hint, data-safe updates, unit tests in CI. See `docs/experience.md`.
+- **v0.2.0 — signed line items + template** — `RecordModal` is a compact list (± toggle, add/remove
+  rows, *Save as template* → `saveTemplate`); `sheet()` sorts by sign; `normalizeSettings` /
+  `normalizeRecord` migrate schema 1; tabs Past/Present/Future; `BackupModal` replaces Setup.
 
 ## Next (Current Sprint)
 
@@ -44,6 +47,8 @@ One-time setup — tick these off as they're done:
 
 ## Ideas / Backlog (Low Priority)
 
+- Per-row share % for split cards (dropped in v0.2.0; for now enter your part as the amount)
+- Edit the template outside the New record sheet (e.g. reorder rows)
 - Light theme
 - Cross-device sync (optional linked-folder backup: remoteStorage.js / Drive `drive.file` / Dropbox PKCE)
 - Category-level expense logging; CSV export of records; editing a past record in place

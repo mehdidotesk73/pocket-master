@@ -90,7 +90,8 @@ OPFS root
 └── tmp/                  scratch, emptied on start
 ```
 
-- **Files:** `settings` (Settings) and `records/<YYYY-MM-DD>` (one BalanceRecord each).
+- **Files:** `settings` (Settings: template, recurring, one-time, everyday, horizon) and
+  `records/<YYYY-MM-DD>` (one BalanceRecord each). Both are schema 2.
 - **Safe save** (`store.ts`): write the new revision → write `index.<seq+1>.json` → delete the old
   revision and old index. On load the highest index that parses wins; unreferenced revisions, older
   indexes and `tmp/` are deleted. A killed save always leaves the last complete version. (The index is
@@ -109,12 +110,26 @@ OPFS root
   `{ settings, records[] }`, then asks merge vs replace. Today nudges for a backup after 14 days.
 - `localStorage` holds only UI prefs: selected tab, last export time, install-banner dismissal.
 
+## §3b — Screens
+
+Three tabs, **Past · Present · Future** (default Present): `HistoryView`, `TodayView`,
+`ProjectionView`. Backup (export/import + storage health) is `BackupModal`, opened from the footer
+and from Present's backup nudge. The New record sheet (`RecordModal`) is a compact list: name · ±
+toggle · amount · ✕. The sign is a button because the iPhone decimal keypad has no minus key; typing a
+leading `-` on a keyboard also flips it.
+
 ## §4 — Calculations (`src/lib/finance.ts`)
 
 All sums in integer cents.
 
-- **Sheet:** assets = Σ account + Σ receiving; liabilities = Σ card×share% + Σ bill + Σ paying;
-  left = assets − liabilities.
+- **Records** are lists of line items `{ id, name, amount }` with a **signed** amount: positive =
+  asset, negative = liability. No line kinds. (Schema 1 had kinds and card share %; `normalizeRecord`
+  converts those on load, cards at their share.)
+- **Sheet:** assets = Σ positive lines; liabilities = Σ |negative lines|; left = assets − liabilities.
+- **Template** (`Settings.template`): the rows every new record starts with, `{ id, name, negative,
+  amount? }`. The New record sheet fills amounts from the latest record by row id; *Save as template*
+  replaces it with the sheet's current rows. Rows can be added/removed per record; records keep their
+  own copy, so template edits never change history.
 - **`scheduledCents(s0, s1)`**, window (s0, s1]: recurring items on their clamped day (day 31 → last
   day); `inRecord` items count once at the start of each month after s0's month; one-time items on
   their date.
