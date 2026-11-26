@@ -9,6 +9,9 @@ Track feature development, improvements, and known issues here. Move completed w
 - **v0.2.0 — signed line items + template** — `RecordModal` is a compact list (± toggle, add/remove
   rows, *Save as template* → `saveTemplate`); `sheet()` sorts by sign; `normalizeSettings` /
   `normalizeRecord` migrate schema 1; tabs Past/Present/Future; `BackupModal` replaces Setup.
+- **v0.3.0 — files + averaged projection items** — data is `records/<date>.json` + `projection.json`
+  + `template.json` (store `MIGRATIONS[1]`, settings split in `loadFrom`); `evaluateAveraged` (rate /
+  amount over a date range, manual override) feeds `project`; `AveragedEditor`, `SignedMoneyInput`.
 
 ## Next (Current Sprint)
 
