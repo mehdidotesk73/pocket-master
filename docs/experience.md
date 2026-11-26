@@ -320,14 +320,28 @@ Two additions from reviewing it here, beyond what the originating project report
 - **Exposure and pollution are different risks.** "No more exposed than any other row" is true, and separate from the fact that test rows are *live data*: if the app lists rows rather than fetching by id, test sessions appear in real users' UI. Check whether any screen enumerates before pointing a suite at production.
 - **Fix cleanup drift by importing, not by verifying.** The stated gap — the harness's copy of the app's derivation silently going out of sync — can't be closed by re-querying after delete, since the check would use the same stale derivation and report success. **Import the derivation from the app's own source.** If it genuinely can't be imported, pin the two together with a unit test asserting both produce the same output for a fixed input; that fails loudly on the next change instead of orphaning rows in silence.
 
+### `registerType: 'autoUpdate'` Reloads Mid-Edit
+
+With `autoUpdate`, vite-plugin-pwa's register code reloads the page itself as soon as a new worker
+takes control — the template's `watch(needRefresh)` never even fires. For an app holding unsaved
+drafts or in-flight writes that's data loss. Use `registerType: 'prompt'` and call
+`updateServiceWorker(true)` yourself once the app is quiet (see `src/pwa.ts`).
+
+### OPFS Has No Portable Atomic Rename
+
+"Write a new index, then swap" can't rely on `FileSystemHandle.move()` across Safari versions.
+Versioning the index by filename (`index.<seq>.json`, highest readable wins) gives the same crash
+safety with only create/write/delete.
+
 ## Version History
 
-(Record major releases here as you merge features. Example format below.)
-
-### v0.1.0 — [Date]
-- **Added:** Initial scaffold, header/footer wrapper, Help modal
-- **Infrastructure:** Netlify (production + preview deploys), branch-protected `main`
-- **Docs:** TODO, experience, system-design, concepts scaffold
+### v0.1.0 — 2026-11-26
+- **Added:** Budget tracker — Today (balance sheet + new-record sheet), Projection (recurring,
+  one-time, everyday spending, chart), History (chart + table), Setup (lines, export/import)
+- **Storage:** OPFS file store in a worker with safe saves, migrations, zip export/import,
+  persistence request and health indicator; prototype JSON import
+- **PWA:** Home Screen manifest/icons/meta, install hint, data-safe update flow, resume checks
+- **Tests:** Vitest — finance §4.5 cases and store crash-recovery/export tests, run in CI
 
 ---
 

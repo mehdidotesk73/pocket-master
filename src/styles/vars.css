@@ -1,58 +1,42 @@
-/* CSS Custom Properties for theming */
+/* Theme tokens (spec §6). Dark navy is the only theme for now; the template's
+   generic names (--bg-elev, --text, …) are kept as aliases so the shell and
+   Help modal pick up the palette without changes. */
 
 :root {
-  /* Light mode (default) */
-  --bg: #ffffff;
-  --bg-elev: #f5f5f5;
-  --bg-elev-2: #eeeeee;
-  --text: #1a1a1a;
-  --text-muted: #666666;
-  --border: #d0d0d0;
-  --accent-blue: #0066cc;
-  --danger: #d32f2f;
+  --bg: #0b1433;
+  --panel: #121d45;
+  --panel-2: #18245a;
+  --line: #25336b;
+  --ink: #eef1fb;
+  --mute: #9aa6cf;
+  --accent: #4fc1c6;
+  --projection: #f7e463;
+  --negative: #e8452c;
+  --assets: #7d8cff;
 
-  /* Typography */
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
+  /* template aliases */
+  --bg-elev: var(--panel);
+  --bg-elev-2: var(--panel-2);
+  --text: var(--ink);
+  --text-muted: var(--mute);
+  --border: var(--line);
+  --accent-blue: var(--accent);
+  --danger: var(--negative);
+
+  --radius: 0.75rem;
+  --tap: 44px;
+  --font-display: 'Red Hat Display', system-ui, -apple-system, sans-serif;
+  --font-text: 'Red Hat Text', system-ui, -apple-system, sans-serif;
+
+  color-scheme: dark;
+  font-family: var(--font-text);
   font-size: 16px;
-  line-height: 1.5;
-  color: var(--text);
+  line-height: 1.45;
+  color: var(--ink);
   background: var(--bg);
+  -webkit-text-size-adjust: 100%;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Dark mode */
-    --bg: #1a1a1a;
-    --bg-elev: #2d2d2d;
-    --bg-elev-2: #3a3a3a;
-    --text: #ffffff;
-    --text-muted: #aaaaaa;
-    --border: #444444;
-  }
-}
-
-/* Light mode override (if user explicitly sets it) */
-:root[data-theme='light'] {
-  --bg: #ffffff;
-  --bg-elev: #f5f5f5;
-  --bg-elev-2: #eeeeee;
-  --text: #1a1a1a;
-  --text-muted: #666666;
-  --border: #d0d0d0;
-}
-
-/* Dark mode override (if user explicitly sets it) */
-:root[data-theme='dark'] {
-  --bg: #1a1a1a;
-  --bg-elev: #2d2d2d;
-  --bg-elev-2: #3a3a3a;
-  --text: #ffffff;
-  --text-muted: #aaaaaa;
-  --border: #444444;
-}
-
-/* Global styles */
 * {
   box-sizing: border-box;
 }
@@ -62,12 +46,29 @@ body {
   margin: 0;
   padding: 0;
   background: var(--bg);
-  color: var(--text);
+  color: var(--ink);
+  overflow-x: hidden;
 }
 
-button {
+body {
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+button,
+input,
+select,
+textarea {
   font-family: inherit;
-  font-size: inherit;
+  font-size: 16px; /* < 16px makes iOS zoom in on focus */
+  color: inherit;
 }
 
 button:not(:disabled) {
@@ -75,7 +76,7 @@ button:not(:disabled) {
 }
 
 a {
-  color: var(--accent-blue);
+  color: var(--accent);
   text-decoration: none;
 }
 
@@ -83,7 +84,183 @@ a:hover {
   text-decoration: underline;
 }
 
-/* Accessibility: reduce motion if preferred */
+/* ---- shared building blocks used across the tracker screens ---- */
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.card + .card {
+  margin-top: 1rem;
+}
+
+.card h2,
+.card h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+}
+
+.money {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.neg {
+  color: var(--negative);
+}
+
+.pos {
+  color: var(--accent);
+}
+
+.muted {
+  color: var(--mute);
+}
+
+.small {
+  font-size: 0.85rem;
+}
+
+.btn {
+  min-height: var(--tap);
+  padding: 0 1rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #06232a;
+}
+
+.btn.danger {
+  border-color: var(--negative);
+  color: var(--negative);
+  background: transparent;
+}
+
+.btn.ghost {
+  background: transparent;
+}
+
+.btn.block {
+  width: 100%;
+}
+
+.input,
+.select {
+  min-height: var(--tap);
+  width: 100%;
+  min-width: 0;
+  padding: 0 0.7rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.input:focus,
+.select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: transparent;
+}
+
+.input.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+input[type='date'].input {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.checkbox {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+}
+
+/* figure tiles */
+.figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.figure {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.9rem;
+  min-width: 0;
+}
+
+.figure .label {
+  color: var(--mute);
+  font-size: 0.8rem;
+}
+
+.figure .value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.45rem;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.figure .sub {
+  color: var(--mute);
+  font-size: 0.78rem;
+  margin-top: 0.15rem;
+}
+
+/* draft bar: unsaved edits */
+.draft-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem calc(0.6rem + env(safe-area-inset-bottom));
+  background: var(--panel);
+  border: 1px solid var(--projection);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.draft-bar .msg {
+  margin-right: auto;
+  font-size: 0.9rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;

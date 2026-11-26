@@ -4,7 +4,8 @@ Track feature development, improvements, and known issues here. Move completed w
 
 ## Done
 
-(Record completed features here with a one-paragraph summary + key changes)
+- **Budget tracker v0.1.0** — all four tabs, OPFS storage with safe saves, export/import (zip and
+  prototype JSON), install hint, data-safe updates, unit tests in CI. See `docs/experience.md`.
 
 ## Next (Current Sprint)
 
@@ -14,7 +15,12 @@ One-time setup — tick these off as they're done:
 - [ ] Protect `main` (finish-setup) — required; this is what makes changes arrive as PRs with
       preview links, instead of going straight to the live site
 
-(Then: what are you working on next?)
+- [ ] Custom domain on Netlify **before** installing on a phone for real use (the data belongs to the
+      origin; changing it later means exporting and re-importing)
+- [ ] On-device check: storage spec §7 / app spec §9 items that need a real iPhone — persists across
+      force-quit and reboot, `persisted()` true in the installed app, safe areas, export → reinstall →
+      import
+- [ ] Import data from the prototype artifact (ask Claude to produce the `{ settings, records }` JSON)
 
 ## Code
 
@@ -38,4 +44,7 @@ One-time setup — tick these off as they're done:
 
 ## Ideas / Backlog (Low Priority)
 
-(Features to explore later, might-nots, "wouldn't it be cool if...")
+- Light theme
+- Cross-device sync (optional linked-folder backup: remoteStorage.js / Drive `drive.file` / Dropbox PKCE)
+- Category-level expense logging; CSV export of records; editing a past record in place
+- Single-file export/import

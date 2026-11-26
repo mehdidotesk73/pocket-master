@@ -1,6 +1,11 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import { installErrorCapture } from './debug'
+// Fonts are bundled (and precached) so the app looks right offline.
+import '@fontsource/red-hat-display/latin-800.css'
+import '@fontsource/red-hat-text/latin-400.css'
+import '@fontsource/red-hat-text/latin-600.css'
+import '@fontsource/red-hat-text/latin-700.css'
 import './styles/vars.css'
 
 const app = createApp(App)

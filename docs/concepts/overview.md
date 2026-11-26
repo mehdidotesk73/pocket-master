@@ -1,33 +1,37 @@
-# About This App
-
-This is your help documentation for end users. Explain what your app does, how to use it, and answer common questions.
+# About Pocket Master
 
 ## What is this app?
 
-<REF:purpose>
+A personal balance-sheet tracker. Every so often you save a **record**: what's in your bank accounts, what you owe on credit cards (your share), bills that are due, and money going out or coming in. The app adds it up into one number, **left so far**.
+
+Your latest record is your live position. Earlier records become your history, and the app uses them to work out how much you spend day to day so it can project your position forward.
 
 ## How do I use it?
 
-<REF:UI-shape>
+- **Today**: your latest balance sheet, and the button to save a new record.
+- **Projection**: where left so far is heading, based on monthly items (paychecks, rent), one-time items and your everyday spending.
+- **History**: how left so far, assets and liabilities have moved across all your records.
+- **Setup**: the lines each record asks for, plus backup (export and import).
+
+## Where is my data?
+
+Only on this device, inside this app. Nothing is sent anywhere, and there are no accounts.
+
+- **Use the installed app.** On iPhone: open the site in Safari, tap **Share** (or **⋯** then Share), then **Add to Home Screen**. The installed app, a Safari tab and a Chrome tab each keep **separate** data that never mixes.
+- **Back up now and then** with **Export all** on the Setup tab. Deleting the app from your Home Screen, or clearing website data in Settings, deletes your records.
+- **Private browsing** starts empty and forgets everything when the tab closes.
+- **One device only.** There's no sync between your phone and computer yet. To move data, export on one and import on the other.
 
 ## Common Questions
 
 **Q: Why is my change not showing?**
 
-A: This is a progressive web app (PWA), which means it caches content locally to work offline. If you deployed a new version but see an old one, try tapping "Reload latest" in the footer or opening the app in a private/incognito tab.
+A: The app keeps a copy of itself so it works offline. When a new version is out, **Update available** appears at the top. If you have unsaved edits it waits until you save. You can also tap **Reload latest** in the footer.
 
 **Q: Can I use this offline?**
 
-A: Yes! Once you've opened the app once, it's cached locally. You can close the browser or turn off wifi and the app will still work (though external data may not fetch without internet).
+A: Yes. Once it's open it works with no connection, and your data never needs one.
 
 **Q: How do I report a bug?**
 
-A: Take a screenshot and share it with the developer. If the footer shows a debug log (tap the build timestamp), copy it and include that too — it helps debug issues.
-
-**Q: What data is stored on my device?**
-
-A: Data is cached locally for performance and offline capability. No data is sent anywhere unless the app explicitly fetches external data (check the footer's debug panel to see network requests).
-
----
-
-**Need more help?** Check this modal's other pages (if any) or reach out to the developer.
+A: Tap **View logs** in the footer, then **Copy log**, and paste it to whoever is helping you, with a screenshot if you can.

@@ -38,18 +38,24 @@ export default defineConfig({
     vue(),
     emitVersionJson(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt', not 'autoUpdate': a new worker waits until src/pwa.ts says the
+      // app is quiet (no pending writes, no unsaved drafts), so an update can
+      // never reload the page in the middle of a save.
+      registerType: 'prompt',
       // src/pwa.ts registers the worker itself via useRegisterSW.
       injectRegister: false,
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'App Name',
-        short_name: 'App',
-        description: 'A web app built with Claude Code',
-        theme_color: '#ffffff',
-        background_color: '#ffffff',
+        id: '/',
+        name: 'Pocket Master',
+        short_name: 'Pocket',
+        description: 'Personal balance-sheet tracker: record your balances, see your history, project ahead.',
+        theme_color: '#0b1433',
+        background_color: '#0b1433',
         display: 'standalone',
         orientation: 'portrait-primary',
+        start_url: '/',
+        scope: '/',
         icons: [
           {
             src: 'logo-192.png',
@@ -67,6 +73,8 @@ export default defineConfig({
       },
       workbox: {
         cleanupOutdatedCaches: true,
+        // woff2 so the bundled fonts work offline; .json stays out (version.json must hit the network).
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
       },
     }),
   ],

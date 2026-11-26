@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, watch, ref } from 'vue'
 
 interface Props {
   open: boolean
@@ -10,39 +10,38 @@ interface Emits {
   (e: 'close'): void
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 defineEmits<Emits>()
 
-// Load markdown docs from docs/concepts/
-const docs = ref<Record<string, string>>({})
-const currentDoc = ref('default')
-
-onMounted(async () => {
-  try {
-    // Load available concept docs
-    // In a real app, you'd fetch these from docs/concepts/*.md
-    // For now, we'll provide a placeholder
-    docs.value = {
-      default: `# Welcome
-
-Check the Help modal to read documentation about your app.
-
-Each page in your app should have a corresponding markdown file in \`docs/concepts/\`. Update those files to help users understand what they're looking at.
-
-See the README for more info.`,
-    }
-  } catch (e) {
-    console.error('Failed to load help docs', e)
-  }
+// Every docs/concepts/*.md is bundled as text and becomes a tab here.
+const files = import.meta.glob('../../docs/concepts/*.md', { query: '?raw', import: 'default', eager: true }) as Record<
+  string,
+  string
+>
+const ORDER = ['overview', 'today', 'projection', 'history', 'setup']
+const docs: Record<string, string> = Object.fromEntries(
+  Object.entries(files).map(([path, text]) => [path.split('/').pop()!.replace(/\.md$/, ''), text]),
+)
+const docKeys = Object.keys(docs).sort((a, b) => {
+  const ia = ORDER.indexOf(a)
+  const ib = ORDER.indexOf(b)
+  return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b)
 })
 
-const currentDocContent = computed(() => docs.value[currentDoc.value] || docs.value['default'] || '')
-const docKeys = computed(() => Object.keys(docs.value))
+const currentDoc = ref(props.initialDoc ?? 'overview')
+watch(
+  () => [props.open, props.initialDoc],
+  () => {
+    if (props.open && props.initialDoc && docs[props.initialDoc]) currentDoc.value = props.initialDoc
+  },
+)
+
+const currentDocContent = computed(() => docs[currentDoc.value] ?? docs['overview'] ?? '')
 </script>
 
 <template>
   <div v-if="open" class="modal-overlay" @click="$emit('close')">
-    <div class="modal-content" @click.stop>
+    <div class="modal-content" role="dialog" aria-modal="true" aria-label="Help" @click.stop>
       <button class="close-btn" @click="$emit('close')" aria-label="Close">✕</button>
 
       <div class="modal-body">
@@ -67,18 +66,52 @@ const docKeys = computed(() => Object.keys(docs.value))
 </template>
 
 <script lang="ts">
-// Simple markdown to HTML converter
+const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+function inline(t: string): string {
+  return esc(t)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+}
+
+// Small markdown subset: headings, paragraphs, bullet lists, bold/italic/code, rules.
 function formatMarkdown(md: string): string {
-  return md
-    .split('\n')
-    .map((line) => {
-      if (line.startsWith('# ')) return `<h1>${line.slice(2)}</h1>`
-      if (line.startsWith('## ')) return `<h2>${line.slice(3)}</h2>`
-      if (line.startsWith('- ')) return `<li>${line.slice(2)}</li>`
-      if (line.startsWith('`')) return `<code>${line.slice(1, -1)}</code>`
-      return line ? `<p>${line}</p>` : ''
-    })
-    .join('')
+  const out: string[] = []
+  let list = false
+  let para: string[] = []
+  const flush = () => {
+    if (para.length) out.push(`<p>${inline(para.join(' '))}</p>`)
+    para = []
+  }
+  for (const raw of md.split('\n')) {
+    const line = raw.trimEnd()
+    const li = /^\s*[-*] (.*)/.exec(line)
+    if (!li && list) {
+      out.push('</ul>')
+      list = false
+    }
+    if (/^#{1,3} /.test(line)) {
+      flush()
+      const level = line.indexOf(' ')
+      out.push(`<h${level}>${inline(line.slice(level + 1))}</h${level}>`)
+    } else if (li) {
+      flush()
+      if (!list) out.push('<ul>')
+      list = true
+      out.push(`<li>${inline(li[1])}</li>`)
+    } else if (/^---+$/.test(line)) {
+      flush()
+      out.push('<hr />')
+    } else if (!line.trim()) {
+      flush()
+    } else {
+      para.push(line.trim())
+    }
+  }
+  flush()
+  if (list) out.push('</ul>')
+  return out.join('')
 }
 
 function formatTabName(key: string): string {
@@ -108,6 +141,7 @@ function formatTabName(key: string): string {
   border-radius: 0.8rem;
   max-width: 50rem;
   max-height: 80vh;
+  width: 100%;
   display: flex;
   flex-direction: column;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
@@ -148,24 +182,24 @@ function formatTabName(key: string): string {
   line-height: 1.6;
 }
 
-.markdown h1 {
+.markdown :deep(h1) {
   font-size: 1.5rem;
   margin: 0 0 1rem 0;
   color: var(--text);
 }
 
-.markdown h2 {
+.markdown :deep(h2) {
   font-size: 1.2rem;
   margin: 1rem 0 0.5rem 0;
   color: var(--text);
 }
 
-.markdown p {
+.markdown :deep(p) {
   margin: 0.5rem 0;
   color: var(--text);
 }
 
-.markdown code {
+.markdown :deep(code) {
   background: var(--bg-elev-2);
   padding: 0.2rem 0.4rem;
   border-radius: 0.3rem;
@@ -173,9 +207,20 @@ function formatTabName(key: string): string {
   font-size: 0.9em;
 }
 
-.markdown li {
-  margin-left: 1.5rem;
+.markdown :deep(ul) {
+  padding-left: 1.25rem;
+  margin: 0.5rem 0;
+}
+
+.markdown :deep(li) {
   color: var(--text);
+  margin: 0.2rem 0;
+}
+
+.markdown :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1rem 0;
 }
 
 .doc-tabs {
@@ -212,6 +257,12 @@ function formatTabName(key: string): string {
 @media (max-width: 30rem) {
   .modal-overlay {
     padding: 0;
+    align-items: stretch;
+  }
+
+  .modal-content {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   .modal-content {

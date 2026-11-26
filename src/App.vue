@@ -1,20 +1,64 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import HelpModal from './components/HelpModal.vue'
+import InstallHint from './components/InstallHint.vue'
 import { debugState, logDebug, logAsText } from './debug'
 import { setupPWAUpdates } from './pwa'
 import { useVersionCheck } from './lib/useVersionCheck'
+import { refreshHealth } from './lib/storage/store'
+import { useStore } from './lib/storage/useStore'
+import { loadTracker, useTracker } from './features/tracker/useTracker'
+import TodayView from './features/tracker/TodayView.vue'
+import ProjectionView from './features/tracker/ProjectionView.vue'
+import HistoryView from './features/tracker/HistoryView.vue'
+import SetupView from './features/tracker/SetupView.vue'
 
 const buildId = __BUILD_ID__
 const buildTime = __BUILD_TIME__
 const showDebug = ref(false)
 const copied = ref(false)
 
-const { reloadLatest } = setupPWAUpdates()
-
 // Update available affordance: shown when the origin serves a different build
+// (version.json) or a downloaded service worker is waiting for a quiet moment.
 const { status: versionStatus, published, checkNow } = useVersionCheck()
-const updateAvailable = computed(() => versionStatus.value === 'update-ready')
+const { reloadLatest, updateWaiting, applyUpdate } = setupPWAUpdates(() => {
+  checkNow()
+  refreshHealth()
+})
+const updateAvailable = computed(() => versionStatus.value === 'update-ready' || updateWaiting.value)
+
+// ---- app state: storage + tracker
+const { state: store, needsInstallWarning, usageLabel } = useStore()
+const { loaded, records, loadError } = useTracker()
+onMounted(() => loadTracker())
+
+type Tab = 'today' | 'projection' | 'history' | 'setup'
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'today', label: 'Today' },
+  { id: 'projection', label: 'Projection' },
+  { id: 'history', label: 'History' },
+  { id: 'setup', label: 'Setup' },
+]
+function initialTab(): Tab {
+  try {
+    const t = localStorage.getItem('tab') as Tab | null
+    if (t && TABS.some((x) => x.id === t)) return t
+  } catch {
+    /* private mode */
+  }
+  return 'today'
+}
+const tab = ref<Tab>(initialTab())
+function go(t: Tab) {
+  tab.value = t
+  try {
+    localStorage.setItem('tab', t)
+  } catch {
+    /* private mode */
+  }
+  window.scrollTo({ top: 0 })
+}
+const helpForTab: Record<Tab, string> = { today: 'today', projection: 'projection', history: 'history', setup: 'setup' }
 const showUpdatePanel = ref(false)
 const updateSlot = ref<HTMLElement>()
 const alreadyLatest = ref(false)
@@ -64,13 +108,22 @@ async function onReloadLatest() {
     setTimeout(() => (alreadyLatest.value = false), 2000)
     return
   }
+  // A worker already downloaded and waiting: just switch to it.
+  if (updateWaiting.value) {
+    await applyUpdate()
+    return
+  }
   logDebug('Reloading to latest build...')
   await reloadLatest()
 }
 
 // Help modal state
 const showHelp = ref(false)
-const helpDoc = ref('default')
+const helpDoc = ref('overview')
+function openHelp() {
+  helpDoc.value = helpForTab[tab.value]
+  showHelp.value = true
+}
 </script>
 
 <template>
@@ -91,23 +144,47 @@ const helpDoc = ref('default')
             role="dialog"
           >
             <div class="up-line">running {{ buildId }} · {{ buildTime }}</div>
-            <div class="up-line">live {{ published?.commit }} · {{ published?.builtAt }}</div>
+            <div v-if="published" class="up-line">live {{ published.commit }} · {{ published.builtAt }}</div>
+            <div v-if="store.unsaved.length" class="up-line">Finish or discard your edits first, or tap to update now.</div>
             <button class="reload-btn update-ready" @click="onReloadLatest">
               Update ready — Reload
             </button>
           </div>
         </div>
-        <h1 class="app-title">App Name</h1>
-        <button class="help-btn" @click="showHelp = true" aria-label="Help" title="Help">
+        <h1 class="app-title">Pocket Master</h1>
+        <button class="help-btn" @click="openHelp" aria-label="Help" title="Help">
           ? Help
         </button>
       </div>
     </header>
 
-    <!-- TODO: Your app content goes here -->
+    <nav class="tabs" aria-label="Sections">
+      <button
+        v-for="t in TABS"
+        :key="t.id"
+        :class="{ on: tab === t.id }"
+        :aria-current="tab === t.id ? 'page' : undefined"
+        @click="go(t.id)"
+      >
+        {{ t.label }}
+      </button>
+    </nav>
+
     <div class="content">
-      <p>Welcome! Replace this with your app content.</p>
-      <p>Start by customizing the references in CLAUDE.md and describing what you want to build.</p>
+      <InstallHint v-if="loaded" :has-data="records.length > 0" />
+
+      <p v-if="store.saveState === 'error'" class="store-error" role="alert">
+        {{ store.lastError || 'Saving failed.' }} Tap <b>View logs</b> below for details.
+      </p>
+      <p v-if="loadError" class="store-error" role="alert">Couldn’t load your data: {{ loadError }}</p>
+
+      <div v-if="!loaded" class="loading muted">Loading your data…</div>
+      <template v-else>
+        <TodayView v-if="tab === 'today'" @go="go" />
+        <ProjectionView v-else-if="tab === 'projection'" />
+        <HistoryView v-else-if="tab === 'history'" />
+        <SetupView v-else />
+      </template>
     </div>
 
     <footer class="debug">
@@ -115,7 +192,14 @@ const helpDoc = ref('default')
         <span class="build-stamp">
           build {{ buildId }} · {{ buildTime }}
           <template v-if="versionStatus === 'current'"> · up to date</template>
-          <template v-else-if="updateAvailable"> · {{ published?.commit }} is live</template>
+          <template v-else-if="updateAvailable"> · {{ published?.commit ?? 'update' }} is ready</template>
+          <br />
+          <span class="save-state" :class="store.saveState">
+            {{ store.saveState === 'saving' ? 'Saving…' : store.saveState === 'error' ? 'Save failed' : 'Saved' }}
+          </span>
+          · {{ store.health.installed ? 'installed' : 'browser tab' }}
+          · {{ store.health.persisted ? 'persistent' : store.health.persisted === false ? 'not persistent' : 'persistence unknown' }}
+          · {{ usageLabel }} used
         </span>
 
         <button
@@ -141,6 +225,10 @@ const helpDoc = ref('default')
           }}
         </button>
       </div>
+
+      <p v-if="needsInstallWarning" class="storage-warn">
+        Your files could be cleared by the browser. Install to Home Screen to keep them.
+      </p>
 
       <div v-if="showDebug" class="log-window">
         <div class="log-head">
@@ -172,7 +260,70 @@ const helpDoc = ref('default')
 .app {
   max-width: 60rem;
   margin: 0 auto;
-  padding: max(1rem, env(safe-area-inset-top)) 1rem 2rem;
+  padding: max(0.75rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    max(1.25rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+}
+
+.tabs {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.25rem;
+  padding: 0.35rem;
+  margin: 0 -0.25rem;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+
+.tabs button {
+  min-height: var(--tap);
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--mute);
+  font-weight: 700;
+  font-size: 0.92rem;
+  padding: 0 0.25rem;
+}
+
+.tabs button.on {
+  background: var(--panel-2);
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.store-error {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--negative);
+  border-radius: 0.6rem;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--negative) 15%, transparent);
+  font-size: 0.9rem;
+}
+
+.storage-warn {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  color: var(--projection);
+}
+
+.save-state.saving {
+  color: var(--projection);
+}
+
+.save-state.error {
+  color: var(--negative);
+  font-weight: 700;
+}
+
+.loading {
+  padding: 3rem 0;
+  text-align: center;
 }
 
 .title-row {
@@ -187,7 +338,9 @@ const helpDoc = ref('default')
   grid-column: 2;
   justify-self: center;
   margin: 0;
-  font-size: clamp(1.05rem, 4vw, 1.5rem);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.15rem, 4.5vw, 1.5rem);
   line-height: 1.1;
   white-space: nowrap;
 }
@@ -259,6 +412,7 @@ const helpDoc = ref('default')
 
 .content {
   padding: 1rem 0;
+  min-height: 60vh;
 }
 
 .muted {
@@ -348,7 +502,7 @@ const helpDoc = ref('default')
   list-style: none;
   padding: 0.5rem;
   margin: 0.4rem 0 0;
-  background: #060912;
+  background: #050a1c;
   color: #cdd3e0;
   border: 1px solid var(--border);
   border-radius: 0.4rem;
@@ -365,5 +519,14 @@ const helpDoc = ref('default')
 
 .debug-log .warn {
   color: #ff9800;
+}
+
+.help-btn,
+.update-btn {
+  min-height: 36px;
+}
+
+.reload-btn {
+  min-height: 32px;
 }
 </style>

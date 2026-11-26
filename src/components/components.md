@@ -1,24 +1,8 @@
 # Components
 
-Vue components for your app's features.
+Shell-level components. Feature screens live in `src/features/tracker/`.
 
-- `HelpModal.vue` — provided, renders markdown docs from `docs/concepts/`
-- **Your components go here** — organize by feature, one file per component
+- `HelpModal.vue` — renders `docs/concepts/*.md` into the Help modal, one tab per file
+- `InstallHint.vue` — "Add to Home Screen" instructions on iOS, Install button on Chromium
 
-## Naming Convention
-
-- Use PascalCase for file names: `MyComponent.vue`
-- Keep components focused — logic lives in `src/lib/`
-- Thin components = easier to maintain + reuse
-
-## Example Structure
-
-```
-components/
-  HelpModal.vue
-  FeatureA.vue
-  FeatureB.vue
-  FeatureC.vue
-```
-
-Ask Claude Code to add new components as you build your app.
+Keep components thin: calculations live in `src/lib/finance.ts`, state in `useTracker.ts`.
