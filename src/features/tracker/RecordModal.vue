@@ -10,7 +10,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { GripVertical } from '@lucide/vue'
 import { type BalanceRecord, type RecordLine, type TemplateLine, newId, sheet } from '../../lib/finance'
-import { fmtDateTime, fmtMoney, isISODate, isLocalDateTime, nowLocal, parseMoney } from '../../lib/money'
+import { fmtDateTime, fmtMoney, isLocalDateTime, nowLocal, parseMoney } from '../../lib/money'
 import { markUnsaved } from '../../lib/storage/store'
 import { useTracker } from './useTracker'
 
@@ -30,8 +30,8 @@ interface Row {
 // The record's moment: a date and a time (HH:MM). Seconds are kept from when
 // the sheet opened (or from the record) so two quick saves never collide.
 const start = props.editing?.at ?? nowLocal()
-const date = ref(start.slice(0, 10))
-const time = ref(start.slice(11, 16))
+// One native date-and-time field (datetime-local: a single box and picker on iOS).
+const when = ref(start.slice(0, 16)) // 'YYYY-MM-DDTHH:MM'
 const seconds = start.slice(17, 19)
 const rows = reactive<Row[]>([])
 const touched = ref(false)
@@ -76,11 +76,11 @@ else fill(latest.value)
 
 function onBodyInput(e: Event) {
   const t = (e.target as HTMLInputElement).type
-  if (t !== 'date' && t !== 'time') touched.value = true
+  if (t !== 'datetime-local') touched.value = true
 }
 
 const isUpdate = !!props.editing
-const at = computed(() => `${date.value}T${/^\d{2}:\d{2}$/.test(time.value) ? time.value : '12:00'}:${seconds}`)
+const at = computed(() => `${when.value.slice(0, 16)}:${seconds}`)
 /** Another record already at this exact moment (saving would replace it). */
 const clash = computed(() => at.value !== props.editing?.at && recordTimes.value.has(at.value))
 
@@ -209,7 +209,7 @@ async function saveAsTemplate() {
 
 async function save() {
   error.value = ''
-  if (!isISODate(date.value) || !isLocalDateTime(at.value)) {
+  if (!isLocalDateTime(at.value)) {
     error.value = 'Pick a valid date and time.'
     return
   }
@@ -272,16 +272,10 @@ onBeforeUnmount(() => {
       </header>
 
       <div class="body" @input="onBodyInput">
-        <div class="date-row">
-          <label class="when">
-            <span>Date</span>
-            <input v-model="date" class="input" type="date" required />
-          </label>
-          <label class="when time">
-            <span>Time</span>
-            <input v-model="time" class="input" type="time" required />
-          </label>
-        </div>
+        <label class="when">
+          <span>Date and time</span>
+          <input v-model="when" class="input" type="datetime-local" required />
+        </label>
         <p v-if="clash" class="note small">
           There's already a record at {{ fmtDateTime(at) }}. Saving replaces it; change the time to keep both.
         </p>
@@ -433,16 +427,21 @@ onBeforeUnmount(() => {
   padding: 0.6rem 1rem 1rem;
 }
 
-.date-row {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  gap: 0.5rem;
-}
-
 .when {
   display: grid;
   gap: 0.2rem;
   min-width: 0;
+}
+
+/* iOS gives date inputs a minimum width and centred text: let it fill the row instead. */
+.when .input {
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+}
+
+.when .input::-webkit-date-and-time-value {
+  text-align: left;
 }
 
 .when > span {

@@ -345,7 +345,8 @@ typed number positive.
 - **Changed:** each record has a date and time (`at`), its own file
   `records/<YYYY-MM-DDTHH-MM-SS>.json`; any number per day. Old date-only records get their saved
   time (or noon) and are renamed on load
-- **Added:** time field in the record sheet; "Edit latest" on Present; tap a Past row to open,
+- **Added:** one native date-and-time field (`datetime-local`) in the record sheet — separate date
+  and time inputs rendered as mismatched boxes on iOS, and the time box overflowed; "Edit latest" on Present; tap a Past row to open,
   update (including date/time) or delete a record
 
 ### v0.6.3 — 2026-11-26

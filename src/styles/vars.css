@@ -220,7 +220,8 @@ a:hover {
   font-variant-numeric: tabular-nums;
 }
 
-input[type='date'].input {
+input[type='date'].input,
+input[type='datetime-local'].input {
   -webkit-appearance: none;
   appearance: none;
 }
