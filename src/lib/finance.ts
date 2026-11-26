@@ -424,6 +424,9 @@ export function defaultProjection(id = 'everything'): ProjectionFile {
   return { schema: 2, id, name: 'Everything', start: { mode: 'all' }, horizonDays: 90, items: [everydayItem()] }
 }
 
+/** The default rows before v0.6.2, so a never-customised template can be updated to the new default. */
+export const PREVIOUS_DEFAULT_TEMPLATE_IDS = ['checking', 'rent', 'phone-ins', 'discover', 'capone', 'amex', 'macys', 'paying', 'receiving']
+
 /** First-run template: rows only, no amounts. */
 export function defaultTemplate(): TemplateFile {
   const row = (id: string, name: string, negative: boolean): TemplateLine => ({ id, name, negative })
@@ -431,14 +434,11 @@ export function defaultTemplate(): TemplateFile {
     schema: 1,
     rows: [
       row('checking', 'Checking', false),
-      row('rent', 'Month’s rent', true),
-      row('phone-ins', 'Phone and insurance', true),
       row('discover', 'Discover', true),
       row('capone', 'Capital One', true),
       row('amex', 'Amex', true),
       row('macys', 'Macy’s', true),
-      row('paying', 'Paying', true),
-      row('receiving', 'Receiving', false),
+      row('saving', 'Saving', false),
     ],
   }
 }

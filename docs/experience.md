@@ -341,6 +341,11 @@ typed number positive.
 
 ## Version History
 
+### v0.6.2 — 2026-11-26
+- **Changed:** the +/− toggle in the New record sheet is quieter (muted sign, no ring)
+- **Changed:** default record rows are Checking, Discover, Capital One, Amex, Macy's, Saving; a
+  template still on the old default is updated on load (a saved, customised one is left alone)
+
 ### v0.6.1 — 2026-11-26
 - **Changed:** Import / Export moved into a side menu (☰ top left → Records, collapsed by default),
   each opening only its own half of the sheet; removed from the Present tab and the footer

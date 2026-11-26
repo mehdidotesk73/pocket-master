@@ -374,24 +374,35 @@ onBeforeUnmount(() => {
   color: var(--negative);
 }
 
+/* The have/owe toggle: deliberately quiet — a muted sign, no ring, same tap area. */
 .sign {
   width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: 1.5px solid currentColor;
+  height: 40px;
+  border: none;
+  border-radius: var(--btn-radius);
   background: transparent;
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-size: 0.95rem;
+  font-weight: 500;
   line-height: 1;
   padding: 0;
+  opacity: 0.6;
+  transition:
+    opacity 0.12s ease,
+    background-color 0.12s ease;
+}
+
+.sign:hover,
+.sign:focus-visible {
+  opacity: 1;
+  background: var(--panel-2);
 }
 
 .sign.pos {
-  color: var(--pos);
+  color: color-mix(in srgb, var(--pos) 70%, var(--mute));
 }
 
 .sign.neg {
-  color: var(--negative);
+  color: color-mix(in srgb, var(--negative) 70%, var(--mute));
 }
 
 .rm {

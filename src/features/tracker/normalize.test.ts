@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeProjection, normalizeRecord, normalizeTemplate } from './useTracker'
+import { defaultTemplate } from '../../lib/finance'
+import { isPreviousDefault, normalizeProjection, normalizeRecord, normalizeTemplate } from './useTracker'
 
 // The combined settings file the app wrote before projection.json / template.json existed.
 const oldSettings = {
@@ -106,5 +107,31 @@ describe('records', () => {
   it('keeps signed lines, recomputes totals, rejects bad dates', () => {
     expect(normalizeRecord({ date: '2026-11-02', left: 1, lines: [{ id: 'a', name: 'A', amount: -5 }] })?.left).toBe(-5)
     expect(normalizeRecord({ date: 'nope', lines: [] })).toBeNull()
+  })
+})
+
+describe('default template', () => {
+  it('is Checking, Discover, Capital One, Amex, Macy’s and Saving', () => {
+    expect(defaultTemplate().rows.map((r) => [r.name, r.negative])).toEqual([
+      ['Checking', false],
+      ['Discover', true],
+      ['Capital One', true],
+      ['Amex', true],
+      ['Macy’s', true],
+      ['Saving', false],
+    ])
+  })
+
+  it('spots a never-customised old default, but not a saved template', () => {
+    const old = normalizeTemplate({ lines: [
+      { id: 'checking', name: 'Checking', kind: 'account' }, { id: 'rent', name: 'Month’s rent', kind: 'bill' },
+      { id: 'phone-ins', name: 'Phone and insurance', kind: 'bill' }, { id: 'discover', name: 'Discover', kind: 'card' },
+      { id: 'capone', name: 'Capital One', kind: 'card' }, { id: 'amex', name: 'Amex', kind: 'card' },
+      { id: 'macys', name: 'Macy’s', kind: 'card' }, { id: 'paying', name: 'Paying', kind: 'paying' },
+      { id: 'receiving', name: 'Receiving', kind: 'receiving' },
+    ] })
+    expect(isPreviousDefault(old)).toBe(true)
+    expect(isPreviousDefault({ ...old, rows: old.rows.slice(1) })).toBe(false)
+    expect(isPreviousDefault(defaultTemplate())).toBe(false)
   })
 })

@@ -20,6 +20,7 @@ import {
   type TemplateLine,
   LEFT_SOURCE,
   MAX_HORIZON_DAYS,
+  PREVIOUS_DEFAULT_TEMPLATE_IDS,
   defaultProjection,
   defaultTemplate,
   everydayItem,
@@ -211,6 +212,14 @@ export function normalizeTemplate(raw: unknown): TemplateFile {
   return { schema: 1, rows }
 }
 
+/** True for a template that is still exactly the pre-v0.6.2 default (same rows, no amounts). */
+export function isPreviousDefault(t: TemplateFile): boolean {
+  return (
+    t.rows.length === PREVIOUS_DEFAULT_TEMPLATE_IDS.length &&
+    t.rows.every((r, i) => r.id === PREVIOUS_DEFAULT_TEMPLATE_IDS[i] && r.amount == null)
+  )
+}
+
 export function normalizeRecord(raw: unknown): BalanceRecord | null {
   const r = (raw ?? {}) as Record<string, unknown>
   if (!isISODate(r.date) || !Array.isArray(r.lines)) return null
@@ -273,6 +282,12 @@ async function loadFrom(store: Store) {
 
   const rawTemplate = await readSafe(TEMPLATE_ID)
   template.value = rawTemplate == null ? defaultTemplate() : normalizeTemplate(rawTemplate)
+  if (isPreviousDefault(template.value)) {
+    // Never customised: move it to the current default rows.
+    template.value = defaultTemplate()
+    await store.writeJSON(TEMPLATE_ID, template.value)
+    logDebug('Updated the record template to the new default rows')
+  }
   if (!store.has(TEMPLATE_ID)) await store.writeJSON(TEMPLATE_ID, template.value)
 
   const recs: BalanceRecord[] = []
