@@ -53,7 +53,7 @@ async function confirmImport(mode: 'merge' | 'replace') {
   try {
     await applyImport(pending.value, mode)
     msg.value = `Imported ${pending.value.recordCount} record${pending.value.recordCount === 1 ? '' : 's'}${
-      pending.value.files.some((f) => f.id === 'settings') ? ' and your template and Future items' : ''
+      pending.value.files.some((f) => f.id === 'projection') ? ', your projection and your template' : ''
     }.`
     pending.value = null
     await refreshHealth()
@@ -105,7 +105,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
         <div v-if="pending" class="confirm">
           <p>
             This file has <b>{{ pending.recordCount }}</b> record{{ pending.recordCount === 1 ? '' : 's' }}
-            <template v-if="pending.files.some((f) => f.id === 'settings')"> plus a template and Future items</template>.
+            <template v-if="pending.files.some((f) => f.id === 'projection')"> plus a projection and a template</template>.
             How should it be added?
           </p>
           <div class="data-actions">
@@ -125,8 +125,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
         <dl class="health small">
           <dt>Last backup</dt>
           <dd>{{ storeState.lastExport ? fmtDate(storeState.lastExport.slice(0, 10)) : 'never' }}</dd>
-          <dt>Records</dt>
-          <dd>{{ records.length }}</dd>
+          <dt>Files</dt>
+          <dd>records/ ({{ records.length }} file{{ records.length === 1 ? '' : 's' }}) · projection.json · template.json</dd>
           <dt>Storage</dt>
           <dd>
             {{ storeState.backend === 'opfs' ? 'Files on this device' : 'Not available: nothing is kept' }} ·

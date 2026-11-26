@@ -13,7 +13,7 @@ import { useTracker } from './useTracker'
 
 const emit = defineEmits<{ (e: 'close'): void; (e: 'saved', date: string): void }>()
 
-const { settings, records, latest, recordDates, saveRecord, saveTemplate } = useTracker()
+const { template, records, latest, recordDates, saveRecord, saveTemplate } = useTracker()
 
 interface Row {
   id: string
@@ -36,7 +36,7 @@ function fill(from: BalanceRecord | null, useRecordRows = false) {
   const byId = new Map((from?.lines ?? []).map((l) => [l.id, l]))
   const source: TemplateLine[] = useRecordRows && from
     ? from.lines.map((l) => ({ id: l.id, name: l.name, amount: l.amount, negative: l.amount < 0 }))
-    : settings.value.template
+    : template.value.rows
   rows.splice(
     0,
     rows.length,

@@ -2,7 +2,8 @@
 //
 // Layout in OPFS:
 //   index.<seq>.json      manifest: schemaVersion + every file's current revision
-//   files/<id>.<rev>.<ext>
+//   files/<id>.<rev>.<ext>   ids may contain '/', which become real folders:
+//                            files/records/2026-11-26.3.json, files/projection.2.json
 //   tmp/                  scratch; emptied on every start
 //
 // Safe save: write the full new revision → write a new index pointing at it →
@@ -20,7 +21,7 @@ import type { WorkerRequest, WorkerResponse } from './worker'
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
 
 /** Bump when the on-disk layout changes, and add a migration below. */
-export const STORE_SCHEMA = 1
+export const STORE_SCHEMA = 2
 const APP_ID = 'pocket-master'
 
 export interface FileMeta {
@@ -63,6 +64,8 @@ interface Backend {
   write(path: string, text: string): Promise<void>
   remove(path: string): Promise<void>
   list(dir: string): Promise<string[]>
+  /** Every file under dir, recursively, as paths relative to dir. */
+  listAll(dir: string): Promise<string[]>
   clear(dir: string): Promise<void>
 }
 
@@ -106,6 +109,7 @@ class WorkerBackend implements Backend {
   write = async (path: string, text: string) => void (await this.call({ op: 'write', path, text }))
   remove = async (path: string) => void (await this.call({ op: 'remove', path }))
   list = (dir: string) => this.call<string[]>({ op: 'list', dir })
+  listAll = (dir: string) => this.call<string[]>({ op: 'listAll', dir })
   clear = async (dir: string) => void (await this.call({ op: 'clear', dir }))
 }
 
@@ -127,6 +131,10 @@ export class MemoryBackend implements Backend {
       .filter((k) => k.startsWith(prefix) && !k.slice(prefix.length).includes('/'))
       .map((k) => k.slice(prefix.length))
   }
+  async listAll(dir: string) {
+    const prefix = `${dir.replace(/\/$/, '')}/`
+    return [...this.files.keys()].filter((k) => k.startsWith(prefix)).map((k) => k.slice(prefix.length))
+  }
   async clear(dir: string) {
     for (const k of [...this.files.keys()]) if (k.startsWith(`${dir}/`)) this.files.delete(k)
   }
@@ -134,8 +142,14 @@ export class MemoryBackend implements Backend {
 
 // ---------------------------------------------------------------- paths
 
-const encId = (id: string) => encodeURIComponent(id).replace(/\./g, '%2E')
+// Each '/'-separated part of an id is one folder level; parts are encoded so
+// they can't contain '/' or '.' (the '.' separates name, revision and ext).
+const encPart = (p: string) => encodeURIComponent(p).replace(/\./g, '%2E')
+const encId = (id: string) => id.split('/').map(encPart).join('/')
 const filePath = (m: Pick<FileMeta, 'id' | 'rev' | 'ext'>) => `files/${encId(m.id)}.${m.rev}.${m.ext}`
+/** Schema-1 layout: the whole id in one flat file name ('/' encoded as %2F). */
+const encIdV1 = (id: string) => encodeURIComponent(id).replace(/\./g, '%2E')
+const filePathV1 = (m: Pick<FileMeta, 'id' | 'rev' | 'ext'>) => `files/${encIdV1(m.id)}.${m.rev}.${m.ext}`
 const indexName = (seq: number) => `index.${seq}.json`
 const INDEX_RE = /^index\.(\d+)\.json$/
 
@@ -150,7 +164,21 @@ const INDEX_RE = /^index\.(\d+)\.json$/
  * Example for a future v2:
  *   1: async (s) => { for (const m of Object.values(s.index.files)) { ...rewrite... } },
  */
-const MIGRATIONS: Record<number, (s: Store) => Promise<void>> = {}
+const MIGRATIONS: Record<number, (s: Store) => Promise<void>> = {
+  // 1 → 2: flat file names → real folders (records/2026-11-26 lives in files/records/).
+  // Safe to re-run after a crash: a file already moved is found at its new path.
+  1: async (s) => {
+    for (const m of Object.values(s.index.files)) {
+      const oldPath = filePathV1(m)
+      const newPath = filePath(m)
+      if (oldPath === newPath) continue
+      const text = await s.backend.read(oldPath)
+      if (text == null) continue // already moved
+      await s.backend.write(newPath, text)
+      await s.backend.remove(oldPath)
+    }
+  },
+}
 
 // ---------------------------------------------------------------- the store
 
@@ -159,7 +187,7 @@ export class Store {
   private queue: Promise<unknown> = Promise.resolve()
   private readOnly = false
 
-  constructor(private backend: Backend) {}
+  constructor(readonly backend: Backend) {}
 
   /** Run `fn` after every write queued before it. */
   private enqueue<T>(fn: () => Promise<T>): Promise<T> {
@@ -224,7 +252,7 @@ export class Store {
     // Orphans: old indexes, and revisions the index doesn't point at.
     for (const seq of seqs) if (seq !== this.index.seq) await this.backend.remove(indexName(seq))
     const live = new Set(Object.values(this.index.files).map(filePath))
-    for (const n of await this.backend.list('files')) {
+    for (const n of await this.backend.listAll('files')) {
       if (!live.has(`files/${n}`)) await this.backend.remove(`files/${n}`)
     }
   }
@@ -321,7 +349,7 @@ export class Store {
     const files = this.list()
     for (const m of files) {
       const t = await this.read(m.id)
-      if (t != null) entries[`files/${encId(m.id)}.${m.ext}`] = strToU8(t)
+      if (t != null) entries[`${m.id}.${m.ext}`] = strToU8(t) // records/2026-11-26.json, projection.json
     }
     const manifest = {
       app: APP_ID,
@@ -355,7 +383,8 @@ export class Store {
       throw new Error('That backup was made by a newer version of the app. Tap “Reload latest” first.')
     }
     const files = manifest.files.map((f) => {
-      const data = entries[`files/${encId(f.id)}.${f.ext}`]
+      // current layout, then the schema-1 layout (files/<flat id>.<ext>)
+      const data = entries[`${f.id}.${f.ext}`] ?? entries[`files/${encIdV1(f.id)}.${f.ext}`]
       if (!data) throw new Error(`Backup is missing ${f.id}.`)
       return { id: f.id, ext: f.ext, text: strFromU8(data) }
     })

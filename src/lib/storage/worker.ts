@@ -14,6 +14,7 @@ export type WorkerRequest =
   | { id: number; op: 'write'; path: string; text: string }
   | { id: number; op: 'remove'; path: string }
   | { id: number; op: 'list'; dir: string }
+  | { id: number; op: 'listAll'; dir: string }
   | { id: number; op: 'clear'; dir: string }
 
 export type WorkerResponse = { id: number; ok: true; result?: unknown } | { id: number; ok: false; error: string }
@@ -95,6 +96,23 @@ async function handle(req: WorkerRequest): Promise<unknown> {
         if ((e as DOMException)?.name === 'NotFoundError') return []
         throw e
       }
+    }
+
+    case 'listAll': {
+      const out: string[] = []
+      async function walk(dir: FileSystemDirectoryHandle, prefix: string) {
+        // @ts-expect-error — see above
+        for await (const [n, h] of dir.entries()) {
+          if ((h as FileSystemHandle).kind === 'file') out.push(prefix + n)
+          else await walk(h as FileSystemDirectoryHandle, `${prefix}${n}/`)
+        }
+      }
+      try {
+        await walk(await getDir(req.dir, false), '')
+      } catch (e) {
+        if ((e as DOMException)?.name !== 'NotFoundError') throw e
+      }
+      return out
     }
 
     case 'clear': {

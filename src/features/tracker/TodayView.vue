@@ -8,7 +8,7 @@ import RecordModal from './RecordModal.vue'
 import { useTracker } from './useTracker'
 
 const emit = defineEmits<{ (e: 'backup'): void }>()
-const { settings, records, latest, previous, derived } = useTracker()
+const { records, latest, previous, horizon, currentProjection } = useTracker()
 
 const showModal = ref(false)
 
@@ -33,10 +33,10 @@ const figures = computed<Figure[]>(() => {
     { label: 'Assets', value: fmtMoney(l.assets) },
     { label: 'Liabilities', value: fmtMoney(l.liabilities) },
   ]
-  const p = derived.value.projection
+  const p = currentProjection.value
   if (p) {
     out.push({
-      label: `Projected in ${settings.value.horizonDays} days`,
+      label: `Projected in ${horizon.value} days`,
       value: fmtMoney(p.end.value),
       tone: p.end.value < 0 ? 'neg' : 'proj',
       sub:

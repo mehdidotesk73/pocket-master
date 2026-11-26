@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import type { Recurring } from '../../lib/finance'
 import { newId } from '../../lib/finance'
-import MoneyInput from './MoneyInput.vue'
+import SignedMoneyInput from './SignedMoneyInput.vue'
 
 const items = defineModel<Recurring[]>({ required: true })
 
 function add() {
-  items.value = [...items.value, { id: newId(), name: '', dir: 'out', amount: 0, day: 1, inRecord: false }]
+  items.value = [...items.value, { id: newId(), name: '', amount: 0, day: 1, inRecord: false }]
 }
 function remove(id: string) {
   items.value = items.value.filter((r) => r.id !== id)
@@ -21,17 +21,13 @@ function setDay(r: Recurring, v: string) {
   <section class="card">
     <h2>Every month</h2>
     <p class="muted small intro">
-      Paychecks, rent, subscriptions: anything that comes in or goes out on the same day each month.
-      Day 31 means the last day of the month.
+      Paychecks, rent, subscriptions: anything that comes in (<b class="pos">+</b>) or goes out
+      (<b class="neg">−</b>) on the same day each month. Day 31 means the last day of the month.
     </p>
 
     <div v-for="r in items" :key="r.id" class="item">
       <input v-model="r.name" class="input name" placeholder="Name (e.g. Paycheck)" aria-label="Name" />
-      <select v-model="r.dir" class="select dir" aria-label="In or out">
-        <option value="in">In</option>
-        <option value="out">Out</option>
-      </select>
-      <MoneyInput v-model="r.amount" class="amount" aria-label="Amount" />
+      <SignedMoneyInput v-model="r.amount" class="amount" aria-label="Amount" />
       <label class="day">
         <span class="muted small">day</span>
         <input
@@ -78,11 +74,11 @@ function setDay(r: Recurring, v: string) {
 
 .item {
   display: grid;
-  grid-template-columns: 4.6rem 1fr 6.2rem;
+  grid-template-columns: 1fr 6.2rem;
   grid-template-areas:
-    'name name name'
-    'dir amount day'
-    'inrec inrec rm';
+    'name name'
+    'amount day'
+    'inrec rm';
   gap: 0.4rem;
   padding: 0.6rem 0;
   border-top: 1px solid var(--line);
@@ -90,9 +86,6 @@ function setDay(r: Recurring, v: string) {
 
 .name {
   grid-area: name;
-}
-.dir {
-  grid-area: dir;
 }
 .amount {
   grid-area: amount;
@@ -122,8 +115,8 @@ function setDay(r: Recurring, v: string) {
 
 @media (min-width: 44rem) {
   .item {
-    grid-template-columns: 1fr 4.6rem 8rem 6.2rem auto auto;
-    grid-template-areas: 'name dir amount day inrec rm';
+    grid-template-columns: 1fr 10rem 6.2rem auto auto;
+    grid-template-areas: 'name amount day inrec rm';
     align-items: center;
   }
 }
