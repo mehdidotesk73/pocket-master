@@ -11,7 +11,7 @@ import { loadTracker, useTracker } from './features/tracker/useTracker'
 import TodayView from './features/tracker/TodayView.vue'
 import ProjectionView from './features/tracker/ProjectionView.vue'
 import HistoryView from './features/tracker/HistoryView.vue'
-import SetupView from './features/tracker/SetupView.vue'
+import BackupModal from './features/tracker/BackupModal.vue'
 
 const buildId = __BUILD_ID__
 const buildTime = __BUILD_TIME__
@@ -32,12 +32,11 @@ const { state: store, needsInstallWarning, usageLabel } = useStore()
 const { loaded, records, loadError } = useTracker()
 onMounted(() => loadTracker())
 
-type Tab = 'today' | 'projection' | 'history' | 'setup'
+type Tab = 'past' | 'present' | 'future'
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'today', label: 'Today' },
-  { id: 'projection', label: 'Projection' },
-  { id: 'history', label: 'History' },
-  { id: 'setup', label: 'Setup' },
+  { id: 'past', label: 'Past' },
+  { id: 'present', label: 'Present' },
+  { id: 'future', label: 'Future' },
 ]
 function initialTab(): Tab {
   try {
@@ -46,8 +45,9 @@ function initialTab(): Tab {
   } catch {
     /* private mode */
   }
-  return 'today'
+  return 'present'
 }
+const showBackup = ref(false)
 const tab = ref<Tab>(initialTab())
 function go(t: Tab) {
   tab.value = t
@@ -58,7 +58,7 @@ function go(t: Tab) {
   }
   window.scrollTo({ top: 0 })
 }
-const helpForTab: Record<Tab, string> = { today: 'today', projection: 'projection', history: 'history', setup: 'setup' }
+const helpForTab: Record<Tab, string> = { past: 'past', present: 'present', future: 'future' }
 const showUpdatePanel = ref(false)
 const updateSlot = ref<HTMLElement>()
 const alreadyLatest = ref(false)
@@ -180,10 +180,9 @@ function openHelp() {
 
       <div v-if="!loaded" class="loading muted">Loading your data…</div>
       <template v-else>
-        <TodayView v-if="tab === 'today'" @go="go" />
-        <ProjectionView v-else-if="tab === 'projection'" />
-        <HistoryView v-else-if="tab === 'history'" />
-        <SetupView v-else />
+        <HistoryView v-if="tab === 'past'" />
+        <TodayView v-else-if="tab === 'present'" @backup="showBackup = true" />
+        <ProjectionView v-else />
       </template>
     </div>
 
@@ -201,6 +200,8 @@ function openHelp() {
           · {{ store.health.persisted ? 'persistent' : store.health.persisted === false ? 'not persistent' : 'persistence unknown' }}
           · {{ usageLabel }} used
         </span>
+
+        <button class="reload-btn" @click="showBackup = true">Backup</button>
 
         <button
           class="reload-btn logs-btn"
@@ -252,6 +253,7 @@ function openHelp() {
       </div>
     </footer>
 
+    <BackupModal v-if="showBackup" @close="showBackup = false" />
     <HelpModal :open="showHelp" :initial-doc="helpDoc" @close="showHelp = false" />
   </main>
 </template>
@@ -269,7 +271,7 @@ function openHelp() {
   top: 0;
   z-index: 30;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 0.25rem;
   padding: 0.35rem;
   margin: 0 -0.25rem;

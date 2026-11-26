@@ -84,7 +84,7 @@ const chart = computed(() => {
     <section v-if="!latest" class="card">
       <h2>No projection yet</h2>
       <p class="muted">
-        Save your first record on the Today tab. The projection starts from your latest record and looks
+        Save your first record on the Present tab. The projection starts from your latest record and looks
         ahead using the monthly and one-time items below and your everyday spending.
       </p>
     </section>

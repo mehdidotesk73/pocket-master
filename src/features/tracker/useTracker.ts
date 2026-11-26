@@ -9,12 +9,11 @@ import { computed, ref, shallowRef } from 'vue'
 import {
   type BalanceRecord,
   type Horizon,
-  type LineDef,
-  type LineKind,
   type OneTime,
   type RecordLine,
   type Recurring,
   type Settings,
+  type TemplateLine,
   HORIZONS,
   autoEveryday,
   defaultSettings,
@@ -38,10 +37,22 @@ const loadError = ref('')
 
 // ---------------------------------------------------------------- normalizing (and schema migration)
 
-const KINDS: LineKind[] = ['account', 'receiving', 'card', 'bill', 'paying']
 const num = (v: unknown, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : d)
 const clampShare = (v: unknown) => Math.min(100, Math.max(0, num(v, 100)))
 const str = (v: unknown, d = '') => (typeof v === 'string' ? v : d)
+
+// Schema 1 (and the prototype) gave every line a kind and kept amounts positive.
+// Schema 2 has no kinds: the sign of the amount says which side it's on.
+const LEGACY_POSITIVE = ['account', 'receiving']
+const LEGACY_KINDS = ['account', 'receiving', 'card', 'bill', 'paying']
+
+/** A schema-1 line → a signed amount (cards counted at their share). */
+function legacySigned(l: Record<string, unknown>): number {
+  const kind = String(l.kind)
+  if (kind === 'card') return -roundMoney((Math.abs(num(l.total ?? l.amount)) * clampShare(l.share)) / 100)
+  const v = Math.abs(num(l.amount))
+  return LEGACY_POSITIVE.includes(kind) ? v : -v
+}
 
 /**
  * Accept any settings shape this app (or the prototype) has written and return
@@ -50,16 +61,26 @@ const str = (v: unknown, d = '') => (typeof v === 'string' ? v : d)
 export function normalizeSettings(raw: unknown): Settings {
   const r = (raw ?? {}) as Record<string, unknown>
   const base = defaultSettings()
-  const lines: LineDef[] = Array.isArray(r.lines)
-    ? (r.lines as Record<string, unknown>[])
-        .filter((l) => KINDS.includes(l?.kind as LineKind))
-        .map((l) => {
-          const kind = l.kind as LineKind
-          const def: LineDef = { id: str(l.id) || newId(), name: str(l.name, 'Unnamed'), kind }
-          if (kind === 'card') def.share = clampShare(l.share)
-          return def
-        })
-    : base.lines
+  let template: TemplateLine[]
+  if (Array.isArray(r.template)) {
+    template = (r.template as Record<string, unknown>[]).map((t) => {
+      const amount = t.amount == null || t.amount === '' ? undefined : roundMoney(num(t.amount))
+      const row: TemplateLine = {
+        id: str(t.id) || newId(),
+        name: str(t.name),
+        negative: amount != null && amount !== 0 ? amount < 0 : Boolean(t.negative),
+      }
+      if (amount != null) row.amount = amount
+      return row
+    })
+  } else if (Array.isArray(r.lines)) {
+    // schema 1: Setup lines with kinds
+    template = (r.lines as Record<string, unknown>[])
+      .filter((l) => LEGACY_KINDS.includes(String(l?.kind)))
+      .map((l) => ({ id: str(l.id) || newId(), name: str(l.name, 'Unnamed'), negative: !LEGACY_POSITIVE.includes(String(l.kind)) }))
+  } else {
+    template = base.template
+  }
   const recurring: Recurring[] = Array.isArray(r.recurring)
     ? (r.recurring as Record<string, unknown>[]).map((x) => ({
         id: str(x.id) || newId(),
@@ -87,21 +108,19 @@ export function normalizeSettings(raw: unknown): Settings {
     monthly: roundMoney(Math.abs(num(ev.monthly))),
   }
   const h = num(r.horizonDays ?? r.horizon, 90) as Horizon
-  return { schema: 1, lines, recurring, oneTime, everyday, horizonDays: HORIZONS.includes(h) ? h : 90 }
+  return { schema: 2, template, recurring, oneTime, everyday, horizonDays: HORIZONS.includes(h) ? h : 90 }
 }
 
 export function normalizeRecord(raw: unknown): BalanceRecord | null {
   const r = (raw ?? {}) as Record<string, unknown>
   if (!isISODate(r.date) || !Array.isArray(r.lines)) return null
   const lines: RecordLine[] = (r.lines as Record<string, unknown>[])
-    .filter((l) => KINDS.includes(l?.kind as LineKind))
-    .map((l) => {
-      const kind = l.kind as LineKind
-      const base = { id: str(l.id) || newId(), name: str(l.name, 'Unnamed'), kind }
-      return kind === 'card'
-        ? { ...base, total: roundMoney(num(l.total ?? l.amount)), share: clampShare(l.share) }
-        : { ...base, amount: roundMoney(num(l.amount)) }
-    })
+    .filter((l) => l && typeof l === 'object')
+    .map((l) => ({
+      id: str(l.id) || newId(),
+      name: str(l.name, 'Unnamed'),
+      amount: 'kind' in l ? legacySigned(l) : roundMoney(num(l.amount)),
+    }))
   // Totals are recomputed rather than trusted.
   return makeRecord(r.date, lines, str(r.savedAt) || new Date().toISOString())
 }
@@ -165,6 +184,11 @@ async function deleteRecord(date: string) {
 async function saveSettings(next: Settings) {
   settings.value = normalizeSettings(next)
   await getStore().writeJSON(SETTINGS_ID, settings.value)
+}
+
+/** Save the rows of a record as the template every new record starts from. */
+async function saveTemplate(rows: TemplateLine[]) {
+  await saveSettings({ ...settings.value, template: rows })
 }
 
 async function setHorizon(h: Horizon) {
@@ -237,6 +261,7 @@ export function useTracker() {
     deleteRecord,
     saveSettings,
     setHorizon,
+    saveTemplate,
     readImport,
     applyImport,
   }

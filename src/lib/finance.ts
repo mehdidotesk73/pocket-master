@@ -15,35 +15,37 @@ import {
   toCents,
 } from './money'
 
-// ---------------------------------------------------------------- types (spec §3)
+// ---------------------------------------------------------------- types
 
-export type LineKind = 'account' | 'receiving' | 'card' | 'bill' | 'paying'
-
-export interface LineDef {
-  id: string
-  name: string
-  kind: LineKind
-  /** cards only: default my-share %, 0–100 (default 100) */
-  share?: number
-}
-
+/**
+ * One line of a record. `amount` is signed: positive = something you have
+ * (bank balance, money coming in), negative = something you owe or have
+ * committed (card balance, bill due, money going out).
+ */
 export interface RecordLine {
   id: string
   name: string
-  kind: LineKind
-  /** non-card kinds */
+  amount: number
+}
+
+/** A row of the record template: what every new record starts with. */
+export interface TemplateLine {
+  id: string
+  name: string
+  /** Optional starting amount (signed). Prefill from the latest record wins over this. */
   amount?: number
-  /** cards */
-  total?: number
-  share?: number
+  /** Sign to use while the amount is empty. */
+  negative: boolean
 }
 
 export interface BalanceRecord {
-  schema: 1
+  schema: 2
   date: ISODate
   savedAt: string
   lines: RecordLine[]
+  /** Σ positive lines */
   assets: number
+  /** Σ |negative lines| (stored as a positive number) */
   liabilities: number
   left: number
 }
@@ -71,24 +73,13 @@ export type Horizon = 30 | 90 | 180 | 365
 export const HORIZONS: Horizon[] = [30, 90, 180, 365]
 
 export interface Settings {
-  schema: 1
-  lines: LineDef[]
+  schema: 2
+  template: TemplateLine[]
   recurring: Recurring[]
   oneTime: OneTime[]
   everyday: { mode: 'auto' | 'manual'; monthly: number }
   horizonDays: Horizon
 }
-
-export const POSITIVE_KINDS: LineKind[] = ['account', 'receiving']
-export const KIND_LABEL: Record<LineKind, string> = {
-  account: 'Bank account',
-  receiving: 'Money coming in',
-  card: 'Credit card',
-  bill: 'Bill due',
-  paying: 'Money going out',
-}
-
-export const isPositive = (k: LineKind) => POSITIVE_KINDS.includes(k)
 
 /** Average days per month, used to turn monthly ↔ daily rates. */
 export const DAYS_PER_MONTH = 30.44
@@ -97,20 +88,7 @@ export const MIN_AUTO_DAYS = 28
 /** …and looks back this far from the latest record. */
 export const AUTO_LOOKBACK_DAYS = 120
 
-// ---------------------------------------------------------------- 4.1 line + record
-
-/** A line's contribution in cents (always ≥ 0; the kind decides the sign). */
-export function lineValueCents(l: RecordLine): number {
-  if (l.kind === 'card') {
-    const share = l.share ?? 100
-    return Math.round((toCents(l.total) * share) / 100)
-  }
-  return toCents(l.amount)
-}
-
-export function lineValue(l: RecordLine): number {
-  return fromCents(lineValueCents(l))
-}
+// ---------------------------------------------------------------- 4.1 record
 
 export interface Sheet {
   assets: number
@@ -118,20 +96,21 @@ export interface Sheet {
   left: number
 }
 
-export function sheet(lines: RecordLine[]): Sheet {
+/** Positive lines are assets, negative lines are liabilities; left = assets − liabilities. */
+export function sheet(lines: Pick<RecordLine, 'amount'>[]): Sheet {
   let a = 0
   let l = 0
   for (const line of lines) {
-    const v = lineValueCents(line)
-    if (isPositive(line.kind)) a += v
-    else l += v
+    const v = toCents(line.amount)
+    if (v > 0) a += v
+    else l -= v
   }
   return { assets: fromCents(a), liabilities: fromCents(l), left: fromCents(a - l) }
 }
 
 /** Build a complete record (with stored totals) from its lines. */
 export function makeRecord(date: ISODate, lines: RecordLine[], savedAt = new Date().toISOString()): BalanceRecord {
-  return { schema: 1, date, savedAt, lines, ...sheet(lines) }
+  return { schema: 2, date, savedAt, lines, ...sheet(lines) }
 }
 
 /** Insert or replace by date; result sorted by date ascending. One record per date. */
@@ -276,22 +255,21 @@ export function newId(): string {
   return Math.random().toString(36).slice(2, 10)
 }
 
-/** First-run setup (spec §8): lines only, no amounts. */
+/** First-run template (spec §8): rows only, no amounts. */
 export function defaultSettings(): Settings {
-  const line = (id: string, name: string, kind: LineKind): LineDef =>
-    kind === 'card' ? { id, name, kind, share: 100 } : { id, name, kind }
+  const row = (id: string, name: string, negative: boolean): TemplateLine => ({ id, name, negative })
   return {
-    schema: 1,
-    lines: [
-      line('checking', 'Checking', 'account'),
-      line('rent', 'Month’s rent', 'bill'),
-      line('phone-ins', 'Phone and insurance', 'bill'),
-      line('discover', 'Discover', 'card'),
-      line('capone', 'Capital One', 'card'),
-      line('amex', 'Amex', 'card'),
-      line('macys', 'Macy’s', 'card'),
-      line('paying', 'Paying', 'paying'),
-      line('receiving', 'Receiving', 'receiving'),
+    schema: 2,
+    template: [
+      row('checking', 'Checking', false),
+      row('rent', 'Month’s rent', true),
+      row('phone-ins', 'Phone and insurance', true),
+      row('discover', 'Discover', true),
+      row('capone', 'Capital One', true),
+      row('amex', 'Amex', true),
+      row('macys', 'Macy’s', true),
+      row('paying', 'Paying', true),
+      row('receiving', 'Receiving', false),
     ],
     recurring: [],
     oneTime: [],

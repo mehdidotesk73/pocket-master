@@ -1,4 +1,4 @@
-# Projection
+# Future
 
 The projection starts from your **latest record** and walks forward one day at a time:
 

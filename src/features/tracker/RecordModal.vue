@@ -1,53 +1,65 @@
 <script setup lang="ts">
-// New / update record sheet. Full-screen on phones, a centered dialog on wide
-// screens. Prefills from the latest record; closing discards the draft.
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { type BalanceRecord, type LineDef, type LineKind, type RecordLine, lineValue, sheet } from '../../lib/finance'
+// New / update record sheet: a compact, editable list of line items.
+// Each row is a name and a signed amount. Positive rows are assets, negative
+// rows liabilities: no kinds to choose. Rows can be added and removed, and the
+// current rows can be saved as the template every new record starts from.
+//
+// The sign is a ± toggle because the iPhone decimal keypad has no minus key.
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { type BalanceRecord, type RecordLine, type TemplateLine, newId, sheet } from '../../lib/finance'
 import { fmtDate, fmtMoney, isISODate, parseMoney, today } from '../../lib/money'
 import { markUnsaved } from '../../lib/storage/store'
 import { useTracker } from './useTracker'
 
 const emit = defineEmits<{ (e: 'close'): void; (e: 'saved', date: string): void }>()
 
-const { settings, records, latest, recordDates, saveRecord } = useTracker()
+const { settings, records, latest, recordDates, saveRecord, saveTemplate } = useTracker()
 
-interface DraftRow {
-  def: LineDef
-  amount: string
-  total: string
-  share: string
+interface Row {
+  id: string
+  name: string
+  negative: boolean
+  text: string // magnitude as typed
 }
 
 const date = ref(today())
-const rows = reactive<DraftRow[]>([])
+const rows = reactive<Row[]>([])
 const touched = ref(false)
 const saving = ref(false)
 const error = ref('')
+const templateNote = ref('')
 
-const toInput = (n: number | undefined) => (n == null ? '' : n.toFixed(2))
+const toText = (n: number | undefined) => (n == null ? '' : Math.abs(n).toFixed(2))
 
-function fill(from: BalanceRecord | null) {
+/** Rows come from the template; amounts from `from` (by row id), else the template's own amount. */
+function fill(from: BalanceRecord | null, useRecordRows = false) {
   const byId = new Map((from?.lines ?? []).map((l) => [l.id, l]))
+  const source: TemplateLine[] = useRecordRows && from
+    ? from.lines.map((l) => ({ id: l.id, name: l.name, amount: l.amount, negative: l.amount < 0 }))
+    : settings.value.template
   rows.splice(
     0,
     rows.length,
-    ...settings.value.lines.map((def) => {
-      const prev = byId.get(def.id)
+    ...source.map((t) => {
+      const prev = byId.get(t.id)
+      const amount = prev?.amount ?? t.amount
       return {
-        def,
-        amount: def.kind === 'card' ? '' : toInput(prev?.amount),
-        total: def.kind === 'card' ? toInput(prev?.total) : '',
-        share: String(prev?.share ?? def.share ?? 100),
+        id: t.id,
+        name: t.name,
+        negative: amount != null && amount !== 0 ? amount < 0 : t.negative,
+        text: toText(amount),
       }
     }),
   )
 }
 fill(latest.value)
 
-// Picking the date of an existing record (before typing anything) loads that record.
+// Picking the date of an existing record (before typing anything) loads that record as it was saved.
 watch(date, (d) => {
   if (touched.value) return
-  fill(records.value.find((r) => r.date === d) ?? latest.value)
+  const existing = records.value.find((r) => r.date === d)
+  if (existing) fill(existing, true)
+  else fill(latest.value)
 })
 
 function onBodyInput(e: Event) {
@@ -56,34 +68,58 @@ function onBodyInput(e: Event) {
 
 const isUpdate = computed(() => recordDates.value.has(date.value))
 
-function toLine(r: DraftRow): RecordLine {
-  const base = { id: r.def.id, name: r.def.name, kind: r.def.kind }
-  if (r.def.kind === 'card') {
-    const share = parseMoney(r.share)
-    return { ...base, total: parseMoney(r.total) ?? 0, share: share == null ? 100 : Math.min(100, Math.max(0, share)) }
+const magnitude = (r: Row) => Math.abs(parseMoney(r.text) ?? 0)
+const signed = (r: Row) => (r.negative ? -1 : 1) * magnitude(r)
+const invalid = (r: Row) => r.text.trim() !== '' && parseMoney(r.text) == null
+
+// Typing a minus (desktop keyboards) flips the row negative and keeps the number positive.
+function onAmount(r: Row, e: Event) {
+  const v = (e.target as HTMLInputElement).value
+  if (/^\s*[-−]/.test(v)) {
+    r.negative = true
+    r.text = v.replace(/^\s*[-−]\s*/, '')
+  } else {
+    r.text = v
   }
-  return { ...base, amount: parseMoney(r.amount) ?? 0 }
 }
 
-const draftLines = computed(() => rows.map(toLine))
+function toggleSign(r: Row) {
+  r.negative = !r.negative
+  touched.value = true
+}
+
+const list = ref<HTMLElement>()
+async function addRow() {
+  rows.push({ id: newId(), name: '', negative: true, text: '' })
+  touched.value = true
+  await nextTick()
+  const inputs = list.value?.querySelectorAll<HTMLInputElement>('input.name')
+  inputs?.[inputs.length - 1]?.focus()
+}
+
+function removeRow(id: string) {
+  const i = rows.findIndex((r) => r.id === id)
+  if (i >= 0) rows.splice(i, 1)
+  touched.value = true
+}
+
+const draftLines = computed<RecordLine[]>(() =>
+  rows.map((r) => ({ id: r.id, name: r.name.trim() || 'Unnamed', amount: signed(r) })),
+)
 const live = computed(() => sheet(draftLines.value))
+const hasInvalid = computed(() => rows.some(invalid))
 
-const groups: { title: string; kinds: LineKind[] }[] = [
-  { title: 'Bank accounts', kinds: ['account'] },
-  { title: 'Credit cards', kinds: ['card'] },
-  { title: 'Bills due and money going out', kinds: ['bill', 'paying'] },
-  { title: 'Money coming in', kinds: ['receiving'] },
-]
-const grouped = computed(() =>
-  groups.map((g) => ({ ...g, rows: rows.filter((r) => g.kinds.includes(r.def.kind)) })).filter((g) => g.rows.length),
-)
-
-function invalid(v: string) {
-  return v.trim() !== '' && parseMoney(v) == null
+async function saveAsTemplate() {
+  templateNote.value = ''
+  try {
+    await saveTemplate(
+      rows.map((r) => ({ id: r.id, name: r.name.trim() || 'Unnamed', negative: r.negative })),
+    )
+    templateNote.value = `Template saved: new records will start with these ${rows.length} rows.`
+  } catch (e) {
+    templateNote.value = `Couldn’t save the template: ${(e as Error).message}`
+  }
 }
-const hasInvalid = computed(() =>
-  rows.some((r) => invalid(r.amount) || invalid(r.total) || (r.def.kind === 'card' && invalid(r.share))),
-)
 
 async function save() {
   error.value = ''
@@ -92,7 +128,7 @@ async function save() {
     return
   }
   if (hasInvalid.value) {
-    error.value = 'Some amounts aren’t numbers — check the fields outlined in red.'
+    error.value = 'Some amounts aren’t numbers. Check the rows outlined in red.'
     return
   }
   saving.value = true
@@ -138,56 +174,49 @@ onBeforeUnmount(() => {
       </header>
 
       <div class="body" @input="onBodyInput">
-        <label class="field date">
-          <span>Record date</span>
+        <label class="date-row">
+          <span>Date</span>
           <input v-model="date" class="input" type="date" required />
         </label>
         <p v-if="isUpdate" class="note small">
           A record for {{ fmtDate(date) }} already exists. Saving replaces it.
         </p>
 
-        <section v-for="g in grouped" :key="g.title" class="group">
-          <h3>{{ g.title }}</h3>
-          <template v-for="r in g.rows" :key="r.def.id">
-            <div v-if="r.def.kind === 'card'" class="card-row">
-              <div class="name">{{ r.def.name }}</div>
-              <label class="sub">
-                <span class="muted small">Total balance</span>
-                <input
-                  v-model="r.total"
-                  class="input num"
-                  :class="{ bad: invalid(r.total) }"
-                  inputmode="decimal"
-                  placeholder="0.00"
-                  :aria-label="`${r.def.name} total balance`"
-                />
-              </label>
-              <label class="sub share">
-                <span class="muted small">My share %</span>
-                <input
-                  v-model="r.share"
-                  class="input num"
-                  :class="{ bad: invalid(r.share) }"
-                  inputmode="decimal"
-                  :aria-label="`${r.def.name} my share percent`"
-                />
-              </label>
-              <div class="mine small">
-                mine <b class="money">{{ fmtMoney(lineValue(toLine(r))) }}</b>
-              </div>
-            </div>
-            <label v-else class="line-row">
-              <span class="name">{{ r.def.name }}</span>
-              <input
-                v-model="r.amount"
-                class="input num"
-                :class="{ bad: invalid(r.amount) }"
-                inputmode="decimal"
-                placeholder="0.00"
-              />
-            </label>
-          </template>
-        </section>
+        <p class="hint small muted">
+          Tap <b class="pos">+</b>/<b class="neg">−</b> to switch a row between something you have and something you
+          owe.
+        </p>
+
+        <ul ref="list" class="rows">
+          <li v-for="r in rows" :key="r.id" class="row" :class="{ bad: invalid(r) }">
+            <input v-model="r.name" class="name" placeholder="Name" aria-label="Line name" />
+            <button
+              class="sign"
+              :class="r.negative ? 'neg' : 'pos'"
+              :aria-label="r.negative ? `${r.name || 'Row'}: owe (tap to switch to have)` : `${r.name || 'Row'}: have (tap to switch to owe)`"
+              @click="toggleSign(r)"
+            >
+              {{ r.negative ? '−' : '+' }}
+            </button>
+            <input
+              class="amount"
+              :class="r.negative ? 'neg' : 'pos'"
+              :value="r.text"
+              inputmode="decimal"
+              placeholder="0.00"
+              :aria-label="`${r.name || 'Row'} amount`"
+              @input="onAmount(r, $event)"
+            />
+            <button class="rm" :aria-label="`Remove ${r.name || 'row'}`" @click="removeRow(r.id)">✕</button>
+          </li>
+        </ul>
+        <p v-if="!rows.length" class="muted small">No rows. Add one below.</p>
+
+        <div class="row-actions">
+          <button class="btn" @click="addRow">+ Add row</button>
+          <button class="btn ghost" :disabled="!rows.length" @click="saveAsTemplate">Save as template</button>
+        </div>
+        <p v-if="templateNote" class="ok small">{{ templateNote }}</p>
       </div>
 
       <footer class="foot">
@@ -233,7 +262,7 @@ onBeforeUnmount(() => {
 
 @media (min-width: 40rem) {
   .sheet {
-    width: min(36rem, calc(100vw - 2rem));
+    width: min(34rem, calc(100vw - 2rem));
     height: auto;
     max-height: calc(100dvh - 3rem);
     border: 1px solid var(--line);
@@ -246,19 +275,19 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: max(0.75rem, env(safe-area-inset-top)) 1rem 0.5rem;
+  padding: max(0.6rem, env(safe-area-inset-top)) 0.5rem 0.4rem 1rem;
   border-bottom: 1px solid var(--line);
 }
 
 @media (min-width: 40rem) {
   .head {
-    padding-top: 0.75rem;
+    padding-top: 0.6rem;
   }
 }
 
 .head h2 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.2rem;
 }
 
 .x {
@@ -274,80 +303,116 @@ onBeforeUnmount(() => {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 0.75rem 1rem 1rem;
+  padding: 0.6rem 1rem 1rem;
 }
 
-.field {
+.date-row {
   display: grid;
-  gap: 0.25rem;
-}
-
-.field span {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.75rem;
   font-weight: 600;
 }
 
 .note {
   margin: 0.5rem 0 0;
-  padding: 0.5rem 0.6rem;
+  padding: 0.45rem 0.6rem;
   border-left: 3px solid var(--projection);
   background: color-mix(in srgb, var(--projection) 10%, transparent);
   border-radius: 0.3rem;
 }
 
-.group h3 {
-  margin: 1.25rem 0 0.4rem;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--mute);
-  font-family: var(--font-text);
-  font-weight: 700;
+.hint {
+  margin: 0.6rem 0 0.3rem;
 }
 
-.line-row {
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+
+.row {
   display: grid;
-  grid-template-columns: 1fr minmax(7rem, 9.5rem);
+  grid-template-columns: minmax(0, 1fr) 32px 6rem 30px;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.25rem 0;
+  gap: 0.25rem;
+  min-height: var(--tap);
+  border-bottom: 1px solid var(--line);
 }
 
-.card-row {
-  display: grid;
-  grid-template-columns: 1fr 5.5rem;
-  gap: 0.25rem 0.6rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+.row.bad .amount {
+  outline: 1.5px solid var(--negative);
 }
 
-.card-row .name {
-  grid-column: 1 / -1;
+.name,
+.amount {
+  min-width: 0;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  padding: 0 0.35rem;
+  border-radius: 0.35rem;
+}
+
+.name:focus,
+.amount:focus {
+  outline: none;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
 
-.card-row .sub {
-  display: grid;
-  gap: 0.15rem;
+.amount.neg {
+  color: #ff8a73;
 }
 
-.card-row .mine {
-  grid-column: 1 / -1;
-  text-align: right;
+.sign {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  background: transparent;
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0;
+}
+
+.sign.pos {
+  color: var(--accent);
+}
+
+.sign.neg {
+  color: var(--negative);
+}
+
+.rm {
+  width: 30px;
+  height: 40px;
+  border: none;
+  background: none;
   color: var(--mute);
+  padding: 0;
 }
 
-.card-row .mine b {
-  color: var(--ink);
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
 }
 
-.name {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.input.bad {
-  border-color: var(--negative);
-  outline-color: var(--negative);
+.ok {
+  color: var(--accent);
+  margin: 0.5rem 0 0;
 }
 
 .foot {

@@ -4,7 +4,6 @@ import {
   type Recurring,
   type RecordLine,
   autoEveryday,
-  lineValue,
   makeRecord,
   monthlyUsed,
   project,
@@ -15,7 +14,7 @@ import {
 import { addDays, clampedDate, monthIndex } from './money'
 
 const rec = (date: string, left: number): BalanceRecord => ({
-  schema: 1,
+  schema: 2,
   date,
   savedAt: '',
   lines: [],
@@ -24,19 +23,19 @@ const rec = (date: string, left: number): BalanceRecord => ({
   left,
 })
 
-describe('4.1 line and record', () => {
+describe('4.1 record', () => {
   it('the spreadsheet example gives 3,434.45', () => {
-    const card = (id: string, total: number): RecordLine => ({ id, name: id, kind: 'card', total, share: 100 })
+    const l = (name: string, amount: number): RecordLine => ({ id: name, name, amount })
     const lines: RecordLine[] = [
-      { id: 'checking', name: 'Checking', kind: 'account', amount: 7718.6 },
-      { id: 'rent', name: 'Rent', kind: 'bill', amount: 0 },
-      { id: 'phone', name: 'Phone and insurance', kind: 'bill', amount: 2030 },
-      card('discover', 65.26),
-      card('capone', 1408.41),
-      card('amex', 730.48),
-      card('macys', 0),
-      { id: 'paying', name: 'Paying', kind: 'paying', amount: 50 },
-      { id: 'receiving', name: 'Receiving', kind: 'receiving', amount: 0 },
+      l('Checking', 7718.6),
+      l('Rent', 0),
+      l('Phone and insurance', -2030),
+      l('Discover', -65.26),
+      l('Capital One', -1408.41),
+      l('Amex', -730.48),
+      l('Macy’s', 0),
+      l('Paying', -50),
+      l('Receiving', 0),
     ]
     const s = sheet(lines)
     expect(s.left).toBe(3434.45)
@@ -44,14 +43,12 @@ describe('4.1 line and record', () => {
     expect(s.liabilities).toBe(4284.15)
   })
 
-  it('a card of 1,408.41 at 50% contributes 704.21', () => {
-    const l: RecordLine = { id: 'c', name: 'c', kind: 'card', total: 1408.41, share: 50 }
-    expect(lineValue(l)).toBe(704.21)
-    expect(sheet([l]).liabilities).toBe(704.21)
-  })
-
-  it('card share defaults to 100%', () => {
-    expect(lineValue({ id: 'c', name: 'c', kind: 'card', total: 12.34 })).toBe(12.34)
+  it('sorts positive lines into assets and negative into liabilities', () => {
+    expect(sheet([{ amount: 100 }, { amount: -30.5 }, { amount: 0 }, { amount: 0.1 }, { amount: 0.2 }])).toEqual({
+      assets: 100.3,
+      liabilities: 30.5,
+      left: 69.8,
+    })
   })
 })
 
@@ -172,9 +169,9 @@ describe('4.3 everyday spending (auto)', () => {
 describe('records', () => {
   it('a same-date save replaces the record and doesn’t duplicate it', () => {
     let list: BalanceRecord[] = []
-    list = upsertRecord(list, makeRecord('2026-11-02', [{ id: 'a', name: 'a', kind: 'account', amount: 5 }]))
-    list = upsertRecord(list, makeRecord('2026-11-01', [{ id: 'a', name: 'a', kind: 'account', amount: 1 }]))
-    list = upsertRecord(list, makeRecord('2026-11-02', [{ id: 'a', name: 'a', kind: 'account', amount: 9 }]))
+    list = upsertRecord(list, makeRecord('2026-11-02', [{ id: 'a', name: 'a', amount: 5 }]))
+    list = upsertRecord(list, makeRecord('2026-11-01', [{ id: 'a', name: 'a', amount: 1 }]))
+    list = upsertRecord(list, makeRecord('2026-11-02', [{ id: 'a', name: 'a', amount: 9 }]))
     expect(list.map((r) => r.date)).toEqual(['2026-11-01', '2026-11-02'])
     expect(list[1].left).toBe(9)
   })
