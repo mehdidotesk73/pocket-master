@@ -13,7 +13,7 @@ import { exportAll, formatBytes } from '../../lib/storage/useStore'
 import { CLIPBOARD_LIMIT_BYTES, type ImportBundle, parseImportText, useTracker } from './useTracker'
 
 const emit = defineEmits<{ (e: 'close'): void }>()
-const { records, readImport, applyImport, exportText } = useTracker()
+const { records, projections, readImport, applyImport, exportText } = useTracker()
 
 // Size of the clipboard export, worked out when the sheet opens.
 const clipSize = ref(exportText().bytes)
@@ -112,7 +112,10 @@ async function confirmImport(mode: 'merge' | 'replace') {
   try {
     await applyImport(pending.value, mode)
     msg.value = `Imported ${pending.value.recordCount} record${pending.value.recordCount === 1 ? '' : 's'}${
-      pending.value.files.some((f) => f.id === 'projection') ? ', your projection and your template' : ''
+      pending.value.projectionCount
+        ? `, ${pending.value.projectionCount} projection${pending.value.projectionCount === 1 ? '' : 's'}`
+        : ''
+    }${pending.value.files.some((f) => f.id === 'template') ? ' and your template' : ''
     }.`
     pending.value = null
     clipSize.value = exportText().bytes
@@ -161,7 +164,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
             limit. Use the zip file.
           </template>
           <template v-else>
-            The clipboard copy is one JSON text ({{ formatBytes(clipSize) }}) with your projection, template and every
+            The clipboard copy is one JSON text ({{ formatBytes(clipSize) }}) with your projections, template and every
             record. Paste it into a note or message to keep it.
           </template>
         </p>
@@ -202,7 +205,9 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
           <p>
             This {{ pending.kind === 'zip' ? 'file' : 'text' }} has <b>{{ pending.recordCount }}</b>
             record{{ pending.recordCount === 1 ? '' : 's' }}
-            <template v-if="pending.files.some((f) => f.id === 'projection')"> plus a projection and a template</template>.
+            <template v-if="pending.projectionCount">
+              plus {{ pending.projectionCount }} projection{{ pending.projectionCount === 1 ? '' : 's' }}</template
+            ><template v-if="pending.files.some((f) => f.id === 'template')"> and a template</template>.
             How should it be added?
           </p>
           <div class="data-actions">
@@ -223,7 +228,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
           <dt>Last export</dt>
           <dd>{{ storeState.lastExport ? fmtDate(storeState.lastExport.slice(0, 10)) : 'never' }}</dd>
           <dt>Files</dt>
-          <dd>records/ ({{ records.length }} file{{ records.length === 1 ? '' : 's' }}) · projection.json · template.json</dd>
+          <dd>records/ ({{ records.length }}) · projections/ ({{ projections.length }}) · template.json</dd>
           <dt>Storage</dt>
           <dd>
             {{ storeState.backend === 'opfs' ? 'Files on this device' : 'Not available: nothing is kept' }} ·

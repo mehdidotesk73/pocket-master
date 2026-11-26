@@ -341,6 +341,16 @@ typed number positive.
 
 ## Version History
 
+### v0.6.0 — 2026-11-26
+- **Changed:** several projections, each `projections/<id>.json` with its own name, starting lines
+  (all, or picked lines of the latest record), days ahead and items; the old single projection
+  becomes "Everything"
+- **Changed:** items are a compact list with an "+ Add" menu (Every month, One time, Average from
+  records, Extrapolate to month end), each edited in its own sheet; saved immediately
+- **Added:** record ranges (all / past N days / between dates) and Extrapolate to month end (with an
+  Outdated tag when the latest record is from an earlier month)
+- **Removed:** "Set it myself" (existing figures became monthly items)
+
 ### v0.5.0 — 2026-11-26
 - **Added:** export to clipboard as one JSON document (500 KB cap) and import by pasting (clipboard
   read, or a paste box when the browser refuses); zip export/import unchanged

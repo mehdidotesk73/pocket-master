@@ -12,7 +12,7 @@ import { ChevronDown, CircleHelp, Moon, Sun } from '@lucide/vue'
 import { useTheme } from './lib/useTheme'
 import { THEMES } from './lib/themes'
 import TodayView from './features/tracker/TodayView.vue'
-import ProjectionView from './features/tracker/ProjectionView.vue'
+import FutureView from './features/tracker/FutureView.vue'
 import HistoryView from './features/tracker/HistoryView.vue'
 import BackupModal from './features/tracker/BackupModal.vue'
 
@@ -244,7 +244,7 @@ function openHelp() {
       <template v-else>
         <HistoryView v-if="tab === 'past'" />
         <TodayView v-else-if="tab === 'present'" @backup="showBackup = true" />
-        <ProjectionView v-else />
+        <FutureView v-else />
       </template>
     </div>
 

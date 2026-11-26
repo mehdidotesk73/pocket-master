@@ -16,6 +16,8 @@ Track feature development, improvements, and known issues here. Move completed w
   markdown-editor; app tokens mapped in `styles/vars.css`; look switcher in the `App.vue` header.
 - **v0.5.0 — clipboard export/import** — `buildTransferJSON` / `parseImportText` in `useTracker.ts`,
   `lib/clipboard.ts`, `BackupModal` Export (zip / clipboard) and Import (file / paste) sections.
+- **v0.6.0 — multiple projections** — `projections/<id>` files, `StartLines`, item union with
+  `RecordRange` and `extrapolate`; `FutureView`, `ItemModal`, `ProjectionModal`, `SheetModal`.
 
 ## Next (Current Sprint)
 

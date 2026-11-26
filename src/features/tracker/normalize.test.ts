@@ -14,32 +14,58 @@ const oldSettings = {
   horizonDays: 180,
 }
 
-describe('projection.json', () => {
-  it('converts in/out items to signed amounts and everyday spending to an averaged item', () => {
-    const p = normalizeProjection(oldSettings)
-    expect(p.recurring.map((r) => [r.name, r.amount, r.day])).toEqual([
-      ['Rent', -2000, 1],
-      ['Pay', 3000, 31],
+describe('projections', () => {
+  it('converts the v0.2 settings: in/out → signed items, fixed everyday figure → a monthly item', () => {
+    const p = normalizeProjection(oldSettings, { id: 'everything' })
+    expect(p.id).toBe('everything')
+    expect(p.horizonDays).toBe(180)
+    expect(p.start).toEqual({ mode: 'all' })
+    expect(p.items.map((i) => [i.kind, i.name, 'amount' in i ? i.amount : null])).toEqual([
+      ['recurring', 'Rent', -2000],
+      ['recurring', 'Pay', 3000],
+      ['oneTime', 'Trip', -500],
+      ['recurring', 'Everyday spending', -900],
     ])
-    expect(p.oneTime).toEqual([{ id: 'o', name: 'Trip', amount: -500, date: '2027-01-10' }])
-    expect(p.averaged).toEqual([{ id: 'everyday', name: 'Everyday spending', source: '', mode: 'rate', day: 1, manual: -900 }])
   })
 
   it('maps the prototype’s covered/variable fields', () => {
-    const p = normalizeProjection({
-      recurring: [{ name: 'Rent', dir: 'out', amount: 1, day: 1, covered: true }],
-      variable: { mode: 'auto', monthly: 0 },
-    })
-    expect(p.recurring[0].inRecord).toBe(true)
-    expect(p.averaged[0].manual).toBeUndefined()
+    const p = normalizeProjection({ recurring: [{ name: 'Rent', dir: 'out', amount: 1, day: 1, covered: true }], variable: { mode: 'auto', monthly: 0 } })
+    expect(p.items[0]).toMatchObject({ kind: 'recurring', inRecord: true })
+    expect(p.items[1]).toMatchObject({ kind: 'averaged', id: 'everyday', mode: 'rate', range: { mode: 'all' } })
   })
 
-  it('round-trips the current shape, keeping ranges and manual figures', () => {
+  it('converts the v0.3 single projection: from/to → a between range, “set it myself” → a monthly item', () => {
+    const p = normalizeProjection(
+      {
+        schema: 1,
+        recurring: [{ id: 'a', name: 'Pay', amount: 100, day: 15, inRecord: false }],
+        oneTime: [],
+        averaged: [
+          { id: 'x', name: 'Amex drift', source: 'Amex', mode: 'rate', from: '2026-01-01', day: 1 },
+          { id: 'y', name: 'Phone', source: 'Phone', mode: 'amount', day: 12, manual: -80 },
+        ],
+      },
+      { id: 'everything', horizonDays: 30 },
+    )
+    expect(p.horizonDays).toBe(30)
+    expect(p.items).toEqual([
+      { kind: 'recurring', id: 'a', name: 'Pay', amount: 100, day: 15, inRecord: false },
+      { kind: 'averaged', id: 'x', name: 'Amex drift', source: 'Amex', mode: 'rate', range: { mode: 'between', from: '2026-01-01' }, day: 1 },
+      { kind: 'recurring', id: 'y', name: 'Phone', amount: -80, day: 12, inRecord: false },
+    ])
+  })
+
+  it('round-trips the current shape, with start lines, ranges and extrapolate items', () => {
     const cur = {
-      schema: 1,
-      recurring: [{ id: 'a', name: 'Pay', amount: 100, day: 15, inRecord: false }],
-      oneTime: [],
-      averaged: [{ id: 'x', name: 'Amex drift', source: 'Amex', mode: 'rate', from: '2026-01-01', to: '2026-06-30', day: 1 }],
+      schema: 2,
+      id: 'checking',
+      name: 'Checking',
+      start: { mode: 'lines', names: ['Checking', 'Amex'] },
+      horizonDays: 45,
+      items: [
+        { kind: 'averaged', id: 'e', name: 'Spending', source: '', mode: 'rate', range: { mode: 'last', days: 90 }, day: 1 },
+        { kind: 'extrapolate', id: 'x', name: 'Amex to month end', source: 'Amex' },
+      ],
     }
     expect(normalizeProjection(cur)).toEqual(cur)
   })

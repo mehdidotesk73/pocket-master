@@ -10,7 +10,7 @@ Your latest record is your live position. Earlier records become your history, a
 
 - **Past**: how left so far, assets and liabilities have moved across all your records.
 - **Present**: your latest balance sheet, and the button to save a new record.
-- **Future**: where left so far is heading, based on monthly items (paychecks, rent), one-time items and your everyday spending.
+- **Future**: projections of where your money is heading: everything, or just the lines you pick (like checking and cards), with monthly, one-time, averaged and month-end items.
 - **Export / Import** (on Present, and in the footer): back up as a zip file or copy everything to the clipboard; restore from either.
 
 ## Where is my data?

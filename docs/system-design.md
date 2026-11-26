@@ -97,19 +97,20 @@ OPFS root
 ├── index.<seq>.json            manifest: schemaVersion + each file's current {id, ext, rev, size, updatedAt}
 ├── files/
 │   ├── records/<date>.<rev>.json   one BalanceRecord per date
-│   ├── projection.<rev>.json       ProjectionFile
+│   ├── projections/<id>.<rev>.json one ProjectionFile per projection
 │   └── template.<rev>.json         TemplateFile
 └── tmp/                        scratch, emptied on start
 ```
 
-- **Stored data is exactly three kinds of file**, by store id: `records/<YYYY-MM-DD>`, `projection`,
-  `template`. Every '/' in an id is a real folder; each part is URL-encoded with '.' escaped (the dot
+- **Stored data is exactly three kinds of file**, by store id: `records/<YYYY-MM-DD>`,
+  `projections/<id>`, `template`. Every '/' in an id is a real folder; each part is URL-encoded with '.' escaped (the dot
   separates name, revision and extension). Totals, averages and the projection are computed in the
-  app and never stored. The horizon is a per-device preference in localStorage.
+  app and never stored. Which projection is on screen is a per-device preference in localStorage.
 - **Store schema 2** (`STORE_SCHEMA`); `MIGRATIONS[1]` moves schema-1 flat names
   (`files/records%2F<date>.<rev>.json`) into folders, and is safe to re-run after a crash.
-- **App-data migration** (`useTracker.ts`): the old combined `settings` file is split into
-  `projection` + `template` on load and deleted; `normalizeProjection` / `normalizeTemplate` /
+- **App-data migration** (`useTracker.ts` `loadFrom`): the v0.2 combined `settings` file and the
+  v0.3–v0.5 single `projection` file each become `projections/everything` (+ `template`) and are
+  deleted; "set it myself" figures become monthly items; `normalizeProjection` / `normalizeTemplate` /
   `normalizeRecord` also accept the first version's shapes (kinds, `dir` in/out, `everyday`) and the
   prototype's (`covered`→`inRecord`, `variable`→ everyday item).
 - **Safe save** (`store.ts`): write the new revision → write `index.<seq+1>.json` → delete the old
@@ -127,7 +128,8 @@ OPFS root
     `template.json`); zips in the old `files/<flat id>.<ext>` layout still import. iOS → share sheet
     ("Save to Files"); desktop Chromium → save dialog; else download.
   - *Clipboard*: `buildTransferJSON` → one JSON document `{ app: 'pocket-master', format: 1,
-    exportedAt, projection, template, records[] }` (records newest first). Refused above
+    exportedAt, projections[], template, records[] }` (format 2; format 1 with a single
+    `projection` still imports) (records newest first). Refused above
     `CLIPBOARD_LIMIT_BYTES` (500 KB) so a paste can't stall a phone; a few years of weekly records is
     well under. `lib/clipboard.ts` falls back to `execCommand('copy')`.
   - *Import*: a zip, a JSON file or a paste all become an `ImportBundle` (`readImport` /
@@ -139,7 +141,9 @@ OPFS root
 ## §3b — Screens
 
 Three tabs, **Past · Present · Future** (default Present): `HistoryView`, `TodayView`,
-`ProjectionView`. Backup (export/import + storage health) is `BackupModal`, opened from the footer
+`FutureView`. Future = projection picker (+ `ProjectionModal` for name / start lines / days ahead /
+duplicate / delete), chart, and a compact item list; "+ Add" menu → `ItemModal` per kind (built on
+`SheetModal`); summaries in `projectionText.ts`. Edits save immediately. Backup (export/import + storage health) is `BackupModal`, opened from the footer
 and from Present's backup nudge. The New record sheet (`RecordModal`) is a compact list: name · ±
 toggle · amount · ✕. The sign is a button because the iPhone decimal keypad has no minus key; typing a
 leading `-` on a keyboard also flips it.
@@ -159,16 +163,21 @@ All sums in integer cents.
 - **`scheduledCents(s0, s1)`**, window (s0, s1]: signed recurring items on their clamped day (day 31 →
   last day); `inRecord` items count once at the start of each month after s0's month; signed one-time
   items on their date.
-- **Averaged items** (`evaluateAveraged`): records in [from, to] (empty = all) that have the source
-  (left so far, or the sum of lines with that name, case-insensitive).
-  - `rate`: Σ consecutive changes ÷ span days × 30.44 → $/month. For left so far, scheduled flows
-    in each gap are subtracted first (everyday spending). Null when the span < 28 days.
-  - `amount`: mean value across those records → applied monthly on `day`.
-  - `manual` overrides the computed figure; null with no manual → 0, with a plain-language reason.
-- **Projection** (`project`): from (latest.date, latest.left), each day add recurring (skipping
-  `inRecord` items in the latest record's month), one-time items and amount-mode items on their day,
-  plus the summed rate-mode drift (monthly ÷ 30.44). Outputs series, end, minimum, and each averaged
-  item's result.
+- **Projections** (`ProjectionFile`, schema 2): `{ id, name, start, horizonDays, items[] }`.
+  `start` is `{ mode: 'all' }` (left so far) or `{ mode: 'lines', names }` — the starting total is the
+  sum of those lines in the latest record (`startValueCents`). Items are a tagged union on `kind`:
+  - `recurring` / `oneTime`: signed amounts on a day of month / a date (`inRecord` as before).
+  - `averaged`: a source (`LEFT_SOURCE` = the starting total, or a line name, case-insensitive), a
+    `range` (`all` | `last` N days back from the latest record | `between` from/to), and a mode.
+    `rate`: Σ consecutive changes ÷ span × 30.44 → $/month as a daily drift; for the starting total,
+    this projection's scheduled items are subtracted first. Null when the span < 28 days.
+    `amount`: mean value across the range, applied monthly on `day`.
+  - `extrapolate`: value V of a source on day k of the latest record's n-day month → V·n/k; the extra
+    is spread over the remaining days of that month. If today is in a later month: 0 and `outdated`.
+- **`project(proj, records, today)`**: from (latest.date, starting total), each day add recurring
+  (skipping `inRecord` items in the latest record's month), one-time and amount items, the rate
+  drift, and the extrapolation share until month end; for `horizonDays` (≤ 1830). Returns series,
+  end, minimum and each computed item's result (`itemResults`, also used by the editor preview).
 
 ## §5 — Composables
 

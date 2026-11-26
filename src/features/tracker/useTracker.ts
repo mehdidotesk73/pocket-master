@@ -1,64 +1,67 @@
-// App state: the three kinds of stored file, and everything computed from them.
+// App state: the stored files, and everything computed from them.
 //
 //   records/<YYYY-MM-DD>.json  one BalanceRecord per date (a same-day save is a new revision)
-//   projection.json            ProjectionFile: recurring, one-time and averaged changes
+//   projections/<id>.json      one ProjectionFile per projection the user builds
 //   template.json              TemplateFile: the rows every new record starts with
 //
-// Totals, averages and the projection itself are computed in the app, never stored.
-// The horizon (30/90/180/365) is a per-device view preference in localStorage.
+// Totals, averages and the projections' futures are computed in the app, never
+// stored. Which projection is on screen is a per-device preference (localStorage).
 
 import { computed, ref, shallowRef } from 'vue'
 import {
   type Averaged,
   type BalanceRecord,
-  type Horizon,
-  type OneTime,
   type ProjectionFile,
+  type ProjectionItem,
   type RecordLine,
-  type Recurring,
+  type RecordRange,
+  type StartLines,
   type TemplateFile,
   type TemplateLine,
-  HORIZONS,
   LEFT_SOURCE,
+  MAX_HORIZON_DAYS,
   defaultProjection,
   defaultTemplate,
   everydayItem,
+  itemResults,
   lineNames,
   makeRecord,
   newId,
   project,
   upsertRecord,
 } from '../../lib/finance'
-import { isISODate, roundMoney } from '../../lib/money'
+import { isISODate, roundMoney, today } from '../../lib/money'
 import { Store, getStore, init } from '../../lib/storage/store'
 import { logDebug } from '../../debug'
 
-export const PROJECTION_ID = 'projection'
 export const TEMPLATE_ID = 'template'
-/** Schema-2 app stored projection items, template and horizon together here. */
+export const projectionId = (id: string) => `projections/${id}`
+const PROJECTIONS_PREFIX = 'projections/'
+/** v0.3–v0.5: one projection in a single file. */
+const LEGACY_PROJECTION_ID = 'projection'
+/** v0.2: projection items, template and horizon together. */
 const LEGACY_SETTINGS_ID = 'settings'
 const recordId = (date: string) => `records/${date}`
 
-const projection = shallowRef<ProjectionFile>(defaultProjection())
+const projections = shallowRef<ProjectionFile[]>([defaultProjection()])
 const template = shallowRef<TemplateFile>(defaultTemplate())
 const records = shallowRef<BalanceRecord[]>([])
 const loaded = ref(false)
 const loadError = ref('')
 
-function readHorizon(): Horizon {
+const SELECTED_KEY = 'pocket-master:projection'
+function readPref(key: string): string | null {
   try {
-    const h = Number(localStorage.getItem('horizonDays')) as Horizon
-    if (HORIZONS.includes(h)) return h
+    return localStorage.getItem(key)
   } catch {
-    /* private mode */
+    return null
   }
-  return 90
 }
-const horizon = ref<Horizon>(readHorizon())
-function setHorizon(h: Horizon) {
-  horizon.value = h
+const selectedId = ref<string>(readPref(SELECTED_KEY) ?? 'everything')
+function selectProjection(id: string) {
+  selectedId.value = id
   try {
-    localStorage.setItem('horizonDays', String(h))
+    localStorage.setItem(SELECTED_KEY, id)
   } catch {
     /* private mode */
   }
@@ -76,6 +79,7 @@ const clampShare = (v: unknown) => Math.min(100, Math.max(0, num(v, 100)))
 const clampDay = (v: unknown) => Math.min(31, Math.max(1, Math.round(num(v, 1))))
 const str = (v: unknown, d = '') => (typeof v === 'string' ? v : d)
 const arr = (v: unknown) => (Array.isArray(v) ? (v as Record<string, unknown>[]).filter((x) => x && typeof x === 'object') : [])
+const safeId = (v: unknown) => (str(v).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) || newId())
 
 // Old records gave every line a kind and kept amounts positive; old projection
 // items had dir 'in' | 'out' with a positive amount.
@@ -93,46 +97,93 @@ function legacySigned(l: Record<string, unknown>): number {
 const signedAmount = (x: Record<string, unknown>) =>
   x.dir === 'in' || x.dir === 'out' ? (x.dir === 'in' ? 1 : -1) * Math.abs(roundMoney(num(x.amount))) : roundMoney(num(x.amount))
 
-/**
- * Accepts the current projection file, the older single `settings` file, or
- * the prototype's settings, and returns a current ProjectionFile.
- */
-export function normalizeProjection(raw: unknown): ProjectionFile {
-  const r = (raw ?? {}) as Record<string, unknown>
-  const recurring: Recurring[] = arr(r.recurring).map((x) => ({
-    id: str(x.id) || newId(),
-    name: str(x.name),
-    amount: signedAmount(x),
-    day: clampDay(x.day),
-    inRecord: Boolean(x.inRecord ?? x.covered),
-  }))
-  const oneTime: OneTime[] = arr(r.oneTime)
-    .filter((x) => isISODate(x.date))
-    .map((x) => ({ id: str(x.id) || newId(), name: str(x.name), amount: signedAmount(x), date: x.date as string }))
+function normalizeRange(x: Record<string, unknown>): RecordRange {
+  const r = (x.range ?? {}) as Record<string, unknown>
+  if (r.mode === 'last') return { mode: 'last', days: Math.max(1, Math.round(num(r.days, 90))) }
+  if (r.mode === 'between' || (!x.range && (isISODate(x.from) || isISODate(x.to)))) {
+    const from = r.mode ? r.from : x.from
+    const to = r.mode ? r.to : x.to
+    const out: RecordRange = { mode: 'between' }
+    if (isISODate(from)) out.from = from
+    if (isISODate(to)) out.to = to
+    return out
+  }
+  return { mode: 'all' }
+}
 
-  let averaged: Averaged[]
-  if (Array.isArray(r.averaged)) {
-    averaged = arr(r.averaged).map((x) => {
+function normalizeItem(x: Record<string, unknown>, kindHint?: ProjectionItem['kind']): ProjectionItem[] {
+  const kind = (x.kind as string) ?? kindHint
+  const id = str(x.id) || newId()
+  const name = str(x.name)
+  switch (kind) {
+    case 'recurring':
+      return [{ kind, id, name, amount: signedAmount(x), day: clampDay(x.day), inRecord: Boolean(x.inRecord ?? x.covered) }]
+    case 'oneTime':
+      return isISODate(x.date) ? [{ kind, id, name, amount: signedAmount(x), date: x.date }] : []
+    case 'extrapolate':
+      return [{ kind, id, name, source: str(x.source, LEFT_SOURCE) }]
+    case 'averaged': {
+      // "Set it myself" figures (v0.3–v0.5) become a plain monthly item with that amount.
+      if (x.manual != null && x.manual !== '') {
+        return [{ kind: 'recurring', id, name: name || 'Monthly amount', amount: roundMoney(num(x.manual)), day: x.mode === 'amount' ? clampDay(x.day) : 1, inRecord: false }]
+      }
       const a: Averaged = {
-        id: str(x.id) || newId(),
-        name: str(x.name),
+        kind,
+        id,
+        name,
         source: str(x.source, LEFT_SOURCE),
         mode: x.mode === 'amount' ? 'amount' : 'rate',
+        range: normalizeRange(x),
         day: clampDay(x.day),
       }
-      if (isISODate(x.from)) a.from = x.from
-      if (isISODate(x.to)) a.to = x.to
-      if (x.manual != null && x.manual !== '') a.manual = roundMoney(num(x.manual))
-      return a
-    })
-  } else {
-    // Old `everyday` (or the prototype's `variable`) → one averaged item over left so far.
-    const ev = (r.everyday ?? r.variable) as Record<string, unknown> | undefined
-    const item = everydayItem()
-    if (ev?.mode === 'manual') item.manual = -Math.abs(roundMoney(num(ev.monthly)))
-    averaged = [item]
+      return [a]
+    }
   }
-  return { schema: 1, recurring, oneTime, averaged }
+  return []
+}
+
+function normalizeStart(v: unknown): StartLines {
+  const s = (v ?? {}) as Record<string, unknown>
+  if (s.mode === 'lines' && Array.isArray(s.names)) {
+    return { mode: 'lines', names: (s.names as unknown[]).filter((n): n is string => typeof n === 'string') }
+  }
+  return { mode: 'all' }
+}
+
+/**
+ * Accepts a current projection file, the v0.3–v0.5 single projection file, the
+ * v0.2 combined settings file, or the prototype's settings; returns a current
+ * ProjectionFile.
+ */
+export function normalizeProjection(raw: unknown, fallback: { id?: string; name?: string; horizonDays?: number } = {}): ProjectionFile {
+  const r = (raw ?? {}) as Record<string, unknown>
+  const horizonDays = Math.min(MAX_HORIZON_DAYS, Math.max(1, Math.round(num(r.horizonDays ?? r.horizon, fallback.horizonDays ?? 90))))
+  const base = {
+    schema: 2 as const,
+    id: r.id ? safeId(r.id) : (fallback.id ?? newId()),
+    name: str(r.name) || fallback.name || 'Everything',
+    start: normalizeStart(r.start),
+    horizonDays,
+  }
+  if (Array.isArray(r.items)) return { ...base, items: arr(r.items).flatMap((x) => normalizeItem(x)) }
+
+  // Older shapes: separate lists.
+  const items: ProjectionItem[] = [
+    ...arr(r.recurring).flatMap((x) => normalizeItem(x, 'recurring')),
+    ...arr(r.oneTime).flatMap((x) => normalizeItem(x, 'oneTime')),
+  ]
+  if (Array.isArray(r.averaged)) {
+    items.push(...arr(r.averaged).flatMap((x) => normalizeItem(x, 'averaged')))
+  } else {
+    // v0.2 `everyday` (or the prototype's `variable`): auto → an averaged item; a fixed figure → a monthly item.
+    const ev = (r.everyday ?? r.variable) as Record<string, unknown> | undefined
+    if (ev?.mode === 'manual') {
+      items.push({ kind: 'recurring', id: 'everyday', name: 'Everyday spending', amount: -Math.abs(roundMoney(num(ev.monthly))), day: 1, inRecord: false })
+    } else {
+      items.push(everydayItem())
+    }
+  }
+  return { ...base, items }
 }
 
 export function normalizeTemplate(raw: unknown): TemplateFile {
@@ -180,39 +231,61 @@ async function loadFrom(store: Store) {
       logDebug(`${id} unreadable: ${(e as Error).message}`, 'error')
       return null
     })
+  const legacyHorizon = num(readPref('horizonDays'), 90)
+  const hasProjections = () => store.list(PROJECTIONS_PREFIX).length > 0
 
-  // One-time split of the old combined settings file.
-  if (store.has(LEGACY_SETTINGS_ID) && !store.has(PROJECTION_ID)) {
+  // v0.2 → split the combined settings file.
+  if (store.has(LEGACY_SETTINGS_ID)) {
     const legacy = await readSafe(LEGACY_SETTINGS_ID)
     if (legacy) {
-      await store.writeJSON(PROJECTION_ID, normalizeProjection(legacy))
-      await store.writeJSON(TEMPLATE_ID, normalizeTemplate(legacy))
-      const h = num((legacy as Record<string, unknown>).horizonDays) as Horizon
-      if (HORIZONS.includes(h)) setHorizon(h)
+      if (!hasProjections() && !store.has(LEGACY_PROJECTION_ID)) {
+        const p = normalizeProjection(legacy, { id: 'everything', horizonDays: legacyHorizon })
+        await store.writeJSON(projectionId(p.id), p)
+      }
+      if (!store.has(TEMPLATE_ID)) await store.writeJSON(TEMPLATE_ID, normalizeTemplate(legacy))
       await store.remove(LEGACY_SETTINGS_ID)
-      logDebug('Split settings into projection.json and template.json')
+      logDebug('Split settings into projections/ and template.json')
     }
   }
+  // v0.3–v0.5 → the single projection file becomes the first of the projections.
+  if (store.has(LEGACY_PROJECTION_ID)) {
+    const legacy = await readSafe(LEGACY_PROJECTION_ID)
+    if (legacy && !hasProjections()) {
+      const p = normalizeProjection(legacy, { id: 'everything', horizonDays: legacyHorizon })
+      await store.writeJSON(projectionId(p.id), p)
+    }
+    await store.remove(LEGACY_PROJECTION_ID)
+    logDebug('Moved projection.json into projections/')
+  }
 
-  const rawProjection = await readSafe(PROJECTION_ID)
-  projection.value = rawProjection == null ? defaultProjection() : normalizeProjection(rawProjection)
-  if (!store.has(PROJECTION_ID)) await store.writeJSON(PROJECTION_ID, projection.value)
+  const list: ProjectionFile[] = []
+  for (const m of store.list(PROJECTIONS_PREFIX)) {
+    const raw = await readSafe(m.id)
+    if (raw) list.push(normalizeProjection(raw, { id: m.id.slice(PROJECTIONS_PREFIX.length) }))
+  }
+  if (!list.length) {
+    const p = defaultProjection()
+    await store.writeJSON(projectionId(p.id), p)
+    list.push(p)
+  }
+  projections.value = list.sort((a, b) => a.name.localeCompare(b.name))
+  if (!list.some((p) => p.id === selectedId.value)) selectProjection(list[0].id)
 
   const rawTemplate = await readSafe(TEMPLATE_ID)
   template.value = rawTemplate == null ? defaultTemplate() : normalizeTemplate(rawTemplate)
   if (!store.has(TEMPLATE_ID)) await store.writeJSON(TEMPLATE_ID, template.value)
 
-  const list: BalanceRecord[] = []
+  const recs: BalanceRecord[] = []
   for (const m of store.list('records/')) {
     try {
       const rec = normalizeRecord(await store.readJSON(m.id))
-      if (rec) list.push(rec)
+      if (rec) recs.push(rec)
       else logDebug(`Skipped malformed record ${m.id}`, 'warn')
     } catch (e) {
       logDebug(`Couldn’t read ${m.id}: ${(e as Error).message}`, 'error')
     }
   }
-  records.value = list.sort((a, b) => a.date.localeCompare(b.date))
+  records.value = recs.sort((a, b) => a.date.localeCompare(b.date))
 }
 
 let loading: Promise<void> | null = null
@@ -244,9 +317,28 @@ async function deleteRecord(date: string) {
   await getStore().remove(recordId(date))
 }
 
+/** Create or replace one projection file. */
 async function saveProjection(next: ProjectionFile) {
-  projection.value = normalizeProjection(next)
-  await getStore().writeJSON(PROJECTION_ID, projection.value)
+  const p = normalizeProjection(next, { id: next.id })
+  projections.value = [...projections.value.filter((x) => x.id !== p.id), p].sort((a, b) => a.name.localeCompare(b.name))
+  await getStore().writeJSON(projectionId(p.id), p)
+}
+
+/** A new projection, empty or copied from another; selected straight away. */
+async function createProjection(name: string, copyOf?: ProjectionFile): Promise<ProjectionFile> {
+  const base = copyOf ? (JSON.parse(JSON.stringify(copyOf)) as ProjectionFile) : { ...defaultProjection(), items: [] }
+  const p: ProjectionFile = { ...base, id: newId(), name: name.trim() || 'New projection' }
+  if (copyOf) p.items = p.items.map((i) => ({ ...i, id: newId() }))
+  await saveProjection(p)
+  selectProjection(p.id)
+  return p
+}
+
+async function deleteProjection(id: string) {
+  if (projections.value.length <= 1) throw new Error('You need at least one projection.')
+  projections.value = projections.value.filter((p) => p.id !== id)
+  if (selectedId.value === id) selectProjection(projections.value[0].id)
+  await getStore().remove(projectionId(id))
 }
 
 /** Save rows as the template every new record starts from. */
@@ -255,39 +347,47 @@ async function saveTemplate(rows: TemplateLine[]) {
   await getStore().writeJSON(TEMPLATE_ID, template.value)
 }
 
-// ---------------------------------------------------------------- import
+// ---------------------------------------------------------------- import / export
 
 export type ImportBundle = {
   kind: 'zip' | 'json' | 'prototype'
   files: { id: string; ext: string; text: string }[]
   recordCount: number
+  projectionCount: number
 }
 
 /** Identifies the clipboard / JSON export format. Bump `format` if its shape changes. */
 export const TRANSFER_APP = 'pocket-master'
-export const TRANSFER_FORMAT = 1
+export const TRANSFER_FORMAT = 2
 /** Clipboard copies above this size are refused (use the zip): big pastes stall phones. */
 export const CLIPBOARD_LIMIT_BYTES = 500 * 1024
 
 /**
- * Everything as one readable JSON document: the same three kinds of data as the
- * files, `records` newest first. This is what Copy to clipboard puts on the clipboard.
+ * Everything as one readable JSON document: the same data as the files,
+ * `records` newest first. This is what Copy to clipboard puts on the clipboard.
  */
-export function buildTransferJSON(p: ProjectionFile, t: TemplateFile, recs: BalanceRecord[]): string {
+export function buildTransferJSON(ps: ProjectionFile[], t: TemplateFile, recs: BalanceRecord[]): string {
   const doc = {
     app: TRANSFER_APP,
     format: TRANSFER_FORMAT,
     exportedAt: new Date().toISOString(),
-    projection: p,
+    projections: ps,
     template: t,
     records: [...recs].sort((a, b) => b.date.localeCompare(a.date)),
   }
   return JSON.stringify(doc, null, 1)
 }
 
+const bundle = (kind: ImportBundle['kind'], files: ImportBundle['files']): ImportBundle => ({
+  kind,
+  files,
+  recordCount: files.filter((f) => f.id.startsWith('records/')).length,
+  projectionCount: files.filter((f) => f.id.startsWith(PROJECTIONS_PREFIX)).length,
+})
+
 /**
- * Parse pasted or uploaded JSON: this app's export (above) or the prototype's
- * `{ settings, records }`. Validates and normalizes without writing anything.
+ * Parse pasted or uploaded JSON: this app's export (format 1 or 2) or the
+ * prototype's `{ settings, records }`. Validates and normalizes without writing.
  */
 export function parseImportText(text: string): ImportBundle {
   let parsed: Record<string, unknown>
@@ -300,6 +400,7 @@ export function parseImportText(text: string): ImportBundle {
 
   const files: ImportBundle['files'] = []
   const add = (id: string, value: unknown) => files.push({ id, ext: 'json', text: JSON.stringify(value) })
+  const addProjection = (p: ProjectionFile) => add(projectionId(p.id), p)
   let kind: ImportBundle['kind']
 
   if (parsed.app === TRANSFER_APP) {
@@ -307,16 +408,17 @@ export function parseImportText(text: string): ImportBundle {
       throw new Error('That export was made by a newer version of the app. Tap “Reload latest” first.')
     }
     kind = 'json'
-    if (parsed.projection) add(PROJECTION_ID, normalizeProjection(parsed.projection))
+    for (const raw of arr(parsed.projections)) addProjection(normalizeProjection(raw))
+    if (parsed.projection) addProjection(normalizeProjection(parsed.projection, { id: 'everything' })) // format 1
     if (parsed.template) add(TEMPLATE_ID, normalizeTemplate(parsed.template))
   } else if (parsed.settings || Array.isArray(parsed.records)) {
     kind = 'prototype'
     if (parsed.settings) {
-      add(PROJECTION_ID, normalizeProjection(parsed.settings))
+      addProjection(normalizeProjection(parsed.settings, { id: 'everything' }))
       add(TEMPLATE_ID, normalizeTemplate(parsed.settings))
     }
   } else {
-    throw new Error('That JSON isn’t an export from this app (no projection, template or records in it).')
+    throw new Error('That JSON isn’t an export from this app (no projections, template or records in it).')
   }
   let skipped = 0
   for (const raw of Array.isArray(parsed.records) ? parsed.records : []) {
@@ -325,8 +427,8 @@ export function parseImportText(text: string): ImportBundle {
     else skipped++
   }
   if (skipped) logDebug(`Import skipped ${skipped} record(s) without a valid date`, 'warn')
-  if (!files.length) throw new Error('That export is empty: no records, projection or template.')
-  return { kind, files, recordCount: files.filter((f) => f.id.startsWith('records/')).length }
+  if (!files.length) throw new Error('That export is empty: no records, projections or template.')
+  return bundle(kind, files)
 }
 
 /** Read a .zip backup or a .json export (this app's or the prototype's); validates without writing. */
@@ -335,28 +437,36 @@ async function readImport(file: File): Promise<ImportBundle> {
   const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b
   if (!isZip) return parseImportText(new TextDecoder().decode(bytes))
 
-  let files = Store.readZip(bytes).files
-  // Older backups carry the combined settings file: split it like loadFrom does.
-  const legacy = files.find((f) => f.id === LEGACY_SETTINGS_ID)
-  if (legacy && !files.some((f) => f.id === PROJECTION_ID)) {
-    const parsed = JSON.parse(legacy.text)
-    files = files.filter((f) => f !== legacy)
-    files.push({ id: PROJECTION_ID, ext: 'json', text: JSON.stringify(normalizeProjection(parsed)) })
-    files.push({ id: TEMPLATE_ID, ext: 'json', text: JSON.stringify(normalizeTemplate(parsed)) })
+  const out: ImportBundle['files'] = []
+  for (const f of Store.readZip(bytes).files) {
+    // Older backups: the combined settings file, or the single projection file.
+    if (f.id === LEGACY_SETTINGS_ID) {
+      const parsed = JSON.parse(f.text)
+      const p = normalizeProjection(parsed, { id: 'everything' })
+      out.push({ id: projectionId(p.id), ext: 'json', text: JSON.stringify(p) })
+      out.push({ id: TEMPLATE_ID, ext: 'json', text: JSON.stringify(normalizeTemplate(parsed)) })
+    } else if (f.id === LEGACY_PROJECTION_ID) {
+      const p = normalizeProjection(JSON.parse(f.text), { id: 'everything' })
+      out.push({ id: projectionId(p.id), ext: 'json', text: JSON.stringify(p) })
+    } else {
+      out.push(f)
+    }
   }
-  return { kind: 'zip', files, recordCount: files.filter((f) => f.id.startsWith('records/')).length }
+  // If both a legacy settings and template were present, keep the last template only.
+  const dedup = new Map(out.map((f) => [f.id, f]))
+  return bundle('zip', [...dedup.values()])
+}
+
+async function applyImport(b: ImportBundle, mode: 'merge' | 'replace') {
+  const store = getStore()
+  await store.importFiles(b.files, mode)
+  await loadFrom(store)
 }
 
 /** The current data as clipboard JSON, with its size in bytes. */
 function exportText(): { text: string; bytes: number } {
-  const text = buildTransferJSON(projection.value, template.value, records.value)
+  const text = buildTransferJSON(projections.value, template.value, records.value)
   return { text, bytes: new TextEncoder().encode(text).byteLength }
-}
-
-async function applyImport(bundle: ImportBundle, mode: 'merge' | 'replace') {
-  const store = getStore()
-  await store.importFiles(bundle.files, mode)
-  await loadFrom(store)
 }
 
 // ---------------------------------------------------------------- derived
@@ -365,31 +475,39 @@ const latest = computed(() => records.value[records.value.length - 1] ?? null)
 const previous = computed(() => records.value[records.value.length - 2] ?? null)
 const recordDates = computed(() => new Set(records.value.map((r) => r.date)))
 const knownLines = computed(() => lineNames(records.value))
+const selected = computed(() => projections.value.find((p) => p.id === selectedId.value) ?? projections.value[0])
 
-function projectFor(p: ProjectionFile, h: number) {
-  return latest.value ? project(latest.value, p, records.value, h) : null
+function projectFor(p: ProjectionFile) {
+  return project(p, records.value, today())
 }
-const currentProjection = computed(() => projectFor(projection.value, horizon.value))
+function resultsFor(p: ProjectionFile) {
+  return itemResults(p, records.value, today())
+}
+const currentProjection = computed(() => (selected.value ? projectFor(selected.value) : null))
 
 export function useTracker() {
   return {
-    projection,
+    projections,
+    selected,
+    selectedId,
     template,
     records,
     loaded,
     loadError,
-    horizon,
     latest,
     previous,
     recordDates,
     knownLines,
     currentProjection,
     projectFor,
+    resultsFor,
     saveRecord,
     deleteRecord,
     saveProjection,
+    createProjection,
+    deleteProjection,
+    selectProjection,
     saveTemplate,
-    setHorizon,
     readImport,
     applyImport,
     exportText,
