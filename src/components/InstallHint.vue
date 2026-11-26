@@ -138,7 +138,7 @@ const show = computed(() => {
   right: 0.75rem;
   bottom: calc(0.75rem + env(safe-area-inset-bottom));
   margin: 0;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow);
 }
 
 .arrow {
@@ -153,7 +153,7 @@ const show = computed(() => {
   transform: translateX(-50%);
   color: var(--accent);
   font-size: 1.4rem;
-  font-weight: 800;
+  font-weight: 600;
   animation: bob 1.4s ease-in-out infinite;
 }
 

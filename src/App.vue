@@ -8,6 +8,9 @@ import { useVersionCheck } from './lib/useVersionCheck'
 import { refreshHealth } from './lib/storage/store'
 import { useStore } from './lib/storage/useStore'
 import { loadTracker, useTracker } from './features/tracker/useTracker'
+import { ChevronDown, CircleHelp, Moon, Sun } from '@lucide/vue'
+import { useTheme } from './lib/useTheme'
+import { THEMES } from './lib/themes'
 import TodayView from './features/tracker/TodayView.vue'
 import ProjectionView from './features/tracker/ProjectionView.vue'
 import HistoryView from './features/tracker/HistoryView.vue'
@@ -48,6 +51,24 @@ function initialTab(): Tab {
   return 'present'
 }
 const showBackup = ref(false)
+
+// ---- look: Dark / Light flips between the chosen looks; the menu picks one (as in the editor)
+const { theme, mode, chosen, setTheme, toggleTheme } = useTheme()
+const showThemeMenu = ref(false)
+const themeGroup = ref<HTMLElement>()
+const themeGroups = [
+  { mode: 'dark' as const, label: 'Dark looks', items: THEMES.filter((t) => t.mode === 'dark') },
+  { mode: 'light' as const, label: 'Light looks', items: THEMES.filter((t) => t.mode === 'light') },
+]
+function chooseTheme(id: string) {
+  setTheme(id)
+  showThemeMenu.value = false
+}
+function onDocClickTheme(e: MouseEvent) {
+  if (showThemeMenu.value && themeGroup.value && !themeGroup.value.contains(e.target as Node)) showThemeMenu.value = false
+}
+onMounted(() => document.addEventListener('click', onDocClickTheme))
+onBeforeUnmount(() => document.removeEventListener('click', onDocClickTheme))
 const tab = ref<Tab>(initialTab())
 function go(t: Tab) {
   tab.value = t
@@ -152,9 +173,50 @@ function openHelp() {
           </div>
         </div>
         <h1 class="app-title">Pocket Master</h1>
-        <button class="help-btn" @click="openHelp" aria-label="Help" title="Help">
-          ? Help
-        </button>
+        <div class="head-right">
+          <div ref="themeGroup" class="split-group" @keydown.esc="showThemeMenu = false">
+            <button
+              class="head-btn"
+              :title="`Look: ${theme.label}. Tap for your ${mode === 'light' ? 'dark' : 'light'} look.`"
+              :aria-label="`Switch to your ${mode === 'light' ? 'dark' : 'light'} look`"
+              @click="toggleTheme"
+            >
+              <component :is="mode === 'light' ? Sun : Moon" class="ic" aria-hidden="true" />
+            </button>
+            <button
+              class="head-btn narrow"
+              :class="{ active: showThemeMenu }"
+              :aria-expanded="showThemeMenu"
+              aria-haspopup="menu"
+              :aria-label="`Look: ${theme.label}. Choose another`"
+              :title="`Look: ${theme.label}`"
+              @click="showThemeMenu = !showThemeMenu"
+            >
+              <ChevronDown class="ic" aria-hidden="true" />
+            </button>
+            <div v-if="showThemeMenu" class="pop-menu theme-menu" role="menu" aria-label="Look">
+              <template v-for="g in themeGroups" :key="g.mode">
+                <span class="pop-menu-title">{{ g.label }}</span>
+                <button
+                  v-for="t in g.items"
+                  :key="t.id"
+                  class="pop-option"
+                  :class="{ active: theme.id === t.id }"
+                  role="menuitemradio"
+                  :aria-checked="theme.id === t.id"
+                  :title="chosen[t.mode] === t.id && theme.id !== t.id ? `Your ${t.mode} look` : undefined"
+                  @click="chooseTheme(t.id)"
+                >
+                  <span class="swatch" :style="{ background: t.bg, color: t.swatch }" aria-hidden="true">●</span>
+                  {{ t.label }}
+                </button>
+              </template>
+            </div>
+          </div>
+          <button class="head-btn" aria-label="Help" title="Help" @click="openHelp">
+            <CircleHelp class="ic" aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </header>
 
@@ -341,7 +403,7 @@ function openHelp() {
   justify-self: center;
   margin: 0;
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 600;
   font-size: clamp(1.15rem, 4.5vw, 1.5rem);
   line-height: 1.1;
   white-space: nowrap;
@@ -355,21 +417,18 @@ function openHelp() {
 }
 
 .update-btn {
-  background: var(--bg-elev-2);
-  border: 1px solid var(--accent-blue);
-  color: var(--text);
-  font-weight: 600;
+  background: var(--btn-primary-bg);
+  border: 1px solid var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  font-weight: 550;
   font-size: 0.78rem;
   padding: 0.3rem 0.6rem;
-  border-radius: 0.4rem;
-  cursor: pointer;
+  border-radius: var(--btn-radius);
   white-space: nowrap;
 }
 
 .update-btn:hover {
-  background: var(--accent-blue);
-  border-color: var(--accent-blue);
-  color: #fff;
+  background: var(--btn-primary-hover);
 }
 
 .update-pop {
@@ -384,9 +443,9 @@ function openHelp() {
   gap: 0.4rem;
   padding: 0.6rem 0.7rem;
   background: var(--bg-elev);
-  border: 1px solid var(--accent-blue);
-  border-radius: 0.4rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
 }
 
 .up-line {
@@ -394,22 +453,128 @@ function openHelp() {
   color: var(--text-muted);
 }
 
-.help-btn {
+/* Header controls: matte icon buttons, as in the editor's top bar. */
+.head-right {
   grid-column: 3;
   justify-self: end;
   align-self: start;
-  background: var(--bg-elev-2, transparent);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  padding: 0.3rem 0.6rem;
-  border-radius: 0.4rem;
-  cursor: pointer;
+  display: flex;
+  gap: 0.35rem;
 }
 
-.help-btn:hover {
-  color: var(--text);
-  border-color: var(--accent-blue);
+.head-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--btn-border);
+  border-radius: var(--btn-radius);
+  background: var(--btn-bg);
+  color: var(--btn-text);
+}
+
+.head-btn.narrow {
+  width: 24px;
+}
+
+.head-btn:hover {
+  background: var(--btn-bg-hover);
+  border-color: var(--btn-border-hover);
+}
+
+.head-btn.active {
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+}
+
+.head-btn:focus-visible,
+.pop-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.ic {
+  width: 1.15rem;
+  height: 1.15rem;
+  stroke-width: 1.75;
+}
+
+.split-group {
+  position: relative;
+  display: inline-flex;
+  gap: 1px;
+}
+
+.split-group > .head-btn:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.split-group > .head-btn:nth-child(2) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.pop-menu {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 4px);
+  right: 0;
+  display: grid;
+  gap: 0.3rem;
+  min-width: 13rem;
+  padding: 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+}
+
+.pop-menu-title {
+  padding: 0.2rem 0.2rem 0.1rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.pop-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 40px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--btn-border);
+  border-radius: var(--btn-radius);
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  font-size: 0.88rem;
+  font-weight: 550;
+  text-align: left;
+}
+
+.pop-option:hover {
+  background: var(--btn-bg-hover);
+}
+
+.pop-option.active {
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+}
+
+.swatch {
+  display: inline-grid;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  font-size: 0.55rem;
+  line-height: 1;
+  box-shadow: 0 0 0 1px var(--btn-border);
 }
 
 .content {
@@ -486,26 +651,31 @@ function openHelp() {
 
 .reload-btn {
   font-size: 0.72rem;
+  font-weight: 550;
   padding: 0.15rem 0.5rem;
-  background: var(--bg-elev-2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 0.4rem;
-  cursor: pointer;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  color: var(--btn-text);
+  border-radius: var(--btn-radius);
+}
+
+.reload-btn:hover {
+  background: var(--btn-bg-hover);
+  border-color: var(--btn-border-hover);
 }
 
 .reload-btn.update-ready {
-  border-color: var(--accent-blue);
-  color: var(--text);
-  font-weight: 600;
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
 }
 
 .debug-log {
   list-style: none;
   padding: 0.5rem;
   margin: 0.4rem 0 0;
-  background: #050a1c;
-  color: #cdd3e0;
+  background: var(--paper-code-bg);
+  color: var(--paper-text);
   border: 1px solid var(--border);
   border-radius: 0.4rem;
   font-family: ui-monospace, monospace;
@@ -520,10 +690,9 @@ function openHelp() {
 }
 
 .debug-log .warn {
-  color: #ff9800;
+  color: var(--warn);
 }
 
-.help-btn,
 .update-btn {
   min-height: 36px;
 }

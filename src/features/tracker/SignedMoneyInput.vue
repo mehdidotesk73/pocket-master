@@ -59,13 +59,13 @@ function onMag(v: number) {
   border: 1.5px solid currentColor;
   background: transparent;
   font-size: 1.05rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1;
   padding: 0;
 }
 
 .sign.pos {
-  color: var(--accent);
+  color: var(--pos);
 }
 
 .sign.neg {
@@ -73,6 +73,6 @@ function onMag(v: number) {
 }
 
 .signed :deep(input.neg) {
-  color: #ff8a73;
+  color: var(--negative);
 }
 </style>

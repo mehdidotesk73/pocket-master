@@ -31,7 +31,7 @@ const figures = computed<Figure[]>(() => {
 const series = computed<ChartSeries[]>(() => {
   const r = records.value
   return [
-    { label: 'Left so far', color: 'var(--accent)', dots: true, width: 2.5, points: r.map((x) => ({ x: dayNum(x.date), y: x.left })) },
+    { label: 'Left so far', color: 'var(--pos)', dots: true, width: 2.5, points: r.map((x) => ({ x: dayNum(x.date), y: x.left })) },
     { label: 'Assets', color: 'var(--assets)', width: 1.25, points: r.map((x) => ({ x: dayNum(x.date), y: x.assets })) },
     { label: 'Liabilities', color: 'var(--negative)', width: 1.25, points: r.map((x) => ({ x: dayNum(x.date), y: x.liabilities })) },
   ]

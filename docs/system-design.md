@@ -77,7 +77,16 @@ This is the shell that wraps every page/tab. It provides version checking, updat
 
 ### Styling
 
-Uses CSS custom properties from `src/styles/vars.css`: the navy palette (`--bg`, `--panel`, `--line`, `--ink`, `--mute`, `--accent`, `--projection`, `--negative`, `--assets`) with the template's names (`--bg-elev`, `--text`, …) kept as aliases. Dark only for now. Fonts: Red Hat Display 800 (headings, big figures) and Red Hat Text, bundled via @fontsource. Mobile-safe padding with `safe-area-inset` for notch/bottom-bar devices.
+**Looks are shared with the Markdown Lab editor** (github.com/mehdidotesk73/markdown-editor).
+`src/styles/themes.css` is a copy of that repo's theme token blocks: Navy & Brass (default), Graphite
+and Midnight & Champagne (dark); Porcelain and Fog (light). Update looks there and re-copy rather than
+editing here. `src/lib/themes.ts` / `useTheme.ts` are copied too: `data-theme` on `<html>`, a chosen
+dark and a chosen light look per device (localStorage `pocket-master:theme`), Dark/Light flips
+between them, and the header's ▾ menu picks a look. `src/styles/vars.css` maps the app's tokens
+onto the look's: `--accent` (interaction) = `--accent-blue`, `--pos` (money in, records line) =
+`--accent-green`, `--negative` = `--danger`, `--projection` = `--accent-amber`, `--assets` =
+`--alert-note`. Buttons are matte from the `--btn-*` tokens (kept 44px tall for phones). Display
+font is Fraunces (bundled); body text is the system font. Components never use colour literals.
 
 ## §3 — Storage (device-local files, OPFS)
 

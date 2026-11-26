@@ -341,6 +341,12 @@ typed number positive.
 
 ## Version History
 
+### v0.4.0 — 2026-11-26
+- **Changed:** styling and themes now come from the Markdown Lab editor: five looks (Navy & Brass
+  default, Graphite, Midnight & Champagne, Porcelain, Fog), Dark/Light switch + look menu in the
+  header, matte buttons, Fraunces headings; icons and manifest colours follow Navy & Brass
+- **Removed:** the original navy/teal palette and the Red Hat fonts
+
 ### v0.3.0 — 2026-11-26
 - **Changed:** storage is `records/<date>.json` files (real folders) + `projection.json` +
   `template.json`; everything else computed. Store schema 2 migrates the flat layout; the old

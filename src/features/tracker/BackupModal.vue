@@ -149,7 +149,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
   position: fixed;
   inset: 0;
   z-index: 95;
-  background: rgba(3, 7, 22, 0.7);
+  background: var(--backdrop);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -243,7 +243,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
 }
 
 .ok {
-  color: var(--accent);
+  color: var(--pos);
 }
 
 .err {
