@@ -11,8 +11,8 @@ Track feature development, improvements, and known issues here. Move completed w
 
 One-time setup — tick these off as they're done:
 
-- [ ] Connect Netlify (finish-setup) — required; gives previews AND the production site
-- [ ] Protect `main` (finish-setup) — required; this is what makes changes arrive as PRs with
+- [x] Connect Netlify (finish-setup) — required; gives previews AND the production site
+- [x] Protect `main` (finish-setup) — required; this is what makes changes arrive as PRs with
       preview links, instead of going straight to the live site
 
 - [ ] Custom domain on Netlify **before** installing on a phone for real use (the data belongs to the
