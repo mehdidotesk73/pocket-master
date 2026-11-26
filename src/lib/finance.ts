@@ -1,116 +1,118 @@
-// Budget calculations (spec §4). Pure functions over settings + records:
-// no Vue, no storage, so they're unit-tested in finance.test.ts and recompute
-// instantly when a draft changes.
+// Budget calculations. Pure functions over the stored data:
+//   records/<date>.json  → BalanceRecord
+//   projection.json      → ProjectionFile (recurring, one-time, averaged items)
+//   template.json        → TemplateFile (rows new records start with)
+// Everything else (totals, averages, the projection) is computed from those.
+// No Vue, no storage: unit-tested in finance.test.ts.
 //
-// All arithmetic is in integer cents. Inputs/outputs that leave this module as
-// "dollars" are rounded to the cent.
+// All arithmetic is in integer cents. Amounts are signed everywhere:
+// positive = money you have / money coming in, negative = owed / going out.
 
-import {
-  type ISODate,
-  addDays,
-  clampedDate,
-  dayNum,
-  fromCents,
-  monthIndex,
-  toCents,
-} from './money'
+import { type ISODate, addDays, clampedDate, dayNum, fromCents, monthIndex, toCents } from './money'
 
-// ---------------------------------------------------------------- types (spec §3)
+// ---------------------------------------------------------------- types
 
-export type LineKind = 'account' | 'receiving' | 'card' | 'bill' | 'paying'
-
-export interface LineDef {
-  id: string
-  name: string
-  kind: LineKind
-  /** cards only: default my-share %, 0–100 (default 100) */
-  share?: number
-}
-
+/** One line of a record. Positive = asset, negative = liability. */
 export interface RecordLine {
   id: string
   name: string
-  kind: LineKind
-  /** non-card kinds */
-  amount?: number
-  /** cards */
-  total?: number
-  share?: number
+  amount: number
 }
 
 export interface BalanceRecord {
-  schema: 1
+  schema: 2
   date: ISODate
   savedAt: string
   lines: RecordLine[]
+  /** Σ positive lines */
   assets: number
+  /** Σ |negative lines| (stored as a positive number) */
   liabilities: number
   left: number
 }
 
-export type Direction = 'in' | 'out'
+/** A row of the record template: what every new record starts with. */
+export interface TemplateLine {
+  id: string
+  name: string
+  /** Optional starting amount (signed). Prefill from the latest record wins over this. */
+  amount?: number
+  /** Sign to use while the amount is empty. */
+  negative: boolean
+}
 
+export interface TemplateFile {
+  schema: 1
+  rows: TemplateLine[]
+}
+
+/** A change that repeats every month on `day` (1–31, clamped to the month's last day). */
 export interface Recurring {
   id: string
   name: string
-  dir: Direction
+  /** signed: + coming in, − going out */
   amount: number
   day: number
+  /**
+   * This month's amount already shows up as a line in the records (e.g. rent
+   * listed until paid). Skipped in the latest record's month; counted at the
+   * start of later months when working out averages.
+   */
   inRecord: boolean
 }
 
+/** A single change on a date. */
 export interface OneTime {
   id: string
   name: string
-  dir: Direction
+  /** signed */
   amount: number
   date: ISODate
+}
+
+/** `source` value meaning "left so far" rather than a named line. */
+export const LEFT_SOURCE = ''
+
+/**
+ * A change worked out from past records.
+ * - 'rate': the source's average change per month across the range becomes a
+ *   steady daily drift. For left so far, scheduled items in the range are
+ *   removed first (they're projected separately), so what's left is everyday
+ *   spending.
+ * - 'amount': the source line's average value across the range is applied once
+ *   a month on `day`.
+ */
+export interface Averaged {
+  id: string
+  name: string
+  /** LEFT_SOURCE for left so far, else a record line name (matched case-insensitively). */
+  source: string
+  mode: 'rate' | 'amount'
+  /** Range of record dates to use (inclusive). Empty = from the first / up to the latest record. */
+  from?: ISODate
+  to?: ISODate
+  /** 'amount' mode: day of month to apply it. */
+  day: number
+  /** When set, used instead of the computed figure (signed, per month). */
+  manual?: number
+}
+
+export interface ProjectionFile {
+  schema: 1
+  recurring: Recurring[]
+  oneTime: OneTime[]
+  averaged: Averaged[]
 }
 
 export type Horizon = 30 | 90 | 180 | 365
 export const HORIZONS: Horizon[] = [30, 90, 180, 365]
 
-export interface Settings {
-  schema: 1
-  lines: LineDef[]
-  recurring: Recurring[]
-  oneTime: OneTime[]
-  everyday: { mode: 'auto' | 'manual'; monthly: number }
-  horizonDays: Horizon
-}
-
-export const POSITIVE_KINDS: LineKind[] = ['account', 'receiving']
-export const KIND_LABEL: Record<LineKind, string> = {
-  account: 'Bank account',
-  receiving: 'Money coming in',
-  card: 'Credit card',
-  bill: 'Bill due',
-  paying: 'Money going out',
-}
-
-export const isPositive = (k: LineKind) => POSITIVE_KINDS.includes(k)
-
 /** Average days per month, used to turn monthly ↔ daily rates. */
 export const DAYS_PER_MONTH = 30.44
-/** Auto everyday spending needs records spanning at least this many days. */
-export const MIN_AUTO_DAYS = 28
-/** …and looks back this far from the latest record. */
-export const AUTO_LOOKBACK_DAYS = 120
+/** A rate needs records spanning at least this many days. */
+export const MIN_RATE_DAYS = 28
 
-// ---------------------------------------------------------------- 4.1 line + record
-
-/** A line's contribution in cents (always ≥ 0; the kind decides the sign). */
-export function lineValueCents(l: RecordLine): number {
-  if (l.kind === 'card') {
-    const share = l.share ?? 100
-    return Math.round((toCents(l.total) * share) / 100)
-  }
-  return toCents(l.amount)
-}
-
-export function lineValue(l: RecordLine): number {
-  return fromCents(lineValueCents(l))
-}
+// ---------------------------------------------------------------- records
 
 export interface Sheet {
   assets: number
@@ -118,20 +120,21 @@ export interface Sheet {
   left: number
 }
 
-export function sheet(lines: RecordLine[]): Sheet {
+/** Positive lines are assets, negative lines are liabilities; left = assets − liabilities. */
+export function sheet(lines: Pick<RecordLine, 'amount'>[]): Sheet {
   let a = 0
   let l = 0
   for (const line of lines) {
-    const v = lineValueCents(line)
-    if (isPositive(line.kind)) a += v
-    else l += v
+    const v = toCents(line.amount)
+    if (v > 0) a += v
+    else l -= v
   }
   return { assets: fromCents(a), liabilities: fromCents(l), left: fromCents(a - l) }
 }
 
 /** Build a complete record (with stored totals) from its lines. */
 export function makeRecord(date: ISODate, lines: RecordLine[], savedAt = new Date().toISOString()): BalanceRecord {
-  return { schema: 1, date, savedAt, lines, ...sheet(lines) }
+  return { schema: 2, date, savedAt, lines, ...sheet(lines) }
 }
 
 /** Insert or replace by date; result sorted by date ascending. One record per date. */
@@ -139,21 +142,28 @@ export function upsertRecord(records: BalanceRecord[], rec: BalanceRecord): Bala
   return [...records.filter((r) => r.date !== rec.date), rec].sort((a, b) => a.date.localeCompare(b.date))
 }
 
-// ---------------------------------------------------------------- 4.2 scheduled flows
+/** Every line name that appears in any record, in first-seen order (newest records first). */
+export function lineNames(records: BalanceRecord[]): string[] {
+  const seen = new Map<string, string>()
+  for (const r of [...records].reverse()) {
+    for (const l of r.lines) {
+      const k = norm(l.name)
+      if (k && !seen.has(k)) seen.set(k, l.name.trim())
+    }
+  }
+  return [...seen.values()]
+}
 
-const signed = (dir: Direction, amount: number) => (dir === 'in' ? 1 : -1) * toCents(amount)
+const norm = (s: string) => s.trim().toLowerCase()
+
+// ---------------------------------------------------------------- scheduled flows
 
 /**
  * Net scheduled flow (cents) in the window (s0, s1].
- * `inRecord` recurring items are counted at the start of each month after s0's
+ * `inRecord` recurring items count once at the start of each month after s0's
  * month, because the next record will list them as due.
  */
-export function scheduledCents(
-  s0: ISODate,
-  s1: ISODate,
-  recurring: Recurring[],
-  oneTime: OneTime[],
-): number {
+export function scheduledCents(s0: ISODate, s1: ISODate, recurring: Recurring[], oneTime: OneTime[]): number {
   const d0 = dayNum(s0)
   const d1 = dayNum(s1)
   if (d1 <= d0) return 0
@@ -163,16 +173,16 @@ export function scheduledCents(
   for (let M = m0; M <= m1; M++) {
     for (const r of recurring) {
       if (r.inRecord) {
-        if (M > m0) total += signed(r.dir, r.amount)
+        if (M > m0) total += toCents(r.amount)
       } else {
         const occ = dayNum(clampedDate(M, r.day))
-        if (occ > d0 && occ <= d1) total += signed(r.dir, r.amount)
+        if (occ > d0 && occ <= d1) total += toCents(r.amount)
       }
     }
   }
   for (const o of oneTime) {
     const od = dayNum(o.date)
-    if (od > d0 && od <= d1) total += signed(o.dir, o.amount)
+    if (od > d0 && od <= d1) total += toCents(o.amount)
   }
   return total
 }
@@ -181,46 +191,69 @@ export function scheduled(s0: ISODate, s1: ISODate, recurring: Recurring[], oneT
   return fromCents(scheduledCents(s0, s1, recurring, oneTime))
 }
 
-// ---------------------------------------------------------------- 4.3 everyday spending
+// ---------------------------------------------------------------- averaged items
 
-export interface AutoEveryday {
-  /** dollars per month, or null when records don't span MIN_AUTO_DAYS yet */
-  monthly: number | null
-  /** span of the records used, in days */
-  days: number
-  /** number of records used */
+export interface AveragedResult {
+  /** Signed dollars per month from the records, or null when there isn't enough data. */
+  computed: number | null
+  /** What the projection uses: manual if set, else computed, else 0. */
+  used: number
+  /** Records used and the days they span. */
   count: number
+  days: number
+  /** Why `computed` is null, in plain words. */
+  reason?: string
 }
 
-export function autoEveryday(
+/** The source's signed value in a record, or null when the record doesn't have that line. */
+function sourceValue(r: BalanceRecord, source: string): number | null {
+  if (source === LEFT_SOURCE) return toCents(r.left)
+  const k = norm(source)
+  const hits = r.lines.filter((l) => norm(l.name) === k)
+  return hits.length ? hits.reduce((s, l) => s + toCents(l.amount), 0) : null
+}
+
+export function evaluateAveraged(
+  item: Averaged,
   records: BalanceRecord[],
-  recurring: Recurring[],
-  oneTime: OneTime[],
-): AutoEveryday {
-  if (!records.length) return { monthly: null, days: 0, count: 0 }
-  const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date))
-  const lastDay = dayNum(sorted[sorted.length - 1].date)
-  const used = sorted.filter((r) => dayNum(r.date) >= lastDay - AUTO_LOOKBACK_DAYS)
-  const days = used.length ? lastDay - dayNum(used[0].date) : 0
-  if (used.length < 2 || days < MIN_AUTO_DAYS) return { monthly: null, days, count: used.length }
+  proj: Pick<ProjectionFile, 'recurring' | 'oneTime'>,
+): AveragedResult {
+  const inRange = [...records]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .filter((r) => (!item.from || r.date >= item.from) && (!item.to || r.date <= item.to))
+  const points = inRange
+    .map((r) => ({ date: r.date, v: sourceValue(r, item.source) }))
+    .filter((p): p is { date: ISODate; v: number } => p.v != null)
+  const days = points.length ? dayNum(points[points.length - 1].date) - dayNum(points[0].date) : 0
+  const finish = (computed: number | null, reason?: string): AveragedResult => ({
+    computed,
+    used: item.manual ?? computed ?? 0,
+    count: points.length,
+    days,
+    reason,
+  })
 
-  let unexplained = 0
-  for (let i = 1; i < used.length; i++) {
-    const a = used[i - 1]
-    const b = used[i]
-    unexplained += toCents(b.left) - toCents(a.left) - scheduledCents(a.date, b.date, recurring, oneTime)
+  if (!points.length) return finish(null, item.source === LEFT_SOURCE ? 'No records in this range.' : `No records in this range have a line called “${item.source}”.`)
+
+  if (item.mode === 'amount') {
+    const avg = points.reduce((s, p) => s + p.v, 0) / points.length
+    return finish(fromCents(avg))
   }
-  const monthlyCents = (-unexplained / days) * DAYS_PER_MONTH
-  return { monthly: fromCents(monthlyCents), days, count: used.length }
+
+  // rate
+  if (points.length < 2 || days < MIN_RATE_DAYS) {
+    return finish(null, `Needs records spanning ${Math.ceil(MIN_RATE_DAYS / 7)}+ weeks (this range has ${days} day${days === 1 ? '' : 's'}).`)
+  }
+  let change = 0
+  for (let i = 1; i < points.length; i++) {
+    change += points[i].v - points[i - 1].v
+    // For left so far, take out what the scheduled items explain.
+    if (item.source === LEFT_SOURCE) change -= scheduledCents(points[i - 1].date, points[i].date, proj.recurring, proj.oneTime)
+  }
+  return finish(fromCents((change / days) * DAYS_PER_MONTH))
 }
 
-/** The monthly everyday figure the projection actually uses. */
-export function monthlyUsed(settings: Pick<Settings, 'everyday'>, auto: AutoEveryday): number {
-  if (settings.everyday.mode === 'manual' || auto.monthly == null) return settings.everyday.monthly || 0
-  return auto.monthly
-}
-
-// ---------------------------------------------------------------- 4.4 projection
+// ---------------------------------------------------------------- projection
 
 export interface Point {
   date: ISODate
@@ -232,40 +265,52 @@ export interface Projection {
   series: Point[]
   end: Point
   min: Point
-  dailyEveryday: number
+  /** Per averaged item id. */
+  averaged: Record<string, AveragedResult>
+  /** Net daily drift from rate items (dollars/day). */
+  dailyDrift: number
 }
 
 export function project(
   latest: Pick<BalanceRecord, 'date' | 'left'>,
-  settings: Pick<Settings, 'recurring' | 'oneTime'>,
-  monthlyEveryday: number,
+  proj: ProjectionFile,
+  records: BalanceRecord[],
   horizonDays: number,
 ): Projection {
   const latestMonth = monthIndex(latest.date)
-  const daily = toCents(monthlyEveryday) / DAYS_PER_MONTH
-  // one-time items keyed by date for O(1) lookup
+  const averaged: Record<string, AveragedResult> = {}
+  let driftCents = 0
+  const monthlyAmounts: { day: number; cents: number }[] = []
+  for (const a of proj.averaged) {
+    const res = evaluateAveraged(a, records, proj)
+    averaged[a.id] = res
+    if (a.mode === 'rate') driftCents += toCents(res.used) / DAYS_PER_MONTH
+    else monthlyAmounts.push({ day: a.day, cents: toCents(res.used) })
+  }
+
   const oneByDate = new Map<ISODate, number>()
-  for (const o of settings.oneTime) oneByDate.set(o.date, (oneByDate.get(o.date) ?? 0) + signed(o.dir, o.amount))
+  for (const o of proj.oneTime) oneByDate.set(o.date, (oneByDate.get(o.date) ?? 0) + toCents(o.amount))
 
   let value = toCents(latest.left)
   const series: Point[] = []
   for (let i = 1; i <= horizonDays; i++) {
     const d = addDays(latest.date, i)
     const mi = monthIndex(d)
-    for (const r of settings.recurring) {
+    for (const r of proj.recurring) {
       if (clampedDate(mi, r.day) !== d) continue
       if (r.inRecord && mi === latestMonth) continue
-      value += signed(r.dir, r.amount)
+      value += toCents(r.amount)
     }
+    for (const m of monthlyAmounts) if (clampedDate(mi, m.day) === d) value += m.cents
     value += oneByDate.get(d) ?? 0
-    value -= daily
+    value += driftCents
     series.push({ date: d, value: fromCents(value) })
   }
   const start = { date: latest.date, value: latest.left }
   const end = series[series.length - 1] ?? start
   let min = series[0] ?? start
   for (const p of series) if (p.value < min.value) min = p
-  return { start, series, end, min, dailyEveryday: fromCents(daily) }
+  return { start, series, end, min, averaged, dailyDrift: fromCents(driftCents) }
 }
 
 // ---------------------------------------------------------------- defaults & ids
@@ -276,26 +321,29 @@ export function newId(): string {
   return Math.random().toString(36).slice(2, 10)
 }
 
-/** First-run setup (spec §8): lines only, no amounts. */
-export function defaultSettings(): Settings {
-  const line = (id: string, name: string, kind: LineKind): LineDef =>
-    kind === 'card' ? { id, name, kind, share: 100 } : { id, name, kind }
+export function everydayItem(): Averaged {
+  return { id: 'everyday', name: 'Everyday spending', source: LEFT_SOURCE, mode: 'rate', day: 1 }
+}
+
+export function defaultProjection(): ProjectionFile {
+  return { schema: 1, recurring: [], oneTime: [], averaged: [everydayItem()] }
+}
+
+/** First-run template: rows only, no amounts. */
+export function defaultTemplate(): TemplateFile {
+  const row = (id: string, name: string, negative: boolean): TemplateLine => ({ id, name, negative })
   return {
     schema: 1,
-    lines: [
-      line('checking', 'Checking', 'account'),
-      line('rent', 'Month’s rent', 'bill'),
-      line('phone-ins', 'Phone and insurance', 'bill'),
-      line('discover', 'Discover', 'card'),
-      line('capone', 'Capital One', 'card'),
-      line('amex', 'Amex', 'card'),
-      line('macys', 'Macy’s', 'card'),
-      line('paying', 'Paying', 'paying'),
-      line('receiving', 'Receiving', 'receiving'),
+    rows: [
+      row('checking', 'Checking', false),
+      row('rent', 'Month’s rent', true),
+      row('phone-ins', 'Phone and insurance', true),
+      row('discover', 'Discover', true),
+      row('capone', 'Capital One', true),
+      row('amex', 'Amex', true),
+      row('macys', 'Macy’s', true),
+      row('paying', 'Paying', true),
+      row('receiving', 'Receiving', false),
     ],
-    recurring: [],
-    oneTime: [],
-    everyday: { mode: 'auto', monthly: 0 },
-    horizonDays: 90,
   }
 }

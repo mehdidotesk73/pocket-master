@@ -333,7 +333,31 @@ drafts or in-flight writes that's data loss. Use `registerType: 'prompt'` and ca
 Versioning the index by filename (`index.<seq>.json`, highest readable wins) gives the same crash
 safety with only create/write/delete.
 
+### The iPhone Decimal Keypad Has No Minus Key
+
+`inputmode="decimal"` is the right keypad for money, but on iOS it has digits and a decimal point
+only. Any field that needs a sign needs its own control. Records use a +/− toggle per row and keep the
+typed number positive.
+
 ## Version History
+
+### v0.3.0 — 2026-11-26
+- **Changed:** storage is `records/<date>.json` files (real folders) + `projection.json` +
+  `template.json`; everything else computed. Store schema 2 migrates the flat layout; the old
+  settings file is split on load; backup zips mirror the folders
+- **Changed:** projection items are signed (+/− toggle) instead of In/Out
+- **Added:** "From your records" items: average a source (left so far or a line) over a date range
+  as a rate of change or a monthly average amount, with an optional manual figure. Everyday spending
+  is now one of these
+- **Changed:** horizon is a per-device preference
+
+### v0.2.0 — 2026-11-26
+- **Changed:** records are signed line items (no kinds; positive = asset, negative = liability);
+  schema 1 data converts on load
+- **Added:** compact New record list with ± toggle, add/remove rows, *Save as template*
+- **Changed:** tabs are Past / Present / Future; Setup removed, backup moved to a footer sheet
+- **Removed:** per-card share % (enter your part as the amount)
+- **Fixed:** Home Screen name is "Pocket Master" (manifest `short_name`)
 
 ### v0.1.0 — 2026-11-26
 - **Added:** Budget tracker — Today (balance sheet + new-record sheet), Projection (recurring,

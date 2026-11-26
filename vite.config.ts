@@ -48,7 +48,7 @@ export default defineConfig({
       manifest: {
         id: '/',
         name: 'Pocket Master',
-        short_name: 'Pocket',
+        short_name: 'Pocket Master',
         description: 'Personal balance-sheet tracker: record your balances, see your history, project ahead.',
         theme_color: '#0b1433',
         background_color: '#0b1433',

@@ -6,13 +6,19 @@ Track feature development, improvements, and known issues here. Move completed w
 
 - **Budget tracker v0.1.0** — all four tabs, OPFS storage with safe saves, export/import (zip and
   prototype JSON), install hint, data-safe updates, unit tests in CI. See `docs/experience.md`.
+- **v0.2.0 — signed line items + template** — `RecordModal` is a compact list (± toggle, add/remove
+  rows, *Save as template* → `saveTemplate`); `sheet()` sorts by sign; `normalizeSettings` /
+  `normalizeRecord` migrate schema 1; tabs Past/Present/Future; `BackupModal` replaces Setup.
+- **v0.3.0 — files + averaged projection items** — data is `records/<date>.json` + `projection.json`
+  + `template.json` (store `MIGRATIONS[1]`, settings split in `loadFrom`); `evaluateAveraged` (rate /
+  amount over a date range, manual override) feeds `project`; `AveragedEditor`, `SignedMoneyInput`.
 
 ## Next (Current Sprint)
 
 One-time setup — tick these off as they're done:
 
-- [ ] Connect Netlify (finish-setup) — required; gives previews AND the production site
-- [ ] Protect `main` (finish-setup) — required; this is what makes changes arrive as PRs with
+- [x] Connect Netlify (finish-setup) — required; gives previews AND the production site
+- [x] Protect `main` (finish-setup) — required; this is what makes changes arrive as PRs with
       preview links, instead of going straight to the live site
 
 - [ ] Custom domain on Netlify **before** installing on a phone for real use (the data belongs to the
@@ -44,6 +50,8 @@ One-time setup — tick these off as they're done:
 
 ## Ideas / Backlog (Low Priority)
 
+- Per-row share % for split cards (dropped in v0.2.0; for now enter your part as the amount)
+- Edit the template outside the New record sheet (e.g. reorder rows)
 - Light theme
 - Cross-device sync (optional linked-folder backup: remoteStorage.js / Drive `drive.file` / Dropbox PKCE)
 - Category-level expense logging; CSV export of records; editing a past record in place

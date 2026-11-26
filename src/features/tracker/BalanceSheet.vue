@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { type BalanceRecord, isPositive, lineValue } from '../../lib/finance'
+import type { BalanceRecord } from '../../lib/finance'
 import { fmtDate, fmtMoney } from '../../lib/money'
 
 const props = defineProps<{ record: BalanceRecord }>()
 
-const assets = computed(() => props.record.lines.filter((l) => isPositive(l.kind)))
-const liabilities = computed(() => props.record.lines.filter((l) => !isPositive(l.kind)))
+// Sorted by sign; $0 rows are left out (they don't move anything).
+const assets = computed(() => props.record.lines.filter((l) => l.amount > 0))
+const liabilities = computed(() => props.record.lines.filter((l) => l.amount < 0))
+const zeros = computed(() => props.record.lines.filter((l) => l.amount === 0))
 </script>
 
 <template>
@@ -16,27 +18,24 @@ const liabilities = computed(() => props.record.lines.filter((l) => !isPositive(
     <h3 class="group">Assets</h3>
     <div v-for="l in assets" :key="l.id" class="row">
       <span class="name">{{ l.name }}</span>
-      <span class="money">{{ fmtMoney(lineValue(l)) }}</span>
+      <span class="money">{{ fmtMoney(l.amount) }}</span>
     </div>
     <div v-if="!assets.length" class="row muted small">None</div>
     <div class="row total">
       <span>Total assets</span><span class="money">{{ fmtMoney(record.assets) }}</span>
     </div>
 
-    <h3 class="group">Liabilities and money committed</h3>
+    <h3 class="group">Liabilities</h3>
     <div v-for="l in liabilities" :key="l.id" class="row">
-      <span class="name">
-        {{ l.name }}
-        <span v-if="l.kind === 'card' && (l.share ?? 100) !== 100" class="muted small">
-          · {{ l.share }}% of {{ fmtMoney(l.total ?? 0, { whole: true }) }}
-        </span>
-      </span>
-      <span class="money">{{ fmtMoney(lineValue(l)) }}</span>
+      <span class="name">{{ l.name }}</span>
+      <span class="money">{{ fmtMoney(-l.amount) }}</span>
     </div>
     <div v-if="!liabilities.length" class="row muted small">None</div>
     <div class="row total">
       <span>Total liabilities</span><span class="money">{{ fmtMoney(record.liabilities) }}</span>
     </div>
+
+    <p v-if="zeros.length" class="zeros muted small">At $0: {{ zeros.map((z) => z.name).join(', ') }}</p>
 
     <div class="left-so-far">
       <span>Left so far</span>
@@ -72,6 +71,10 @@ const liabilities = computed(() => props.record.lines.filter((l) => !isPositive(
 .row.total {
   font-weight: 700;
   border-bottom: none;
+}
+
+.zeros {
+  margin: 0.6rem 0 0;
 }
 
 .left-so-far {

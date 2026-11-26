@@ -1,27 +1,29 @@
 <script setup lang="ts">
+// Future tab. Edits the projection file (recurring, one-time, from-records
+// items) as a draft: the chart follows the draft, nothing is stored until Save.
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { AUTO_LOOKBACK_DAYS, HORIZONS, type Horizon, type Settings } from '../../lib/finance'
+import { type AveragedResult, HORIZONS, type Horizon, type ProjectionFile, evaluateAveraged } from '../../lib/finance'
 import { dayNum, fmtDate, fmtMoney } from '../../lib/money'
 import { markUnsaved } from '../../lib/storage/store'
-import EverydayCard from './EverydayCard.vue'
+import AveragedEditor from './AveragedEditor.vue'
 import LineChart, { type ChartMarker, type ChartSeries } from './LineChart.vue'
 import OneTimeEditor from './OneTimeEditor.vue'
 import RecurringEditor from './RecurringEditor.vue'
 import { useTracker } from './useTracker'
 
-const { settings, records, latest, deriveFor, saveSettings, setHorizon } = useTracker()
+const { projection, records, latest, horizon, knownLines, projectFor, saveProjection, setHorizon } = useTracker()
 
-type Draft = Pick<Settings, 'recurring' | 'oneTime' | 'everyday'>
-const snapshot = (): Draft =>
-  JSON.parse(JSON.stringify({ recurring: settings.value.recurring, oneTime: settings.value.oneTime, everyday: settings.value.everyday }))
+/** How far back the chart shows past records. */
+const CHART_PAST_DAYS = 120
 
-const draft = ref<Draft>(snapshot())
+const snapshot = (): ProjectionFile => JSON.parse(JSON.stringify(projection.value))
+const draft = ref<ProjectionFile>(snapshot())
 const dirty = computed(() => JSON.stringify(draft.value) !== JSON.stringify(snapshot()))
 watch(dirty, (d) => markUnsaved('projection', d), { immediate: true })
 onBeforeUnmount(() => markUnsaved('projection', false))
 
-// If settings change underneath (import), take them unless we're mid-edit.
-watch(settings, () => {
+// If the file changes underneath (import), take it unless we're mid-edit.
+watch(projection, () => {
   if (!dirty.value) draft.value = snapshot()
 })
 
@@ -29,7 +31,7 @@ const saving = ref(false)
 async function save() {
   saving.value = true
   try {
-    await saveSettings({ ...settings.value, ...draft.value })
+    await saveProjection(draft.value)
     draft.value = snapshot()
   } finally {
     saving.value = false
@@ -39,8 +41,12 @@ function discard() {
   draft.value = snapshot()
 }
 
-const horizon = computed(() => settings.value.horizonDays)
-const d = computed(() => deriveFor(draft.value, horizon.value))
+const p = computed(() => projectFor(draft.value, horizon.value))
+// Averaged results are shown even before there's a projection.
+const results = computed<Record<string, AveragedResult>>(
+  () => p.value?.averaged ?? Object.fromEntries(draft.value.averaged.map((a) => [a.id, evaluateAveraged(a, records.value, draft.value)])),
+)
+const d = computed(() => ({ projection: p.value }))
 
 const heading = computed(() => {
   const p = d.value.projection
@@ -53,7 +59,7 @@ const chart = computed(() => {
   const p = d.value.projection
   const l = latest.value
   if (!p || !l) return null
-  const from = dayNum(l.date) - AUTO_LOOKBACK_DAYS
+  const from = dayNum(l.date) - CHART_PAST_DAYS
   const past = records.value.filter((r) => dayNum(r.date) >= from).map((r) => ({ x: dayNum(r.date), y: r.left }))
   const series: ChartSeries[] = [
     { label: 'Records', color: 'var(--accent)', points: past, dots: true, width: 2.5 },
@@ -84,8 +90,8 @@ const chart = computed(() => {
     <section v-if="!latest" class="card">
       <h2>No projection yet</h2>
       <p class="muted">
-        Save your first record on the Today tab. The projection starts from your latest record and looks
-        ahead using the monthly and one-time items below and your everyday spending.
+        Save your first record on the Present tab. The projection starts from your latest record and looks
+        ahead using the items below.
       </p>
     </section>
 
@@ -109,9 +115,9 @@ const chart = computed(() => {
       </p>
     </section>
 
-    <EverydayCard v-model="draft.everyday" :auto="d.auto" :used="d.monthly" />
     <RecurringEditor v-model="draft.recurring" />
     <OneTimeEditor v-model="draft.oneTime" />
+    <AveragedEditor v-model="draft.averaged" :results="results" :lines="knownLines" />
 
     <div v-if="dirty" class="draft-bar">
       <span class="msg">Unsaved changes. The chart is showing them.</span>

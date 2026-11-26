@@ -99,7 +99,7 @@ async function onDelete(date: string) {
             </tbody>
           </table>
         </div>
-        <p class="muted small">To fix a record, open New record on the Today tab, pick its date, and save.</p>
+        <p class="muted small">To fix a record, open New record on the Present tab, pick its date, and save.</p>
       </section>
     </template>
   </div>

@@ -2,12 +2,12 @@
 import type { OneTime } from '../../lib/finance'
 import { newId } from '../../lib/finance'
 import { addDays, today } from '../../lib/money'
-import MoneyInput from './MoneyInput.vue'
+import SignedMoneyInput from './SignedMoneyInput.vue'
 
 const items = defineModel<OneTime[]>({ required: true })
 
 function add() {
-  items.value = [...items.value, { id: newId(), name: '', dir: 'out', amount: 0, date: addDays(today(), 7) }]
+  items.value = [...items.value, { id: newId(), name: '', amount: 0, date: addDays(today(), 7) }]
 }
 function remove(id: string) {
   items.value = items.value.filter((r) => r.id !== id)
@@ -17,15 +17,11 @@ function remove(id: string) {
 <template>
   <section class="card">
     <h2>One-time</h2>
-    <p class="muted small intro">A single payment or deposit on a known date, like a tax refund or a trip.</p>
+    <p class="muted small intro">A single change on a known date: a tax refund (<b class="pos">+</b>) or a trip (<b class="neg">−</b>).</p>
 
     <div v-for="o in items" :key="o.id" class="item">
       <input v-model="o.name" class="input name" placeholder="Name (e.g. Tax refund)" aria-label="Name" />
-      <select v-model="o.dir" class="select dir" aria-label="In or out">
-        <option value="in">In</option>
-        <option value="out">Out</option>
-      </select>
-      <MoneyInput v-model="o.amount" class="amount" aria-label="Amount" />
+      <SignedMoneyInput v-model="o.amount" class="amount" aria-label="Amount" />
       <input v-model="o.date" class="input date" type="date" aria-label="Date" />
       <button class="btn ghost rm" :aria-label="`Remove ${o.name || 'item'}`" @click="remove(o.id)">✕</button>
     </div>
@@ -43,12 +39,11 @@ function remove(id: string) {
 
 .item {
   display: grid;
-  grid-template-columns: 4.6rem 1fr;
+  grid-template-columns: 1fr auto;
   grid-template-areas:
     'name name'
-    'dir amount'
-    'date date'
-    'rm rm';
+    'amount amount'
+    'date rm';
   gap: 0.4rem;
   padding: 0.6rem 0;
   border-top: 1px solid var(--line);
@@ -56,9 +51,6 @@ function remove(id: string) {
 
 .name {
   grid-area: name;
-}
-.dir {
-  grid-area: dir;
 }
 .amount {
   grid-area: amount;
@@ -74,17 +66,17 @@ function remove(id: string) {
 
 @media (min-width: 30rem) {
   .item {
-    grid-template-columns: 4.6rem 1fr 1fr auto;
+    grid-template-columns: 1fr 1fr auto;
     grid-template-areas:
-      'name name name name'
-      'dir amount date rm';
+      'name name name'
+      'amount date rm';
   }
 }
 
 @media (min-width: 44rem) {
   .item {
-    grid-template-columns: 1fr 4.6rem 8rem 10rem auto;
-    grid-template-areas: 'name dir amount date rm';
+    grid-template-columns: 1fr 10rem 10rem auto;
+    grid-template-areas: 'name amount date rm';
     align-items: center;
   }
 }

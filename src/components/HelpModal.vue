@@ -18,7 +18,7 @@ const files = import.meta.glob('../../docs/concepts/*.md', { query: '?raw', impo
   string,
   string
 >
-const ORDER = ['overview', 'today', 'projection', 'history', 'setup']
+const ORDER = ['overview', 'past', 'present', 'future', 'backup']
 const docs: Record<string, string> = Object.fromEntries(
   Object.entries(files).map(([path, text]) => [path.split('/').pop()!.replace(/\.md$/, ''), text]),
 )
