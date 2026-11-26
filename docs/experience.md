@@ -341,6 +341,16 @@ typed number positive.
 
 ## Version History
 
+### v0.3.0 — 2026-11-26
+- **Changed:** storage is `records/<date>.json` files (real folders) + `projection.json` +
+  `template.json`; everything else computed. Store schema 2 migrates the flat layout; the old
+  settings file is split on load; backup zips mirror the folders
+- **Changed:** projection items are signed (+/− toggle) instead of In/Out
+- **Added:** "From your records" items: average a source (left so far or a line) over a date range
+  as a rate of change or a monthly average amount, with an optional manual figure. Everyday spending
+  is now one of these
+- **Changed:** horizon is a per-device preference
+
 ### v0.2.0 — 2026-11-26
 - **Changed:** records are signed line items (no kinds; positive = asset, negative = liability);
   schema 1 data converts on load
