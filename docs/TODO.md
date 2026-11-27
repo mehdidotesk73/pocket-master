@@ -25,6 +25,9 @@ Track feature development, improvements, and known issues here. Move completed w
   `recordsInWindow` (+ lastRecords), `normalizeItem` migration, `ProjectionPanel` sections.
 - **v0.8.0 — forecasts & projections UI** — `FutureView`, `ForecastChart`, `ForecastPanel`,
   `ProjectionPanel`, `LensCarousel`, `DockPanel`; `project().contributions`.
+- **v0.10.0 — projections change a line** — optional `target` on items (`targetOf`, `NET_ONLY`);
+  `project()` returns `lines` (per line, day by day) + `netOnly`; `forecastLineNames`,
+  `forecastSheetOn`; *Changes* select in `ProjectionPanel`; `→ line` in `summarize`.
 - **v0.7.0 — timestamped records** — `BalanceRecord.at`, `recordId(at)`, `normalizeRecord`/`loadFrom`
   migration, `RecordModal` `editing` prop, Past rows open records.
 
@@ -46,6 +49,17 @@ One-time setup — tick these off as they're done:
 ## Code
 
 (Features, refactoring, technical debt)
+
+Balance-sheet forecasts, in order (step 1, target lines, is done in v0.10.0):
+
+- [ ] **Start point on Rate of change** — optional "from $X on date D" added before the window's
+      records; skips the 28-day minimum. Gives a card's cycle pace from one record ($0 on the 1st).
+- [ ] **Balance sheet on [date]** in Future — `forecastSheetOn` shown with the `BalanceSheet`
+      component, with an *End of month* shortcut.
+- [ ] **Past: monthly in / spent / net change** — worked out from records (net change − scheduled
+      income). Transfers between two same-day records (pay cards, move to saving) leave net equity
+      unchanged, so they count as neither.
+- [ ] Maybe: card payoff as a transfer projection (moves a projected balance between two lines).
 
 ## Docs
 

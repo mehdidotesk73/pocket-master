@@ -36,6 +36,8 @@ Tap **Add** to make one, or tap a projection to change it. Swipe or tap the type
   For a monthly Amount, tick **Already in my records until paid** for things like rent that you list in each record until paid, so it isn't counted twice this month.
 - **One-time**: a fixed amount you type, on one date.
 
+Every projection also says which line it **changes**: pay goes to Checking, a card's rate of change moves that card, a house's rate of change moves the house. An average or rate of change of a line changes that line unless you pick another. **Net equity only** changes the total without belonging to any line, which suits everyday spending worked out from net equity. The list shows the line after an arrow (→ Checking).
+
 Amounts are **+** (coming in) or **−** (going out): tap the sign to switch. Owed amounts show in parentheses.
 
 This is a guide, not a promise. It's only as good as the projections you've entered.

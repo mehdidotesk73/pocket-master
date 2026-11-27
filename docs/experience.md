@@ -353,6 +353,13 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.10.0 — 2026-11-27
+- **Added:** each projection names the **line it changes** (*Changes* in the editor; `→ line` in the
+  list). The forecast is now worked out per line as well as in total — the base for a forecast
+  balance sheet (e.g. end of month).
+- **Defaults:** an average or rate of a line changes that line; amounts and net-equity rates are net
+  only. Existing forecasts open unchanged (the field is optional).
+
 ### v0.9.5 — 2026-11-27
 - **Changed:** storage shown as **your data** (exact size and file count) instead of the browser's
   site-wide usage estimate; Export sheet adds "space allowed" (quota)
