@@ -38,7 +38,9 @@ Tap **Add** to make one, or tap a projection to change it. Swipe or tap the type
   For a monthly Amount, tick **Already in my records until paid** for things like rent that you list in each record until paid, so it isn't counted twice this month.
 - **One-time**: a fixed amount you type, on one date.
 
-At the bottom of the editor, the projection is **read back as a sentence**, e.g. *Every month on the 1st, add Phone's average of ($85.00) to Checking*, with what it adds up to by the end of the forecast and where that leaves the line. Anything that looks unintended shows in amber.
+The editor is laid out in two rows of three: **Changes · Value · Line** (or **Amount**), then **Every · Unit · Starting**. Value (Amount, Average, Rate) and Unit (day, week, month, year) are small wheels: swipe them or tap an option. For Average and Rate, the records to use and the start point sit between the two rows.
+
+At the bottom of the editor, the projection is **read back as one sentence**, e.g. *Every month on the 1st, add Phone's average of ($85.00) to Checking*. Tap it to see what it adds up to by the end of the forecast, where that leaves the line, and what it was worked out from. If something looks unintended, an amber "to check" note shows next to the sentence.
 
 The default **Everyday spending** is the rate of change of net equity. Until the forecast lists your pay as an Amount, that rate is **income and spending combined**. The list and the editor say so.
 

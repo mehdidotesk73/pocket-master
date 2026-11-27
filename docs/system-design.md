@@ -151,7 +151,10 @@ Future = forecast picker + **Edit** / **New** → `ForecastPanel`; `ForecastChar
 each day any projection changes the total — day-over-day differences of `project().contributions` — with
 the forecast total, starting balance included, as a step line — flat between event days, vertical on
 each — past records leading in); projections list + **Add** → `ProjectionPanel`
-(`LensCarousel` type selector; changes / value / window / repeats sections, and a pinned readback from
+(`LensCarousel` type selector; compact three-column rows — Changes · Value · Line-or-Amount, then
+Every · Unit · Starting — with Value and Unit as `WheelPicker`s (a vertical lens carousel); the
+records window and start point sit between the rows for Average / Rate; and a pinned, collapsed
+readback (one line plus a "N to check" pill; tap for the rest) from
 `readBack()` in `projectionText.ts`: the settings as one sentence, the total by the forecast's end, the
 target line's start → end, and warnings — an average repeating faster than monthly, measured on one line
 but changing another, a net-equity rate with no income listed). Average can't pick net equity and

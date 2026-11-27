@@ -369,6 +369,12 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.12.2 — 2026-11-27
+- **Changed:** the projection editor is compact: Changes · Value · Line (or Amount) on one row and
+  Every · Unit · Starting on another, with Value and Unit as small vertical wheels. The readback is
+  one line until tapped; warnings show as a "to check" count. Switching to Amount keeps the line the
+  projection changes.
+
 ### v0.12.0 — 2026-11-27
 - **Changed:** the Past chart keeps net equity as a line (now in ink, with a dot per record) and shows
   total owned and total owed as dots only, no lines. The tap readout lists all three.
