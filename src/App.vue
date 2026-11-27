@@ -131,14 +131,14 @@ async function copyLog() {
 // say so instead of reloading into the same version. 'unknown' (offline, or
 // `vite dev`) falls through to the forced reload.
 async function onReloadLatest() {
+  // A worker already downloaded and waiting: switch to it (falls back to a forced reload).
+  if (updateWaiting.value) {
+    await applyUpdate()
+    return
+  }
   if ((await checkNow()) === 'current') {
     alreadyLatest.value = true
     setTimeout(() => (alreadyLatest.value = false), 2000)
-    return
-  }
-  // A worker already downloaded and waiting: just switch to it.
-  if (updateWaiting.value) {
-    await applyUpdate()
     return
   }
   logDebug('Reloading to latest build...')

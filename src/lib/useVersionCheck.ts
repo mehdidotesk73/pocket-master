@@ -28,9 +28,13 @@ export function useVersionCheck(intervalMs = 60_000) {
 
   async function checkNow(): Promise<VersionStatus> {
     try {
+      // A stalled request (flaky network in an installed app) must not hang the Reload button.
+      const ctl = new AbortController()
+      const t = setTimeout(() => ctl.abort(), 6000)
       const res = await fetch(`${import.meta.env.BASE_URL}version.json?t=${Date.now()}`, {
         cache: 'no-store',
-      })
+        signal: ctl.signal,
+      }).finally(() => clearTimeout(t))
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const body = await res.json()
       if (typeof body?.commit !== 'string') throw new Error('no commit field')
