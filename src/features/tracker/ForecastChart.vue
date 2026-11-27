@@ -1,10 +1,12 @@
 <script setup lang="ts">
-// Forecast chart: what each projection contributes, as stacked bars, with the
-// forecast (their total) as a line, and past records leading into it.
+// Forecast chart: what happens in each period, as stacked bars, with the
+// forecast (the running total) as a line, and past records leading into it.
 //
-// Each bar is one point in time. Its segments are the starting balance and
-// every projection's cumulative change by then: positive segments stack up from
-// zero, negative ones down. The forecast line passes through the net of each bar.
+// Each bar is one period (a day, a week or a few weeks, depending on the
+// horizon) and is drawn at its last day. Its segments are what each projection
+// adds or takes away *in that period*: a weekly ($50) shows as ($50) every
+// week, a monthly +$100 as +$100 in the period holding its day. Positive
+// segments stack up from zero, negative ones down. The line is the total.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { fmtDate, fmtMoney, fromDayNum, monthIndex, monthLabel, monthFromIndex, dayNum, ymd } from '../../lib/money'
 
@@ -24,7 +26,7 @@ const props = withDefaults(
     days: { date: string; total: number }[]
     /** The starting-balance segment and one per projection. */
     segments: Segment[]
-    /** Per segment id, its value on each forecast day (the start segment is constant). */
+    /** Per segment id, its running total by each forecast day; bars show the change per period. */
     values: Record<string, number[]>
     height?: number
   }>(),
@@ -68,17 +70,20 @@ const geom = computed(() => {
   const W = width.value
   const H = props.height
   const idx = barIndexes(props.days.length)
-  const bars = idx.map((i) => {
+  const bars = idx.map((i, k) => {
+    const prev = k > 0 ? idx[k - 1] : -1
     let up = 0
     let down = 0
     const parts = props.segments.map((s) => {
-      const v = props.values[s.id]?.[i] ?? 0
+      const run = props.values[s.id] ?? []
+      const v = Math.round(((run[i] ?? 0) - (prev >= 0 ? (run[prev] ?? 0) : 0)) * 100) / 100
       const from = v >= 0 ? up : down
       if (v >= 0) up += v
       else down += v
       return { ...s, v, y0: from, y1: from + v }
     })
-    return { i, x: dayNum(props.days[i].date), date: props.days[i].date, total: props.days[i].total, parts, up, down }
+    const from = props.days[prev + 1].date
+    return { i, x: dayNum(props.days[i].date), date: props.days[i].date, from, total: props.days[i].total, parts, up, down }
   })
 
   const xs = [...props.past.map((p) => p.x), props.start.x, ...props.days.map((d) => dayNum(d.date))]
@@ -202,13 +207,15 @@ const readout = computed(() => {
     </svg>
 
     <div v-if="readout" class="readout" :class="{ left: readout.left }">
-      <div class="muted">{{ fmtDate(readout.b.date) }}</div>
+      <div class="muted">
+        {{ readout.b.from === readout.b.date ? fmtDate(readout.b.date) : `${fmtDate(readout.b.from, { short: true })} – ${fmtDate(readout.b.date, { short: true })}` }}
+      </div>
       <div class="row total-row">
-        <span class="sw line"></span>Forecast<b class="money">{{ fmtMoney(readout.b.total) }}</b>
+        <span class="sw line"></span>Forecast by then<b class="money">{{ fmtMoney(readout.b.total) }}</b>
       </div>
       <div v-for="p in readout.b.parts.filter((x) => Math.abs(x.v) >= 0.005)" :key="p.id" class="row">
         <span class="sw" :style="{ background: p.color }"></span>{{ p.label }}
-        <b class="money">{{ fmtMoney(p.v, { sign: p.id !== '__start' }) }}</b>
+        <b class="money">{{ fmtMoney(p.v, { sign: true }) }}</b>
       </div>
     </div>
 

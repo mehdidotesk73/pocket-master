@@ -13,7 +13,7 @@ import { atNum, dayNum, fmtDate, fmtDateTime, fmtMoney, today } from '../../lib/
 import ForecastChart, { type Segment } from './ForecastChart.vue'
 import ForecastPanel from './ForecastPanel.vue'
 import ProjectionPanel from './ProjectionPanel.vue'
-import { START_COLOR, UI_INFO, colorFor, summarize, uiTypeOf } from './projectionText'
+import { UI_INFO, colorFor, summarize, uiTypeOf } from './projectionText'
 import { useTracker } from './useTracker'
 
 const { projections, selected, selectedId, records, latest, projectFor, resultsFor, saveProjection, createProjection, deleteProjection, selectProjection } =
@@ -65,11 +65,9 @@ const chart = computed(() => {
   // No records yet: the forecast starts at zero today, with no past to show.
   const from = l ? dayNum(l.date) - CHART_PAST_DAYS : Infinity
   const past = records.value.filter((r) => dayNum(r.date) >= from).map((r) => ({ x: atNum(r.at), y: startValueCents(r, p.start) / 100 }))
-  const segments: Segment[] = [
-    { id: '__start', label: p.start.mode === 'all' ? 'Starting net equity' : 'Starting total', color: START_COLOR },
-    ...p.items.map((it) => ({ id: it.id, label: it.name || UI_INFO[uiTypeOf(it)].label, color: colorOf.value[it.id] })),
-  ]
-  const values: Record<string, number[]> = { __start: f.series.map(() => f.start.value), ...f.contributions }
+  // Bars: what each projection adds or takes away per period (the line carries the starting balance).
+  const segments: Segment[] = p.items.map((it) => ({ id: it.id, label: it.name || UI_INFO[uiTypeOf(it)].label, color: colorOf.value[it.id] }))
+  const values: Record<string, number[]> = f.contributions
   return {
     past,
     start: { x: l ? atNum(l.at) : dayNum(f.start.date), y: f.start.value },

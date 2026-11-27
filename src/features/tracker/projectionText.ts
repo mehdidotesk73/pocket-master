@@ -31,7 +31,6 @@ export const WINDOW_MODES = [
 /** Chart colours for projections, from the look's palette (cycled). */
 const PALETTE = ['var(--alert-note)', 'var(--alert-warning)', 'var(--alert-important)', 'var(--alert-tip)', 'var(--alert-caution)', 'var(--accent)']
 export const colorFor = (index: number) => PALETTE[index % PALETTE.length]
-export const START_COLOR = 'color-mix(in srgb, var(--mute) 45%, transparent)'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`

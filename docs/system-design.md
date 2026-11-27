@@ -144,9 +144,9 @@ OPFS root
 Three tabs, **Past · Present · Future** (default Present): `HistoryView`, `TodayView`,
 `FutureView`. **Naming in the UI:** a stored `ProjectionFile` is a *forecast*; its items are
 *projections*: Recurring or One-time.
-Future = forecast picker + **Edit** / **New** → `ForecastPanel`; `ForecastChart` (stacked bars of
-the start value and each projection's running contribution from `project().contributions`, the
-forecast total as a line, past records leading in); projections list + **Add** → `ProjectionPanel`
+Future = forecast picker + **Edit** / **New** → `ForecastPanel`; `ForecastChart` (stacked bars of each
+projection's change *per period* — differences of `project().contributions` between bar days — with
+the forecast total, starting balance included, as a line, past records leading in); projections list + **Add** → `ProjectionPanel`
 (`LensCarousel` type selector; value / window / repeats sections). Both panels are `DockPanel`s (mid-height, bottom, page stays
 visible) editing drafts that drive the chart live; Save writes, Cancel discards. The header's ☰ (top left) opens `SideMenu`, a drawer from the left with collapsible
 sections (start collapsed); Records holds the Import / Export tag buttons. Future = projection picker (+ `ProjectionModal` for name / start lines / days ahead /

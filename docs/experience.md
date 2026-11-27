@@ -347,6 +347,10 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.9.3 — 2026-11-27
+- **Changed:** forecast bars show each projection's amount *per period* (a weekly ($50) is ($50)
+  every week) instead of its running total; the starting balance lives only in the forecast line
+
 ### v0.9.2 — 2026-11-27
 - **Changed:** with no records yet, a forecast still runs: it starts at $0 today, record-based values
   count as 0, and nothing is skipped as "already in my records"

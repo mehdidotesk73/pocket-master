@@ -4,10 +4,10 @@ A **forecast** shows where some of your money is heading. It starts from your **
 
 ## The chart
 
-- **Bars** show what makes up each point ahead: your starting balance (grey) plus each projection's running total in its own colour. Positive parts stack above zero, negative parts below.
-- The **line** is the forecast: everything added up.
+- **Bars** show what happens in each period (each day, week or few weeks, depending on how far ahead you look): what every projection adds or takes away in that period, in its own colour. A weekly ($50) shows as ($50) every week; a monthly +$100 shows once a month. Money in stacks above zero, money out below.
+- The **line** is the forecast: your starting balance plus everything so far.
 - On the left, the **green line** is your past records.
-- Tap or hover a bar to see its breakdown.
+- Tap or hover a bar to see that period's amounts and the forecast by then.
 
 With no records yet, a forecast starts from $0 today, so you can set up projections before your first record.
 
