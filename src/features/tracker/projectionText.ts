@@ -1,5 +1,6 @@
-// Plain-language text for projection items: the labels in the "+ Add" menu,
-// the one-line summaries in the item list, and the live preview in the editor.
+// Plain-language text for projections (the items of a forecast): their four
+// types as the editor shows them, one-line summaries for the list, the live
+// preview, and a colour per projection for the chart.
 import {
   type ItemKind,
   type ItemResult,
@@ -11,6 +12,40 @@ import {
 import { fmtDate, fmtMoney } from '../../lib/money'
 
 export const KIND_ORDER: ItemKind[] = ['recurring', 'oneTime', 'averaged', 'extrapolate']
+
+/**
+ * The four types the editor offers. They map onto the stored kinds:
+ *   recurring  = 'recurring' (fixed amount) or 'averaged' with mode 'amount' (a line's average)
+ *   oneTime    = 'oneTime'
+ *   cyclical   = 'extrapolate' (builds up through the month, then the month starts over)
+ *   cumulative = 'averaged' with mode 'rate' (a trend that keeps adding up, e.g. everyday spending)
+ */
+export type UiType = 'recurring' | 'oneTime' | 'cyclical' | 'cumulative'
+export const UI_TYPES: UiType[] = ['recurring', 'oneTime', 'cyclical', 'cumulative']
+export const UI_INFO: Record<UiType, { label: string; help: string }> = {
+  recurring: { label: 'Recurring', help: 'Every month on the same day: a fixed amount, or a line’s average from your records.' },
+  oneTime: { label: 'One-time', help: 'A single amount on one date.' },
+  cyclical: {
+    label: 'Cyclical',
+    help: 'Builds up through the month and starts over: carries a value from your latest record to month end at the same pace.',
+  },
+  cumulative: {
+    label: 'Cumulative',
+    help: 'A trend that keeps adding up: how fast something has been changing in your records, continued day by day.',
+  },
+}
+
+export function uiTypeOf(item: ProjectionItem): UiType {
+  if (item.kind === 'oneTime') return 'oneTime'
+  if (item.kind === 'extrapolate') return 'cyclical'
+  if (item.kind === 'averaged') return item.mode === 'rate' ? 'cumulative' : 'recurring'
+  return 'recurring'
+}
+
+/** Chart colours for projections, from the look's palette (cycled). */
+const PALETTE = ['var(--alert-note)', 'var(--alert-warning)', 'var(--alert-important)', 'var(--alert-tip)', 'var(--alert-caution)', 'var(--accent)']
+export const colorFor = (index: number) => PALETTE[index % PALETTE.length]
+export const START_COLOR = 'color-mix(in srgb, var(--mute) 45%, transparent)'
 
 export const KIND_INFO: Record<ItemKind, { label: string; help: string; placeholder: string }> = {
   recurring: {
@@ -73,7 +108,11 @@ export function describeResult(item: ProjectionItem, res: ItemResult, p: Project
 }
 
 /** One-line summary for the item list: amount first, then when / how. */
-export function summarize(item: ProjectionItem, res: ItemResult | undefined, p: ProjectionFile): { amount: string; detail: string; tone: ResultText['tone']; tag?: string } {
+export function summarize(
+  item: ProjectionItem,
+  res: ItemResult | undefined,
+  p: ProjectionFile,
+): { amount: string; detail: string; tone: ResultText['tone']; tag?: string } {
   switch (item.kind) {
     case 'recurring':
       return {
@@ -85,7 +124,7 @@ export function summarize(item: ProjectionItem, res: ItemResult | undefined, p: 
       return { amount: fmtMoney(item.amount, { sign: true }), detail: `on ${fmtDate(item.date)}`, tone: toneOf(item.amount) }
     case 'averaged': {
       const src = describeSource(item.source, p.start)
-      const how = item.mode === 'rate' ? `trend of ${src}` : `average of ${src}, day ${item.day}`
+      const how = item.mode === 'rate' ? `trend of ${src}` : `average of ${src}, every month on day ${item.day}`
       if (!res || res.value == null) return { amount: '—', detail: `${how} · ${describeRange(item.range)} · needs more records`, tone: 'warn' }
       return {
         amount: `${fmtMoney(res.value, { sign: true })}${item.mode === 'rate' ? '/mo' : ''}`,

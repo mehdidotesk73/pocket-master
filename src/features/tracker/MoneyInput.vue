@@ -2,7 +2,7 @@
 // A money field that keeps what you type (so "12." doesn't jump to "12") and
 // emits a number rounded to cents. inputmode=decimal brings up the number pad.
 // With `negative`, the value reads as (12.00) while the field isn't focused.
-import { ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { parseMoney } from '../../lib/money'
 
 const props = defineProps<{ modelValue: number; ariaLabel?: string; placeholder?: string; negative?: boolean }>()
@@ -20,10 +20,16 @@ watch(
   },
 )
 
+function onFocus(e: FocusEvent) {
+  focused.value = true
+  const el = e.target as HTMLInputElement
+  nextTick(() => document.activeElement === el && el.select())
+}
+
 function onInput(e: Event) {
   text.value = (e.target as HTMLInputElement).value.replace(/^\s*\(|\)\s*$/g, '')
   const v = parseMoney(text.value)
-  bad.value = text.value.trim() !== '' && v == null
+  bad.value = text.value.trim() !== '' && (v == null || /\.\d{3,}/.test(text.value))
   if (!bad.value) emit('update:modelValue', Math.abs(v ?? 0))
 }
 </script>
@@ -37,7 +43,7 @@ function onInput(e: Event) {
     :placeholder="placeholder ?? '0.00'"
     :aria-label="ariaLabel"
     @input="onInput"
-    @focus="focused = true"
+    @focus="onFocus"
     @blur="focused = false; !bad && (text = fmt(modelValue))"
   />
 </template>

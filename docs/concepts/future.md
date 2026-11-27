@@ -1,23 +1,36 @@
 # Future
 
-The Future tab shows **projections**: where some part of your money is heading. You can keep several, for example:
+A **forecast** shows where some of your money is heading. It starts from your **latest record** and adds up its **projections**: the things you expect to come in or go out.
 
-- **Everything**: all lines of your latest record (left so far), with your pay, rent and everyday spending.
-- **Checking**: just your checking balance and credit cards, with rent, utilities and pay, to see how checking will swing during the month.
+## The chart
 
-Pick one from the list at the top. **New** creates another; the **settings** button next to it changes its name, which lines of your latest record it starts from, and how many days ahead it runs (30, 90, 180, 365, or any number). You can also duplicate or delete it there.
+- **Bars** show what makes up each point ahead: your starting balance (grey) plus each projection's running total in its own colour. Positive parts stack above zero, negative parts below.
+- The **line** is the forecast: everything added up.
+- On the left, the **green line** is your past records.
+- Tap or hover a bar to see its breakdown.
 
-## Items
+The heading tells you the main finding. If the forecast goes below zero, it says when.
 
-Tap **Add** and pick a kind. Each opens a sheet to fill in; tap an item in the list to change or remove it. Amounts are **+** (coming in) or **−** (going out): tap the sign to switch.
+## Forecasts
 
-- **Every month**: the same amount on the same day each month. Day 31 means the last day of the month. Tick **Already in my records until paid** for things like rent that you list in each record until paid: the projection then skips it in your latest record's month, and applies it from the next.
-- **One time**: a single amount on a date.
-- **Average from records**: worked out from your past records. Pick what to average (the projection's **starting total**, or any one line) and which records to use: **all**, the **past N days**, or **between two dates**.
-  - **Rate of change**: how fast it moved per month, carried on a little each day. For the starting total, this projection's other items are taken out first, so what's left is everyday spending. Needs records spanning four weeks or more.
-  - **Average amount**: the line's typical value, applied once a month on the day you choose.
-- **Extrapolate to month end**: takes a value from your latest record and carries it to the end of that month at the same pace. For example a card at −$400 on the 10th of a 30-day month heads for −$1,200, so −$800 more is spread over the rest of the month. If your latest record is from an earlier month, the value is used as is and the item shows **Outdated**: save a new record to bring it up to date.
+Pick one from **Forecast** at the top. You can keep several, for example:
 
-The heading tells you the main finding. If the projection goes below zero, it says when. The Present tab shows where the selected projection ends up.
+- **Everything**: all lines of your latest record (left so far), with pay, rent and everyday spending.
+- **Checking**: just checking (and maybe your cards), to see how checking swings during the month.
 
-This is a guide, not a promise. It's only as good as the items you've entered.
+**Edit** changes the forecast's name, which lines of your latest record it starts from, and how many days ahead it runs. **Duplicate** and **Delete** are there too. **New** makes a new forecast and opens it for editing. Both editors sit at the bottom of the screen, so you can watch the chart change as you go. Nothing is kept until you tap **Save** or **Create**.
+
+## Projections
+
+Tap **Add** to make one, or tap a projection to change it. Swipe or tap the type at the top of the panel:
+
+- **Recurring**: every month on the same day. Either a **fixed amount**, or the **average of a line** in your records (for a bill that varies). Tick **Already in my records until paid** for things like rent that you list in each record until paid, so it isn't counted twice this month.
+- **One-time**: a single amount on a date.
+- **Cyclical**: something that builds up through the month and starts over, like a card balance. It takes the value from your latest record and carries it to month end at the same pace. If your latest record is from an earlier month, it's marked **Outdated**.
+- **Cumulative**: a trend that keeps adding up. It uses how fast a value has been changing in your records, continued day by day. With **Left so far** (or the starting total), the forecast's other projections are taken out first, so what's left is your everyday spending. You need records spanning four weeks or more.
+
+For the two kinds worked out from records, choose which records to use: **All**, the **past N days**, or **Between** two dates.
+
+Amounts are **+** (coming in) or **−** (going out): tap the sign to switch. Owed amounts show in parentheses.
+
+This is a guide, not a promise. It's only as good as the projections you've entered.

@@ -142,7 +142,14 @@ OPFS root
 ## §3b — Screens
 
 Three tabs, **Past · Present · Future** (default Present): `HistoryView`, `TodayView`,
-`FutureView`. The header's ☰ (top left) opens `SideMenu`, a drawer from the left with collapsible
+`FutureView`. **Naming in the UI:** a stored `ProjectionFile` is a *forecast*; its items are
+*projections*, shown as four types (`projectionText.ts` `uiTypeOf`): Recurring = `recurring` or
+`averaged`/amount, One-time = `oneTime`, Cyclical = `extrapolate`, Cumulative = `averaged`/rate.
+Future = forecast picker + **Edit** / **New** → `ForecastPanel`; `ForecastChart` (stacked bars of
+the start value and each projection's running contribution from `project().contributions`, the
+forecast total as a line, past records leading in); projections list + **Add** → `ProjectionPanel`
+(`LensCarousel` type selector). Both panels are `DockPanel`s (mid-height, bottom, page stays
+visible) editing drafts that drive the chart live; Save writes, Cancel discards. The header's ☰ (top left) opens `SideMenu`, a drawer from the left with collapsible
 sections (start collapsed); Records holds the Import / Export tag buttons. Future = projection picker (+ `ProjectionModal` for name / start lines / days ahead /
 duplicate / delete), chart, and a compact item list; "+ Add" menu → `ItemModal` per kind (built on
 `SheetModal`); summaries in `projectionText.ts`. Edits save immediately. Backup (export/import + storage health) is `BackupModal`, opened from the footer

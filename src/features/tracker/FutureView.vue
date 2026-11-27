@@ -1,32 +1,46 @@
 <script setup lang="ts">
-// Future tab: pick a projection (each is its own file in projections/), see where
-// it's heading, and edit its items. Items are a compact list; "+ Add" opens a
-// menu of the four kinds, each with its own sheet. Edits save straight away.
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { ChevronDown, Plus, Settings2 } from '@lucide/vue'
-import { HORIZON_PRESETS, type ItemKind, type ProjectionItem, describeSource, startValueCents } from '../../lib/finance'
+// Future tab. A forecast (one file in projections/) starts from the latest
+// record and adds up its projections (the items) over the days ahead.
+//
+// Two editors, both docked panels that leave the chart visible and drive it live:
+//   - Edit / New forecast  → ForecastPanel (name, starting lines, days ahead)
+//   - a projection row / + Add → ProjectionPanel (type carousel + fields)
+// New things are drafts until saved: Cancel leaves nothing behind.
+import { computed, nextTick, ref } from 'vue'
+import { Pencil, Plus } from '@lucide/vue'
+import { HORIZON_PRESETS, type ProjectionFile, type ProjectionItem, defaultProjection, newId, startValueCents } from '../../lib/finance'
 import { atNum, dayNum, fmtDate, fmtDateTime, fmtMoney } from '../../lib/money'
-import ItemModal from './ItemModal.vue'
-import LineChart, { type ChartMarker, type ChartSeries } from './LineChart.vue'
-import ProjectionModal from './ProjectionModal.vue'
-import { KIND_INFO, KIND_ORDER, summarize } from './projectionText'
+import ForecastChart, { type Segment } from './ForecastChart.vue'
+import ForecastPanel from './ForecastPanel.vue'
+import ProjectionPanel from './ProjectionPanel.vue'
+import { START_COLOR, UI_INFO, colorFor, summarize, uiTypeOf } from './projectionText'
 import { useTracker } from './useTracker'
 
-const { projections, selected, selectedId, records, latest, currentProjection, resultsFor, saveProjection, selectProjection } =
+const { projections, selected, selectedId, records, latest, projectFor, resultsFor, saveProjection, createProjection, deleteProjection, selectProjection } =
   useTracker()
 
 /** How far back the chart shows past records. */
 const CHART_PAST_DAYS = 120
 
-const p = computed(() => selected.value)
-const future = computed(() => currentProjection.value)
-const results = computed(() => (p.value ? resultsFor(p.value) : {}))
+// ---- editing state
+const forecastEdit = ref<{ draft: ProjectionFile; isNew: boolean } | null>(null)
+const itemEdit = ref<{ draft: ProjectionItem; isNew: boolean } | null>(null)
+
+/** What's on screen: the saved forecast, or the one being edited (with any item draft applied). */
+const shown = computed<ProjectionFile | null>(() => {
+  if (forecastEdit.value) return forecastEdit.value.draft
+  const f = selected.value
+  if (!f) return null
+  const e = itemEdit.value
+  if (!e) return f
+  const exists = f.items.some((i) => i.id === e.draft.id)
+  return { ...f, items: exists ? f.items.map((i) => (i.id === e.draft.id ? e.draft : i)) : [...f.items, e.draft] }
+})
+const future = computed(() => (shown.value ? projectFor(shown.value) : null))
+const results = computed(() => (shown.value ? resultsFor(shown.value) : {}))
 
 // ---- heading
-const subject = computed(() => {
-  if (!p.value) return ''
-  return p.value.start.mode === 'all' ? 'Left so far' : p.value.name
-})
+const subject = computed(() => (shown.value?.start.mode === 'all' ? 'Left so far' : (shown.value?.name ?? '')))
 const heading = computed(() => {
   const f = future.value
   if (!f) return ''
@@ -34,191 +48,212 @@ const heading = computed(() => {
   return `${subject.value} reaches ${fmtMoney(f.end.value, { whole: true })} by ${fmtDate(f.end.date)}`
 })
 const startText = computed(() => {
-  const proj = p.value
-  if (!proj) return ''
-  if (proj.start.mode === 'all') return 'all lines'
-  const n = proj.start.names.length
-  return n <= 3 ? proj.start.names.join(', ') : `${proj.start.names.slice(0, 2).join(', ')} and ${n - 2} more`
+  const p = shown.value
+  if (!p) return ''
+  if (p.start.mode === 'all') return 'all lines'
+  const n = p.start.names.length
+  return n <= 3 ? p.start.names.join(', ') : `${p.start.names.slice(0, 2).join(', ')} and ${n - 2} more`
 })
 
-// ---- chart: the same starting total in past records, then the projection
+// ---- chart
+const colorOf = computed(() => Object.fromEntries((shown.value?.items ?? []).map((it, i) => [it.id, colorFor(i)])))
 const chart = computed(() => {
   const f = future.value
   const l = latest.value
-  const proj = p.value
-  if (!f || !l || !proj) return null
+  const p = shown.value
+  if (!f || !l || !p) return null
   const from = dayNum(l.date) - CHART_PAST_DAYS
-  const past = records.value
-    .filter((r) => dayNum(r.date) >= from)
-    .map((r) => ({ x: atNum(r.at), y: startValueCents(r, proj.start) / 100 }))
-  const series: ChartSeries[] = [
-    { label: 'Records', color: 'var(--pos)', points: past, dots: true, width: 2.5 },
-    {
-      label: 'Projection',
-      color: 'var(--projection)',
-      dashed: true,
-      points: [{ x: atNum(l.at), y: f.start.value }, ...f.series.map((pt) => ({ x: dayNum(pt.date), y: pt.value }))],
-    },
+  const past = records.value.filter((r) => dayNum(r.date) >= from).map((r) => ({ x: atNum(r.at), y: startValueCents(r, p.start) / 100 }))
+  const segments: Segment[] = [
+    { id: '__start', label: p.start.mode === 'all' ? 'Starting balance' : 'Starting total', color: START_COLOR },
+    ...p.items.map((it) => ({ id: it.id, label: it.name || UI_INFO[uiTypeOf(it)].label, color: colorOf.value[it.id] })),
   ]
-  const markers: ChartMarker[] =
-    f.min.value < f.start.value
-      ? [
-          {
-            x: dayNum(f.min.date),
-            y: f.min.value,
-            color: f.min.value < 0 ? 'var(--negative)' : 'var(--projection)',
-            label: `${fmtMoney(f.min.value, { whole: true })} · ${fmtDate(f.min.date, { short: true })}`,
-          },
-        ]
-      : []
-  return { series, markers }
+  const values: Record<string, number[]> = { __start: f.series.map(() => f.start.value), ...f.contributions }
+  return {
+    past,
+    start: { x: atNum(l.at), y: f.start.value },
+    days: f.series.map((s) => ({ date: s.date, total: s.value })),
+    segments,
+    values,
+  }
 })
 
-// ---- days ahead (stored in the projection file)
+// ---- forecast: edit / new / duplicate / delete
+const top = ref<HTMLElement>()
+async function showChart() {
+  await nextTick()
+  top.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+function editForecast() {
+  if (!selected.value) return
+  itemEdit.value = null
+  forecastEdit.value = { draft: JSON.parse(JSON.stringify(selected.value)), isNew: false }
+  showChart()
+}
+function newForecast() {
+  itemEdit.value = null
+  forecastEdit.value = { draft: { ...defaultProjection(newId()), name: 'New forecast' }, isNew: true }
+  showChart()
+}
+async function saveForecast() {
+  const e = forecastEdit.value
+  if (!e) return
+  await saveProjection({ ...e.draft, name: e.draft.name.trim() })
+  selectProjection(e.draft.id)
+  forecastEdit.value = null
+}
+async function duplicateForecast() {
+  const e = forecastEdit.value
+  if (!e) return
+  await createProjection(`${e.draft.name.trim() || 'Forecast'} copy`, e.draft)
+  forecastEdit.value = null
+}
+async function deleteForecast() {
+  const e = forecastEdit.value
+  if (!e) return
+  await deleteProjection(e.draft.id)
+  forecastEdit.value = null
+}
+
+// ---- projections: add / edit / remove
+function addProjection() {
+  forecastEdit.value = null
+  itemEdit.value = { draft: { kind: 'recurring', id: newId(), name: '', amount: 0, day: 1, inRecord: false }, isNew: true }
+  showChart()
+}
+function editProjection(item: ProjectionItem) {
+  forecastEdit.value = null
+  itemEdit.value = { draft: JSON.parse(JSON.stringify(item)), isNew: false }
+  showChart()
+}
+async function saveItem() {
+  const e = itemEdit.value
+  const f = selected.value
+  if (!e || !f) return
+  const exists = f.items.some((i) => i.id === e.draft.id)
+  await saveProjection({ ...f, items: exists ? f.items.map((i) => (i.id === e.draft.id ? e.draft : i)) : [...f.items, e.draft] })
+  itemEdit.value = null
+}
+async function removeItem() {
+  const e = itemEdit.value
+  const f = selected.value
+  if (!e || !f) return
+  await saveProjection({ ...f, items: f.items.filter((i) => i.id !== e.draft.id) })
+  itemEdit.value = null
+}
+
 async function setHorizon(h: number) {
-  if (p.value && p.value.horizonDays !== h) await saveProjection({ ...p.value, horizonDays: h })
-}
-
-// ---- items
-const showAddMenu = ref(false)
-const addWrap = ref<HTMLElement>()
-const editing = ref<{ kind: ItemKind; item?: ProjectionItem } | null>(null)
-const showSetup = ref<'new' | 'edit' | null>(null)
-
-function startAdd(kind: ItemKind) {
-  showAddMenu.value = false
-  editing.value = { kind }
-}
-function onDocClick(e: MouseEvent) {
-  if (showAddMenu.value && addWrap.value && !addWrap.value.contains(e.target as Node)) showAddMenu.value = false
-}
-onMounted(() => document.addEventListener('click', onDocClick))
-onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
-
-async function saveItem(item: ProjectionItem) {
-  const proj = p.value
-  if (!proj) return
-  const exists = proj.items.some((i) => i.id === item.id)
-  const items = exists ? proj.items.map((i) => (i.id === item.id ? item : i)) : [...proj.items, item]
-  await saveProjection({ ...proj, items })
-  editing.value = null
-}
-async function removeItem(id: string) {
-  const proj = p.value
-  if (!proj) return
-  await saveProjection({ ...proj, items: proj.items.filter((i) => i.id !== id) })
-  editing.value = null
+  const f = selected.value
+  if (f && f.horizonDays !== h && !forecastEdit.value) await saveProjection({ ...f, horizonDays: h })
+  else if (forecastEdit.value) forecastEdit.value.draft = { ...forecastEdit.value.draft, horizonDays: h }
 }
 
 const rows = computed(() =>
-  (p.value?.items ?? [])
-    .map((item) => ({ item, s: summarize(item, results.value[item.id], p.value!) }))
-    .sort((a, b) => KIND_ORDER.indexOf(a.item.kind) - KIND_ORDER.indexOf(b.item.kind)),
+  (shown.value?.items ?? []).map((item) => ({
+    item,
+    s: summarize(item, results.value[item.id], shown.value!),
+    type: UI_INFO[uiTypeOf(item)].label,
+    editing: itemEdit.value?.draft.id === item.id,
+  })),
 )
 </script>
 
 <template>
-  <div class="future">
-    <!-- which projection -->
-    <div class="picker">
+  <div ref="top" class="future">
+    <!-- forecast -->
+    <div class="forecast-bar">
       <label class="pick">
-        <span class="sr">Projection</span>
-        <select class="select" :value="selectedId" @change="selectProjection(($event.target as HTMLSelectElement).value)">
+        <span class="label">Forecast</span>
+        <select
+          class="select"
+          :value="selectedId"
+          :disabled="!!forecastEdit"
+          @change="selectProjection(($event.target as HTMLSelectElement).value)"
+        >
           <option v-for="x in projections" :key="x.id" :value="x.id">{{ x.name }}</option>
+          <option v-if="forecastEdit?.isNew" :value="forecastEdit.draft.id">{{ forecastEdit.draft.name || 'New forecast' }}</option>
         </select>
       </label>
-      <button class="btn icon-btn" title="Projection setup" aria-label="Projection setup" @click="showSetup = 'edit'">
-        <Settings2 class="ic" aria-hidden="true" />
-      </button>
-      <button class="btn" @click="showSetup = 'new'"><Plus class="ic" aria-hidden="true" />New</button>
+      <button class="btn small-btn" @click="editForecast"><Pencil class="ic" aria-hidden="true" />Edit</button>
+      <button class="btn small-btn" @click="newForecast"><Plus class="ic" aria-hidden="true" />New</button>
     </div>
 
-    <section v-if="p" class="card">
-      <template v-if="future">
+    <section v-if="shown" class="card" :class="{ previewing: forecastEdit || itemEdit }">
+      <template v-if="future && chart">
         <h2 class="finding" :class="{ neg: future.min.value < 0 }">{{ heading }}</h2>
         <p class="muted small from">
-          Starts at <b class="money">{{ fmtMoney(future.start.value) }}</b> from {{ startText }} on
-          {{ latest ? fmtDateTime(latest.at) : fmtDate(future.start.date) }} ·
-          <button class="link" @click="showSetup = 'edit'">change</button>
+          From <b class="money">{{ fmtMoney(future.start.value) }}</b> ({{ startText }},
+          {{ latest ? fmtDateTime(latest.at, { short: true }) : '' }}) over {{ shown.horizonDays }} days
+          <span v-if="forecastEdit || itemEdit" class="draft-tag">preview</span>
         </p>
+        <ForecastChart
+          :past="chart.past"
+          :start="chart.start"
+          :days="chart.days"
+          :segments="chart.segments"
+          :values="chart.values"
+        />
         <div class="horizon" role="radiogroup" aria-label="Days ahead">
           <button
             v-for="h in HORIZON_PRESETS"
             :key="h"
             role="radio"
-            :aria-checked="p.horizonDays === h"
-            :class="{ on: p.horizonDays === h }"
+            :aria-checked="shown.horizonDays === h"
+            :class="{ on: shown.horizonDays === h }"
             @click="setHorizon(h)"
           >
-            {{ h }} days
+            {{ h }}d
           </button>
         </div>
-        <p v-if="!HORIZON_PRESETS.includes(p.horizonDays)" class="muted small">Showing {{ p.horizonDays }} days ahead.</p>
-        <LineChart v-if="chart" :series="chart.series" :markers="chart.markers" include-zero />
         <p class="muted small fine">A guide, not a promise.</p>
       </template>
       <template v-else>
-        <h2>No projection yet</h2>
+        <h2>No forecast yet</h2>
         <p class="muted">
-          Save your first record on the Present tab. Each projection starts from your latest record and looks ahead
-          with the items below.
+          Save your first record on the Present tab. A forecast starts from your latest record and adds up the
+          projections below.
         </p>
       </template>
     </section>
 
-    <!-- items -->
-    <section v-if="p" class="card items">
+    <!-- projections -->
+    <section v-if="shown" class="card items">
       <div class="items-head">
-        <h2>Items</h2>
-        <div ref="addWrap" class="add-wrap">
-          <button
-            class="btn primary"
-            aria-haspopup="menu"
-            :aria-expanded="showAddMenu"
-            @click="showAddMenu = !showAddMenu"
-          >
-            <Plus class="ic" aria-hidden="true" />Add<ChevronDown class="ic" aria-hidden="true" />
-          </button>
-          <div v-if="showAddMenu" class="menu" role="menu">
-            <button v-for="k in KIND_ORDER" :key="k" role="menuitem" class="menu-item" @click="startAdd(k)">
-              <b>{{ KIND_INFO[k].label }}</b>
-              <span class="muted small">{{ KIND_INFO[k].help }}</span>
-            </button>
-          </div>
-        </div>
+        <h2>Projections</h2>
+        <button class="btn small-btn" :disabled="!!forecastEdit" @click="addProjection"><Plus class="ic" aria-hidden="true" />Add</button>
       </div>
-
       <ul v-if="rows.length" class="list">
         <li v-for="r in rows" :key="r.item.id">
-          <button class="row" @click="editing = { kind: r.item.kind, item: r.item }">
-            <span class="kind">{{ KIND_INFO[r.item.kind].label }}</span>
-            <span class="name">{{ r.item.name }}</span>
+          <button class="row" :class="{ editing: r.editing }" :disabled="!!forecastEdit" @click="editProjection(r.item)">
+            <span class="sw" :style="{ background: colorOf[r.item.id] }" aria-hidden="true"></span>
+            <span class="kind">{{ r.type }}</span>
+            <span class="name">{{ r.item.name || 'New projection' }}</span>
             <span class="amount money" :class="r.s.tone">{{ r.s.amount }}</span>
-            <span class="detail muted small">
-              <span v-if="r.s.tag" class="tag">{{ r.s.tag }}</span>{{ r.s.detail }}
-            </span>
+            <span class="detail muted small"><span v-if="r.s.tag" class="tag">{{ r.s.tag }}</span>{{ r.s.detail }}</span>
           </button>
         </li>
       </ul>
-      <p v-else class="muted small">
-        Nothing yet. Tap <b>Add</b> for monthly or one-time amounts, averages from your records
-        ({{ describeSource('', p.start) }} usually means everyday spending), or a value extrapolated to month end.
-      </p>
+      <p v-else class="muted small">No projections yet. Tap <b>Add</b> for pay, rent, everyday spending and the like.</p>
     </section>
 
-    <ItemModal
-      v-if="editing && p"
-      :kind="editing.kind"
-      :item="editing.item"
-      :projection="p"
+    <ForecastPanel
+      v-if="forecastEdit"
+      v-model="forecastEdit.draft"
+      :is-new="forecastEdit.isNew"
+      :can-delete="projections.length > 1"
+      @save="saveForecast"
+      @cancel="forecastEdit = null"
+      @duplicate="duplicateForecast"
+      @remove="deleteForecast"
+    />
+    <ProjectionPanel
+      v-if="itemEdit && selected"
+      v-model="itemEdit.draft"
+      :forecast="shown!"
+      :is-new="itemEdit.isNew"
       @save="saveItem"
       @remove="removeItem"
-      @close="editing = null"
-    />
-    <ProjectionModal
-      v-if="showSetup"
-      :projection="showSetup === 'edit' ? p : undefined"
-      @close="showSetup = null"
+      @cancel="itemEdit = null"
     />
   </div>
 </template>
@@ -228,33 +263,52 @@ const rows = computed(() =>
   margin-top: 1rem;
 }
 
-.picker {
+.forecast-bar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
   gap: 0.4rem;
 }
 
-.icon-btn {
-  padding: 0;
-  width: var(--tap);
+.pick {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+/* Compact buttons for this tab's toolbar and the projections header. */
+.small-btn {
+  min-height: 36px;
+  padding: 0 0.7rem;
+  font-size: 0.88rem;
+  gap: 0.3rem;
+}
+
+.forecast-bar .small-btn {
+  min-height: var(--tap);
 }
 
 .ic {
-  width: 1.1rem;
-  height: 1.1rem;
+  width: 1rem;
+  height: 1rem;
   stroke-width: 1.75;
 }
 
-.sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
+.card.previewing {
+  outline: 1px dashed var(--projection);
+  outline-offset: -1px;
 }
 
 .finding {
-  font-size: clamp(1.15rem, 5vw, 1.5rem) !important;
+  font-size: clamp(1.1rem, 4.8vw, 1.45rem) !important;
   line-height: 1.2;
 }
 
@@ -266,87 +320,54 @@ const rows = computed(() =>
   margin: -0.2rem 0 0.6rem;
 }
 
-.link {
-  background: none;
-  border: none;
-  padding: 0.3rem 0;
-  color: var(--accent);
-  font-size: inherit;
-  font-weight: 600;
+.draft-tag {
+  margin-left: 0.3rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--projection);
+  color: var(--projection);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .horizon {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.35rem;
-  margin-bottom: 0.75rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
 }
 
 .horizon button {
-  min-height: 40px;
+  min-width: 3.2rem;
+  min-height: 34px;
   border: 1px solid var(--btn-border);
   background: var(--btn-bg);
   color: var(--btn-text);
   border-radius: var(--btn-radius);
   font-weight: 550;
-  font-size: 0.85rem;
-  white-space: nowrap;
-  padding: 0 0.2rem;
+  font-size: 0.8rem;
 }
 
 .horizon button.on {
-  border-color: var(--projection);
-  color: var(--projection);
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
 }
 
 .fine {
-  margin: 0.5rem 0 0;
+  margin: 0.4rem 0 0;
 }
 
 .items-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
 }
 
 .items-head h2 {
   margin: 0 !important;
-}
-
-.add-wrap {
-  position: relative;
-}
-
-.menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
-  z-index: 40;
-  width: min(19rem, calc(100vw - 2.5rem));
-  display: grid;
-  gap: 0.3rem;
-  padding: 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-elev);
-  box-shadow: var(--shadow);
-}
-
-.menu-item {
-  display: grid;
-  gap: 0.1rem;
-  text-align: left;
-  padding: 0.55rem 0.65rem;
-  min-height: var(--tap);
-  border: 1px solid var(--btn-border);
-  border-radius: var(--btn-radius);
-  background: var(--btn-bg);
-  color: var(--btn-text);
-}
-
-.menu-item:hover {
-  background: var(--btn-bg-hover);
 }
 
 .list {
@@ -359,13 +380,13 @@ const rows = computed(() =>
 .row {
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
   grid-template-areas:
-    'kind kind'
-    'name amount'
-    'detail detail';
+    'sw kind kind'
+    'sw name amount'
+    'sw detail detail';
   gap: 0 0.6rem;
-  padding: 0.55rem 0.1rem;
+  padding: 0.5rem 0.1rem;
   border: none;
   border-bottom: 1px solid var(--line);
   background: none;
@@ -373,13 +394,25 @@ const rows = computed(() =>
   text-align: left;
 }
 
-.row:hover {
+.row:hover:not(:disabled),
+.row.editing {
   background: var(--panel-2);
+}
+
+.row:disabled {
+  opacity: 0.6;
+}
+
+.sw {
+  grid-area: sw;
+  align-self: stretch;
+  width: 4px;
+  border-radius: 2px;
 }
 
 .kind {
   grid-area: kind;
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -416,6 +449,5 @@ const rows = computed(() =>
   font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 </style>

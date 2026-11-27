@@ -86,7 +86,8 @@ const clash = computed(() => at.value !== props.editing?.at && recordTimes.value
 
 const magnitude = (r: Row) => Math.abs(parseMoney(r.text) ?? 0)
 const signed = (r: Row) => (r.negative ? -1 : 1) * magnitude(r)
-const invalid = (r: Row) => r.text.trim() !== '' && parseMoney(r.text) == null
+// More than 2 decimals is a typo (e.g. "300.00650"), not something to round away silently.
+const invalid = (r: Row) => r.text.trim() !== '' && (parseMoney(r.text) == null || /\.\d{3,}/.test(r.text))
 
 // Typing a minus or pasting (730.48) flips the row negative and keeps just the number.
 function onAmount(r: Row, e: Event) {
@@ -101,6 +102,15 @@ function onAmount(r: Row, e: Event) {
 
 // ---- display: (730.48) for negatives, except in the field being typed in
 const editingAmount = ref<string | null>(null)
+// Show the bare number while editing, and select it so typing replaces it
+// (otherwise "(300.00)" → "300.00" can leave the caret at the end).
+function onAmountFocus(r: Row, e: FocusEvent) {
+  editingAmount.value = r.id
+  const el = e.target as HTMLInputElement
+  nextTick(() => {
+    if (document.activeElement === el) el.select()
+  })
+}
 function shownAmount(r: Row): string {
   if (editingAmount.value === r.id) return r.text
   const v = parseMoney(r.text)
@@ -321,7 +331,7 @@ onBeforeUnmount(() => {
               inputmode="decimal"
               placeholder="0.00"
               :aria-label="`${r.name || 'Row'} amount${r.negative ? ' (owed)' : ''}`"
-              @focus="editingAmount = r.id"
+              @focus="onAmountFocus(r, $event)"
               @blur="editingAmount = null"
               @input="onAmount(r, $event)"
             />

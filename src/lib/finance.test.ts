@@ -293,3 +293,16 @@ describe('projection', () => {
     expect(project(proj(), [], TODAY)).toBeNull()
   })
 })
+
+describe('forecast contributions', () => {
+  it('tracks each projection’s cumulative share, adding up to the total', () => {
+    const pay = recur({ id: 'pay', amount: 1000, day: 5 })
+    const trip = { kind: 'oneTime' as const, id: 'trip', name: 'Trip', amount: -300, date: '2026-12-03' }
+    const p = project(proj({ horizonDays: 10, items: [pay, trip] }), [rec('2026-11-28', 50)], TODAY)!
+    const i = p.series.findIndex((x) => x.date === '2026-12-05')
+    expect(p.contributions.pay[i]).toBe(1000)
+    expect(p.contributions.trip[i]).toBe(-300)
+    expect(p.contributions.pay[i - 1]).toBe(0)
+    p.series.forEach((pt, k) => expect(pt.value).toBeCloseTo(50 + p.contributions.pay[k] + p.contributions.trip[k], 6))
+  })
+})

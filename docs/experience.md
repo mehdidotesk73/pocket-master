@@ -339,7 +339,20 @@ safety with only create/write/delete.
 only. Any field that needs a sign needs its own control. Records use a +/− toggle per row and keep the
 typed number positive.
 
+### Editing Fields That Reformat on Focus
+
+A field that shows "(300.00)" and switches to "300.00" on focus can leave the caret after the old
+text, so typing appends ("300.00650") and rounding hides it as 300.01. Select the field's contents
+on focus, and reject more than two decimals instead of rounding them away.
+
 ## Version History
+
+### v0.8.0 — 2026-11-27
+- **Changed:** Future speaks of *forecasts* (a set) and *projections* (its items: Recurring,
+  One-time, Cyclical, Cumulative). Forecast bar with labelled **Edit** / **New**; small **Add**
+- **Added:** stacked-bar forecast chart (start + each projection's running contribution, total as a
+  line); docked edit panels that preview live on the chart; lens-carousel type selector
+- **Fixed:** amount fields select their contents on focus; >2 decimals is flagged, not rounded
 
 ### v0.7.0 — 2026-11-26
 - **Changed:** each record has a date and time (`at`), its own file

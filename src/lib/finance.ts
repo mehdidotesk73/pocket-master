@@ -358,6 +358,8 @@ export interface Projection {
   min: Point
   /** Per item id, for averaged and extrapolate items. */
   results: Record<string, ItemResult>
+  /** Per item id: its cumulative change by each day of `series` (dollars, same length). */
+  contributions: Record<string, number[]>
   /** Net daily drift from rate items (dollars/day). */
   dailyDrift: number
 }
@@ -389,46 +391,54 @@ export function project(proj: ProjectionFile, records: BalanceRecord[], today: I
   const horizonDays = Math.min(MAX_HORIZON_DAYS, Math.max(1, Math.round(proj.horizonDays)))
   const latestMonth = monthIndex(latest.date)
   const results = itemResults(proj, sorted, today)
-  const { recurring, oneTime, averaged, extrapolate } = split(proj.items)
-
-  let driftCents = 0
-  const monthlyAmounts: { day: number; cents: number }[] = []
-  for (const a of averaged) {
-    const used = toCents(results[a.id].used)
-    if (a.mode === 'rate') driftCents += used / DAYS_PER_MONTH
-    else monthlyAmounts.push({ day: a.day, cents: used })
-  }
-  // Extrapolation: spread each item's extra evenly over the rest of the record's month.
+  // Each item's change per day (cents), so the forecast can show what each one contributes.
   const { y, m } = parseDate(latest.date)
   const monthEnd = dayNum(ymd(y, m, daysInMonth(y, m)))
   const restDays = monthEnd - dayNum(latest.date)
-  let extrapolatePerDay = 0
-  if (restDays > 0) for (const e of extrapolate) extrapolatePerDay += toCents(results[e.id].used) / restDays
+  const stepFor = (it: ProjectionItem): ((d: ISODate, mi: number) => number) => {
+    switch (it.kind) {
+      case 'recurring':
+        return (d, mi) => (clampedDate(mi, it.day) === d && !(it.inRecord && mi === latestMonth) ? toCents(it.amount) : 0)
+      case 'oneTime':
+        return (d) => (d === it.date ? toCents(it.amount) : 0)
+      case 'averaged': {
+        const used = toCents(results[it.id].used)
+        if (it.mode === 'rate') return () => used / DAYS_PER_MONTH
+        return (d, mi) => (clampedDate(mi, it.day) === d ? used : 0)
+      }
+      case 'extrapolate': {
+        const perDay = restDays > 0 ? toCents(results[it.id].used) / restDays : 0
+        return (d) => (dayNum(d) <= monthEnd ? perDay : 0)
+      }
+    }
+  }
+  const steps = proj.items.map((it) => ({ id: it.id, step: stepFor(it) }))
+  const running = new Map<string, number>(proj.items.map((it) => [it.id, 0]))
+  const contributions: Record<string, number[]> = Object.fromEntries(proj.items.map((it) => [it.id, [] as number[]]))
 
-  const oneByDate = new Map<ISODate, number>()
-  for (const o of oneTime) oneByDate.set(o.date, (oneByDate.get(o.date) ?? 0) + toCents(o.amount))
-
-  let value = startValueCents(latest, proj.start)
+  const startCents = startValueCents(latest, proj.start)
+  let value = startCents
   const series: Point[] = []
   for (let i = 1; i <= horizonDays; i++) {
     const d = addDays(latest.date, i)
     const mi = monthIndex(d)
-    for (const r of recurring) {
-      if (clampedDate(mi, r.day) !== d) continue
-      if (r.inRecord && mi === latestMonth) continue
-      value += toCents(r.amount)
+    for (const { id, step } of steps) {
+      const c = step(d, mi)
+      value += c
+      running.set(id, running.get(id)! + c)
+      contributions[id].push(fromCents(running.get(id)!))
     }
-    for (const a of monthlyAmounts) if (clampedDate(mi, a.day) === d) value += a.cents
-    value += oneByDate.get(d) ?? 0
-    value += driftCents
-    if (dayNum(d) <= monthEnd) value += extrapolatePerDay
     series.push({ date: d, value: fromCents(value) })
   }
-  const start = { date: latest.date, value: fromCents(startValueCents(latest, proj.start)) }
+  const start = { date: latest.date, value: fromCents(startCents) }
   const end = series[series.length - 1] ?? start
   let min = series[0] ?? start
   for (const p of series) if (p.value < min.value) min = p
-  return { start, series, end, min, results, dailyDrift: fromCents(driftCents) }
+  const driftCents = proj.items.reduce(
+    (s2, it) => s2 + (it.kind === 'averaged' && it.mode === 'rate' ? toCents(results[it.id].used) / DAYS_PER_MONTH : 0),
+    0,
+  )
+  return { start, series, end, min, results, contributions, dailyDrift: fromCents(driftCents) }
 }
 
 // ---------------------------------------------------------------- defaults & ids
