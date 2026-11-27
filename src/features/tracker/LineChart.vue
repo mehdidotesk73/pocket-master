@@ -10,6 +10,8 @@ export interface ChartSeries {
   points: { x: number; y: number }[]
   dashed?: boolean
   dots?: boolean
+  /** false = dots only, no line joining them */
+  line?: boolean
   width?: number
 }
 
@@ -172,6 +174,7 @@ const readout = computed(() => {
 
       <g v-for="s in geom.paths" :key="s.label">
         <path
+          v-if="s.line !== false"
           :d="s.d"
           fill="none"
           :style="{ stroke: s.color, strokeWidth: s.width ?? 2 }"
@@ -211,7 +214,8 @@ const readout = computed(() => {
 
     <div class="legend small">
       <span v-for="s in series" :key="s.label">
-        <span class="sw" :class="{ dashed: s.dashed }" :style="{ borderColor: s.color }"></span>{{ s.label }}
+        <span v-if="s.line === false" class="dot-sw" :style="{ background: s.color }"></span>
+        <span v-else class="sw" :class="{ dashed: s.dashed }" :style="{ borderColor: s.color }"></span>{{ s.label }}
       </span>
     </div>
   </div>
@@ -312,6 +316,15 @@ svg {
   width: 18px;
   height: 0;
   border-top: 2.5px solid;
+  vertical-align: middle;
+  margin-right: 0.35rem;
+}
+
+.legend .dot-sw {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   vertical-align: middle;
   margin-right: 0.35rem;
 }
