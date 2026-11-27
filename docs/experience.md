@@ -383,6 +383,11 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.13.0 — 2026-11-27
+- **Added:** *Balance sheet on [date]* under the Future chart: every line as the forecast has it on
+  that day, opening on the end of this month (also next month end, the last forecast day, or any
+  date in range). Net-only projections show as a "Not on a line" row inside net equity.
+
 ### v0.12.2 — 2026-11-27
 - **Changed:** the projection editor is compact: name with the type beside it, then Every · Unit ·
   Starting, then Changes · Value · Line (or Amount); type, Value and Unit are drum wheels (one row at

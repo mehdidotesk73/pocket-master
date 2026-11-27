@@ -3,7 +3,13 @@ import { computed } from 'vue'
 import type { BalanceRecord } from '../../lib/finance'
 import { fmtDateTime, fmtMoney } from '../../lib/money'
 
-const props = defineProps<{ record: BalanceRecord }>()
+/**
+ * `heading` replaces the record's date-time in the title (e.g. a forecast date).
+ * `netOnly` is change no line holds (net-only projections): shown as its own row
+ * and included in net equity.
+ */
+const props = defineProps<{ record: BalanceRecord; heading?: string; netOnly?: number }>()
+const net = computed(() => Math.round((props.record.left + (props.netOnly ?? 0)) * 100) / 100)
 
 // Sorted by sign; $0 rows are left out (they don't move anything).
 const assets = computed(() => props.record.lines.filter((l) => l.amount > 0))
@@ -13,7 +19,9 @@ const zeros = computed(() => props.record.lines.filter((l) => l.amount === 0))
 
 <template>
   <section class="card sheet">
-    <h2>Balance sheet <span class="muted small">· {{ fmtDateTime(record.at) }}</span></h2>
+    <slot name="title">
+      <h2>Balance sheet <span class="muted small">· {{ heading ?? fmtDateTime(record.at) }}</span></h2>
+    </slot>
 
     <h3 class="group">Owned</h3>
     <div v-for="l in assets" :key="l.id" class="row">
@@ -37,9 +45,14 @@ const zeros = computed(() => props.record.lines.filter((l) => l.amount === 0))
 
     <p v-if="zeros.length" class="zeros muted small">At $0: {{ zeros.map((z) => z.name).join(', ') }}</p>
 
+    <div v-if="netOnly" class="row total">
+      <span>Not on a line <span class="muted small">(net-only projections)</span></span>
+      <span class="money">{{ fmtMoney(netOnly) }}</span>
+    </div>
+
     <div class="left-so-far">
       <span>Net equity</span>
-      <span class="big money" :class="{ neg: record.left < 0 }">{{ fmtMoney(record.left) }}</span>
+      <span class="big money" :class="{ neg: net < 0 }">{{ fmtMoney(net) }}</span>
     </div>
   </section>
 </template>

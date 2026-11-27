@@ -8,8 +8,18 @@
 // New things are drafts until saved: Cancel leaves nothing behind.
 import { computed, nextTick, ref } from 'vue'
 import { Pencil, Plus } from '@lucide/vue'
-import { HORIZON_PRESETS, type ProjectionFile, type ProjectionItem, defaultProjection, newId, startValueCents } from '../../lib/finance'
-import { atNum, dayNum, fmtDate, fmtDateTime, fmtMoney, today } from '../../lib/money'
+import {
+  HORIZON_PRESETS,
+  type ProjectionFile,
+  type ProjectionItem,
+  defaultProjection,
+  forecastSheetOn,
+  makeRecord,
+  newId,
+  startValueCents,
+} from '../../lib/finance'
+import { type ISODate, addDays, atNum, clampedDate, dayNum, fmtDate, fmtDateTime, fmtMoney, isISODate, monthIndex, today } from '../../lib/money'
+import BalanceSheet from './BalanceSheet.vue'
 import ForecastChart, { type Segment } from './ForecastChart.vue'
 import ForecastPanel from './ForecastPanel.vue'
 import ProjectionPanel from './ProjectionPanel.vue'
@@ -76,6 +86,40 @@ const chart = computed(() => {
     values,
   }
 })
+
+// ---- balance sheet on a date: every line as the forecast has it that day
+const monthEnd = (d: ISODate) => clampedDate(monthIndex(d), 31)
+/** End of the start's month, or of the next month when the forecast starts on a month's last day. */
+const endOfMonth = computed(() => {
+  const s = future.value?.start.date
+  if (!s) return null
+  const e = monthEnd(s)
+  return e > s ? e : monthEnd(addDays(s, 1))
+})
+const nextMonthEnd = computed(() => (endOfMonth.value ? monthEnd(addDays(endOfMonth.value, 1)) : null))
+/** null = follow "End of month". */
+const pickedDate = ref<ISODate | null>(null)
+const sheetDate = computed(() => pickedDate.value ?? endOfMonth.value)
+const sheetShortcuts = computed(() => {
+  const f = future.value
+  if (!f) return []
+  return [
+    { label: 'End of month', date: endOfMonth.value },
+    { label: 'Next month end', date: nextMonthEnd.value },
+    { label: `In ${f.series.length} days`, date: f.end.date },
+  ].filter((x): x is { label: string; date: ISODate } => !!x.date)
+})
+const sheet = computed(() => {
+  const f = future.value
+  const d = sheetDate.value
+  if (!f || !d) return null
+  if (d > f.end.date) return { beyond: true as const, date: d }
+  const s = forecastSheetOn(f, d)
+  return { beyond: false as const, date: s.date, record: makeRecord(`${s.date}T23:59:00`, s.lines), netOnly: s.netOnly }
+})
+function pickSheetDate(v: string) {
+  if (isISODate(v)) pickedDate.value = v === endOfMonth.value ? null : v
+}
 
 // ---- forecast: edit / new / duplicate / delete
 const top = ref<HTMLElement>()
@@ -224,6 +268,37 @@ const rows = computed(() =>
       </template>
     </section>
 
+    <!-- the forecast's balance sheet on a date -->
+    <BalanceSheet v-if="sheet && !sheet.beyond" :record="sheet.record" :net-only="sheet.netOnly">
+      <template #title>
+        <div class="sheet-head">
+          <h2>Balance sheet on</h2>
+          <input
+            class="input sheet-date"
+            type="date"
+            aria-label="Date"
+            :value="sheetDate ?? ''"
+            :min="future?.start.date"
+            :max="future?.end.date"
+            @change="pickSheetDate(($event.target as HTMLInputElement).value)"
+          />
+        </div>
+        <div class="shortcuts" role="group" aria-label="Pick a date">
+          <button v-for="x in sheetShortcuts" :key="x.label" class="chip" :class="{ on: x.date === sheetDate }" @click="pickSheetDate(x.date)">
+            {{ x.label }}
+          </button>
+        </div>
+        <p class="muted small fine">Forecast for {{ fmtDate(sheet.date) }}, with every projection in {{ shown?.name }}. A guide, not a promise.</p>
+      </template>
+    </BalanceSheet>
+    <section v-else-if="sheet" class="card">
+      <h2>Balance sheet on {{ fmtDate(sheet.date) }}</h2>
+      <p class="muted small">That's past this forecast's last day ({{ future ? fmtDate(future.end.date) : '' }}). Pick more days ahead on the chart, or an earlier date.</p>
+      <div class="shortcuts">
+        <button v-for="x in sheetShortcuts" :key="x.label" class="chip" @click="pickSheetDate(x.date)">{{ x.label }}</button>
+      </div>
+    </section>
+
     <!-- projections -->
     <section v-if="shown" class="card items">
       <div class="items-head">
@@ -366,6 +441,47 @@ const rows = computed(() =>
 
 .fine {
   margin: 0.4rem 0 0;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.sheet-head h2 {
+  margin: 0;
+}
+
+.sheet-date {
+  width: auto;
+  min-height: 38px;
+  flex: 0 1 11rem;
+}
+
+.shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+}
+
+.chip {
+  min-height: 32px;
+  padding: 0 0.7rem;
+  border: 1px solid var(--btn-border);
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  border-radius: var(--btn-radius);
+  font-weight: 550;
+  font-size: 0.8rem;
+}
+
+.chip.on {
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
 }
 
 .items-head {

@@ -58,8 +58,8 @@ Balance-sheet forecasts, in order (step 1, target lines, is done in v0.10.0):
 
 - [x] **Start point on Rate of change** (v0.11.0) — `RateStart`, `rateStartDate`, `span` on
       `ItemResult`; "Start from a known value" in `ProjectionPanel`; `describeFrom`.
-- [ ] **Balance sheet on [date]** in Future — `forecastSheetOn` shown with the `BalanceSheet`
-      component, with an *End of month* shortcut.
+- [x] **Balance sheet on [date]** in Future (v0.13.0) — `forecastSheetOn` → `makeRecord` →
+      `BalanceSheet` (new `netOnly` row + title slot); End of month / Next month end / In N days.
 - [ ] **Past: monthly in / spent / net change** — worked out from records (net change − scheduled
       income). Transfers between two same-day records (pay cards, move to saving) leave net equity
       unchanged, so they count as neither.

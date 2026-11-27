@@ -22,6 +22,12 @@ Pick one from **Forecast** at the top. You can keep several, for example:
 
 **Edit** changes the forecast's name, which lines of your latest record it starts from, and how many days ahead it runs. **Duplicate** and **Delete** are there too. **New** makes a new forecast and opens it for editing. Both editors sit at the bottom of the screen, so you can watch the chart change as you go. Nothing is kept until you tap **Save** or **Create**.
 
+## Balance sheet on a date
+
+Under the chart, the **balance sheet on** a date shows every line as the forecast has it that day: checking, savings, each card, and net equity. It opens on the **end of this month**; **Next month end** and **In N days** are one tap away, or pick any date in the forecast's range.
+
+It only knows what your projections say. A card keeps building until something pays it, so for a card you pay off each month, read the end of the month you're in. If some projections change only net equity (no line), their total shows as **Not on a line** and is included in net equity.
+
 ## Projections
 
 Tap **Add** to make one, or tap a projection to change it. Swipe or tap the type at the top of the panel:

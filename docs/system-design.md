@@ -160,7 +160,11 @@ readback (one line plus a "N to check" pill; tap for the rest) from
 `readBack()` in `projectionText.ts`: the settings as one sentence, the total by the forecast's end, the
 target line's start → end, and warnings — an average repeating faster than monthly, measured on one line
 but changing another, a net-equity rate with no income listed). Average can't pick net equity and
-switches the repeat to monthly; `FutureView` passes the draft's `project()` result in as `result`. Both panels are `DockPanel`s (mid-height, bottom, page stays
+switches the repeat to monthly; `FutureView` passes the draft's `project()` result in as `result`.
+Under the chart, **Balance sheet on [date]**: `forecastSheetOn(future, date)` → `makeRecord` →
+`BalanceSheet` (title slot for the date picker; `netOnly` adds a "Not on a line" row into net equity).
+Shortcuts: end of the start's month (next month's if the start is a month end), next month end, the
+horizon's last day; a date past the horizon says so instead. Both panels are `DockPanel`s (mid-height, bottom, page stays
 visible) editing drafts that drive the chart live; Save writes, Cancel discards. The header's ☰ (top left) opens `SideMenu`, a drawer from the left with collapsible
 sections (start collapsed); Records holds the Import / Export tag buttons. Future = projection picker (+ `ProjectionModal` for name / start lines / days ahead /
 duplicate / delete), chart, and a compact item list; "+ Add" menu → `ItemModal` per kind (built on
