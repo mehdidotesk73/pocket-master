@@ -179,7 +179,8 @@ from a record counts as $0 there.
 - `lineSeries(records)`: each line (by `lineNames`) valued at every record → *Timeseries* (`LineChart`,
   its own legend off; toggle chips instead).
 - `windowMix(records, window)`: each line's signed average over `recordsInWindow` → *Averages*
-  (`DonutChart`; Owned / Owed / Owned + owed as absolute sizes; `WindowPicker` for the window).
+  (`DonutChart`: slices sized by |average|; its legend rows toggle lines out; the centre is the
+  signed sum of the lines left in; `WindowPicker` for the window).
 - `dailyCandles(records, line | LEFT_SOURCE)`: one OHLC candle per day, **by date**, from the first
   record's day to the last's. A record day closes at its last record (open = previous day's close,
   high/low include that day's records). Between record days the value moves evenly from the earlier

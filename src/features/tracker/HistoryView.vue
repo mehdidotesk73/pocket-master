@@ -68,20 +68,16 @@ const lineChart = computed<ChartSeries[]>(() =>
 )
 
 const mixWindow = ref<RecordWindow>({ mode: 'all' })
-const mixSide = ref<'all' | 'owned' | 'owed'>('all')
 const mix = computed(() => windowMix(records.value, mixWindow.value))
+/** Lines left out of Averages (separate from Timeseries' hidden lines). */
+const mixOff = ref<string[]>([])
+const toggleMix = (n: string) => (mixOff.value = mixOff.value.includes(n) ? mixOff.value.filter((x) => x !== n) : [...mixOff.value, n])
+/** Every line with an average; the ones tapped off stay listed but aren't drawn or counted. */
 const mixSlices = computed<DonutSlice[]>(() =>
-  mix.value.slices
-    .filter((s) => (mixSide.value === 'all' ? true : mixSide.value === 'owned' ? s.average > 0 : s.average < 0))
-    .filter((s) => !hidden.value.includes(s.name))
-    .map((s) => ({ name: s.name, amount: s.average, color: colorOf.value[s.name] })),
+  mix.value.slices.map((s) => ({ name: s.name, amount: s.average, color: colorOf.value[s.name], off: mixOff.value.includes(s.name) })),
 )
-const mixTotal = computed(() => mixSlices.value.reduce((t, s) => t + (mixSide.value === 'all' ? Math.abs(s.amount) : s.amount), 0))
-const mixLabel = computed(() => (mixSide.value === 'all' ? 'Owned + owed' : mixSide.value === 'owned' ? 'Owned' : 'Owed'))
-/** Lines that appear in this side of the mix, for its toggle chips. */
-const mixNames = computed(() =>
-  mix.value.slices.filter((s) => (mixSide.value === 'all' ? true : mixSide.value === 'owned' ? s.average > 0 : s.average < 0)).map((s) => s.name),
-)
+/** The included lines added up, signed: all lines = average net equity; just the cards = average owed. */
+const mixTotal = computed(() => mixSlices.value.filter((s) => !s.off).reduce((t, s) => t + s.amount, 0))
 
 const rateLine = ref<string>(LEFT_SOURCE)
 const rateShow = ref<'both' | 'up' | 'down'>('both')
@@ -139,22 +135,12 @@ const editing = ref<BalanceRecord | null>(null)
         <!-- average mix over a window -->
         <template v-else-if="view === 'mix'">
           <WindowPicker v-model="mixWindow" />
-          <div class="side" role="radiogroup" aria-label="Which side">
-            <button v-for="s in (['all', 'owned', 'owed'] as const)" :key="s" role="radio" class="chip" :aria-checked="mixSide === s" :class="{ on: mixSide === s }" @click="mixSide = s">
-              {{ s === 'all' ? 'Owned + owed' : s === 'owned' ? 'Owned' : 'Owed' }}
-            </button>
-          </div>
-          <DonutChart v-if="mixSlices.length" :slices="mixSlices" :centre-label="mixLabel" :centre-value="fmtMoney(mixTotal, { whole: true })" />
-          <p v-else class="muted small">No {{ mixSide === 'all' ? '' : mixSide + ' ' }}lines in these records.</p>
-          <div v-if="mixNames.length" class="toggles" role="group" aria-label="Lines to include">
-            <button v-for="n in mixNames" :key="n" class="tog" :class="{ off: hidden.includes(n) }" :aria-pressed="!hidden.includes(n)" @click="toggle(n)">
-              <span class="sw" :style="{ background: colorOf[n] }"></span>{{ n }}
-            </button>
-          </div>
+          <DonutChart v-if="mixSlices.length" :slices="mixSlices" centre-label="Total" :centre-value="fmtMoney(mixTotal, { whole: true })" @toggle="toggleMix" />
+          <p v-else class="muted small">No lines with a value in these records.</p>
           <p class="muted small note">
-            Each line's average value across {{ mix.count }} record{{ mix.count === 1 ? '' : 's' }}<template v-if="mix.from">
+            Each line's average across {{ mix.count }} record{{ mix.count === 1 ? '' : 's' }}<template v-if="mix.from">
               ({{ fmtDate(mix.from, { short: true }) }} – {{ fmtDate(mix.to!, { short: true }) }})</template
-            >, and its share of the total. <template v-if="mixSide === 'all'">“Owned + owed” adds what you own and what you owe as sizes.</template>
+            >. Tap a line to leave it out. The middle adds up the lines left in, and each slice is that line's share of their size.
           </p>
         </template>
 

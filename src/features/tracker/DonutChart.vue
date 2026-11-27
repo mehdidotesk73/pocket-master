@@ -1,34 +1,37 @@
 <script setup lang="ts">
-// A donut of how a total splits between parts: slice = value / total.
-// Hand-rolled SVG (no chart library). Values are positive sizes; the legend
-// shows each part's own signed amount and its share.
-import { computed, ref } from 'vue'
+// A donut of how a set of amounts splits by size. Hand-rolled SVG.
+// The legend lists every part; tapping a row leaves it out (or brings it back),
+// so the donut and the centre total follow what's included.
+import { computed } from 'vue'
 import { fmtMoney } from '../../lib/money'
 
 export interface DonutSlice {
   name: string
-  /** Signed amount shown in the legend. */
+  /** Signed amount, shown in the legend; its size sets the slice. */
   amount: number
   color: string
+  /** Left out: listed (struck) but not drawn or counted. */
+  off?: boolean
 }
 
 const props = defineProps<{ slices: DonutSlice[]; centreLabel: string; centreValue: string }>()
+const emit = defineEmits<{ (e: 'toggle', name: string): void }>()
 
-const total = computed(() => props.slices.reduce((s, x) => s + Math.abs(x.amount), 0))
+const included = computed(() => props.slices.filter((s) => !s.off))
+const size = computed(() => included.value.reduce((s, x) => s + Math.abs(x.amount), 0))
 const R = 70
 const W = 26
 const C = 2 * Math.PI * R
 const arcs = computed(() => {
   let acc = 0
-  return props.slices.map((s) => {
-    const frac = total.value ? Math.abs(s.amount) / total.value : 0
-    const arc = { ...s, frac, dash: `${Math.max(0, frac * C - (props.slices.length > 1 ? 1.5 : 0))} ${C}`, offset: -acc * C }
+  return included.value.map((s) => {
+    const frac = size.value ? Math.abs(s.amount) / size.value : 0
+    const arc = { ...s, dash: `${Math.max(0, frac * C - (included.value.length > 1 ? 1.5 : 0))} ${C}`, offset: -acc * C }
     acc += frac
     return arc
   })
 })
-const active = ref<string | null>(null)
-const pct = (f: number) => `${(f * 100).toFixed(f < 0.1 ? 1 : 0)}%`
+const share = (s: DonutSlice) => (s.off || !size.value ? '' : `${((Math.abs(s.amount) / size.value) * 100).toFixed(Math.abs(s.amount) / size.value < 0.1 ? 1 : 0)}%`)
 </script>
 
 <template>
@@ -42,23 +45,23 @@ const pct = (f: number) => `${(f * 100).toFixed(f < 0.1 ? 1 : 0)}%`
         cy="100"
         :r="R"
         fill="none"
-        :stroke-width="active === a.name ? W + 6 : W"
+        :stroke-width="W"
         :stroke-dasharray="a.dash"
         :stroke-dashoffset="a.offset"
         :style="{ stroke: a.color }"
         transform="rotate(-90 100 100)"
-        class="arc"
-        @click="active = active === a.name ? null : a.name"
       />
       <text x="100" y="94" text-anchor="middle" class="c-label">{{ centreLabel }}</text>
       <text x="100" y="116" text-anchor="middle" class="c-value">{{ centreValue }}</text>
     </svg>
-    <ul class="legend">
-      <li v-for="a in arcs" :key="a.name" :class="{ on: active === a.name }" @click="active = active === a.name ? null : a.name">
-        <span class="sw" :style="{ background: a.color }"></span>
-        <span class="name">{{ a.name }}</span>
-        <span class="money amt">{{ fmtMoney(a.amount) }}</span>
-        <span class="pct">{{ pct(a.frac) }}</span>
+    <ul class="legend" aria-label="Tap a line to leave it out or bring it back">
+      <li v-for="s in slices" :key="s.name">
+        <button type="button" :class="{ off: s.off }" :aria-pressed="!s.off" @click="emit('toggle', s.name)">
+          <span class="sw" :style="{ background: s.color }"></span>
+          <span class="name">{{ s.name }}</span>
+          <span class="money amt">{{ fmtMoney(s.amount) }}</span>
+          <span class="pct">{{ share(s) }}</span>
+        </button>
       </li>
     </ul>
   </div>
@@ -94,11 +97,6 @@ svg {
   stroke: var(--line);
 }
 
-.arc {
-  cursor: pointer;
-  transition: stroke-width 0.15s;
-}
-
 .c-label {
   fill: var(--mute);
   font-size: 12px;
@@ -116,23 +114,42 @@ svg {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.15rem;
+  gap: 0.1rem;
   min-width: 0;
-  font-size: 0.86rem;
 }
 
-.legend li {
+.legend button {
+  width: 100%;
   display: grid;
   grid-template-columns: 10px minmax(0, 1fr) auto 3rem;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.2rem 0.3rem;
-  border-radius: 0.35rem;
-  cursor: pointer;
+  gap: 0.45rem;
+  min-height: 36px;
+  padding: 0 0.4rem;
+  border: none;
+  border-radius: 0.4rem;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
 }
 
-.legend li.on {
+.legend button:hover {
   background: var(--panel-2);
+}
+
+.legend button.off {
+  color: var(--mute);
+}
+
+.legend button.off .name,
+.legend button.off .amt {
+  text-decoration: line-through;
+}
+
+.legend button.off .sw {
+  opacity: 0.35;
 }
 
 .sw {
@@ -155,11 +172,5 @@ svg {
   text-align: right;
   color: var(--mute);
   font-variant-numeric: tabular-nums;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .arc {
-    transition: none;
-  }
 }
 </style>
