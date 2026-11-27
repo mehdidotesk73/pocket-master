@@ -33,9 +33,10 @@ const figures = computed<Figure[]>(() => {
 const series = computed<ChartSeries[]>(() => {
   const r = records.value
   return [
-    { label: 'Net equity', color: 'var(--pos)', dots: true, width: 2.5, points: r.map((x) => ({ x: atNum(x.at), y: x.left })) },
-    { label: 'Total owned', color: 'var(--assets)', width: 1.25, points: r.map((x) => ({ x: atNum(x.at), y: x.assets })) },
-    { label: 'Total owed', color: 'var(--negative)', width: 1.25, points: r.map((x) => ({ x: atNum(x.at), y: x.liabilities })) },
+    // Net equity is the line; owned and owed are a dot per record.
+    { label: 'Net equity', color: 'var(--ink)', dots: true, width: 2.25, points: r.map((x) => ({ x: atNum(x.at), y: x.left })) },
+    { label: 'Total owned', color: 'var(--assets)', dots: true, line: false, points: r.map((x) => ({ x: atNum(x.at), y: x.assets })) },
+    { label: 'Total owed', color: 'var(--negative)', dots: true, line: false, points: r.map((x) => ({ x: atNum(x.at), y: x.liabilities })) },
   ]
 })
 

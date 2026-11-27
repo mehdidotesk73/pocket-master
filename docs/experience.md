@@ -173,6 +173,13 @@ what a setup does (the readback sentence, "It keeps adding …") rather than add
 line (v0.9.4) made it worse: it spread a lump months away into a gentle slope from today. Every
 projection is a sudden change on its day, so the line is drawn as steps.
 
+### Past chart: designs tried before the dots
+Sketched on the phone with mock data and dropped: up/down bars (owned above $0, owed below), a shaded
+gap between owned and net, owed stacked on top of owned (its top edge, owned + owed, means nothing),
+per-account stacked areas, owned and net as lines with owed as a bar between them, and a candlestick
+(it shows one series only, so the owned/owed relation is lost; kept as an idea for a monthly view).
+Kept: net equity as the one line, owned and owed as dots. Three full lines read as clutter.
+
 ## Patterns Worth Reusing
 
 ### Two-Party Link Apps: the URL Fragment as Credential, and the Join Race
@@ -361,6 +368,10 @@ text, so typing appends ("300.00650") and rounding hides it as 300.01. Select th
 on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
+
+### v0.12.0 — 2026-11-27
+- **Changed:** the Past chart keeps net equity as a line (now in ink, with a dot per record) and shows
+  total owned and total owed as dots only, no lines. The tap readout lists all three.
 
 ### v0.10.0 — 2026-11-27
 - **Added:** each projection names the **line it changes** (*Changes* in the editor; `→ line` in the
