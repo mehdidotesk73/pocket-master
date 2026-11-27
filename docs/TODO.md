@@ -21,6 +21,8 @@ Track feature development, improvements, and known issues here. Move completed w
 - **v0.6.1 — side menu** — `components/SideMenu.vue` (☰ → Records → Import / Export).
 - **v0.6.2 — quieter ± and new default rows** — `defaultTemplate`, `isPreviousDefault` in `loadFrom`.
 - **v0.6.3 — drag reorder + (negatives)** — `RecordModal` grip/pointer drag, `fmtMoney`/`fmtPlain`/`parseMoney`.
+- **v0.9.0 — recurring rework** — `Recurring { value, every, start }`, `occursOn`, `evaluateRecurring`,
+  `recordsInWindow` (+ lastRecords), `normalizeItem` migration, `ProjectionPanel` sections.
 - **v0.8.0 — forecasts & projections UI** — `FutureView`, `ForecastChart`, `ForecastPanel`,
   `ProjectionPanel`, `LensCarousel`, `DockPanel`; `project().contributions`.
 - **v0.7.0 — timestamped records** — `BalanceRecord.at`, `recordId(at)`, `normalizeRecord`/`loadFrom`

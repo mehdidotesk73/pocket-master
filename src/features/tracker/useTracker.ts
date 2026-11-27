@@ -9,12 +9,15 @@
 
 import { computed, ref, shallowRef } from 'vue'
 import {
-  type Averaged,
   type BalanceRecord,
+  type Every,
+  type EveryUnit,
+  type RecordWindow,
+  type Recurring,
+  type RecurringValue,
   type ProjectionFile,
   type ProjectionItem,
   type RecordLine,
-  type RecordRange,
   type StartLines,
   type TemplateFile,
   type TemplateLine,
@@ -24,6 +27,7 @@ import {
   defaultProjection,
   defaultTemplate,
   everydayItem,
+  monthlyStart,
   itemResults,
   lineNames,
   byAt,
@@ -100,13 +104,15 @@ function legacySigned(l: Record<string, unknown>): number {
 const signedAmount = (x: Record<string, unknown>) =>
   x.dir === 'in' || x.dir === 'out' ? (x.dir === 'in' ? 1 : -1) * Math.abs(roundMoney(num(x.amount))) : roundMoney(num(x.amount))
 
-function normalizeRange(x: Record<string, unknown>): RecordRange {
-  const r = (x.range ?? {}) as Record<string, unknown>
+/** A record window from the current shape, or the older `range` / `from`/`to` fields. */
+function normalizeWindow(w: unknown, legacy: Record<string, unknown> = {}): RecordWindow {
+  const r = (w ?? legacy.range ?? {}) as Record<string, unknown>
   if (r.mode === 'last') return { mode: 'last', days: Math.max(1, Math.round(num(r.days, 90))) }
-  if (r.mode === 'between' || (!x.range && (isISODate(x.from) || isISODate(x.to)))) {
-    const from = r.mode ? r.from : x.from
-    const to = r.mode ? r.to : x.to
-    const out: RecordRange = { mode: 'between' }
+  if (r.mode === 'lastRecords') return { mode: 'lastRecords', count: Math.max(1, Math.round(num(r.count, 6))) }
+  if (r.mode === 'between' || (!w && !legacy.range && (isISODate(legacy.from) || isISODate(legacy.to)))) {
+    const from = r.mode ? r.from : legacy.from
+    const to = r.mode ? r.to : legacy.to
+    const out: RecordWindow = { mode: 'between' }
     if (isISODate(from)) out.from = from
     if (isISODate(to)) out.to = to
     return out
@@ -114,33 +120,72 @@ function normalizeRange(x: Record<string, unknown>): RecordRange {
   return { mode: 'all' }
 }
 
-function normalizeItem(x: Record<string, unknown>, kindHint?: ProjectionItem['kind']): ProjectionItem[] {
+const UNITS: EveryUnit[] = ['day', 'week', 'month', 'year']
+function normalizeEvery(v: unknown): Every {
+  const e = (v ?? {}) as Record<string, unknown>
+  return { n: Math.max(1, Math.min(999, Math.round(num(e.n, 1)))), unit: UNITS.includes(e.unit as EveryUnit) ? (e.unit as EveryUnit) : 'month' }
+}
+
+const monthlyFixed = (id: string, name: string, amount: number, day: number, inRecord = false): Recurring => ({
+  kind: 'recurring',
+  id,
+  name,
+  value: { mode: 'fixed', amount: roundMoney(amount) },
+  every: { n: 1, unit: 'month' },
+  start: monthlyStart(day),
+  inRecord,
+})
+
+/**
+ * One projection from any shape the app has written:
+ *   v0.8+   recurring { value, every, start } / oneTime
+ *   v0.6–7  recurring { amount, day } / oneTime / averaged { mode, range } / extrapolate
+ *   v0.2–5  recurring/oneTime with dir in|out, averaged with from/to and "set it myself" (manual)
+ * Extrapolate-to-month-end projections are dropped (that type was retired).
+ */
+function normalizeItem(x: Record<string, unknown>, kindHint?: string): ProjectionItem[] {
   const kind = (x.kind as string) ?? kindHint
   const id = str(x.id) || newId()
   const name = str(x.name)
   switch (kind) {
-    case 'recurring':
-      return [{ kind, id, name, amount: signedAmount(x), day: clampDay(x.day), inRecord: Boolean(x.inRecord ?? x.covered) }]
+    case 'recurring': {
+      if (x.value && typeof x.value === 'object') {
+        const v = x.value as Record<string, unknown>
+        const value: RecurringValue =
+          v.mode === 'average' || v.mode === 'rate'
+            ? { mode: v.mode, source: str(v.source, LEFT_SOURCE), window: normalizeWindow(v.window) }
+            : { mode: 'fixed', amount: roundMoney(num(v.amount)) }
+        return [
+          {
+            kind,
+            id,
+            name,
+            value,
+            every: normalizeEvery(x.every),
+            start: isISODate(x.start) ? x.start : monthlyStart(1),
+            inRecord: value.mode === 'fixed' && Boolean(x.inRecord),
+          },
+        ]
+      }
+      return [monthlyFixed(id, name, signedAmount(x), clampDay(x.day), Boolean(x.inRecord ?? x.covered))]
+    }
     case 'oneTime':
       return isISODate(x.date) ? [{ kind, id, name, amount: signedAmount(x), date: x.date }] : []
-    case 'extrapolate':
-      return [{ kind, id, name, source: str(x.source, LEFT_SOURCE) }]
     case 'averaged': {
-      // "Set it myself" figures (v0.3–v0.5) become a plain monthly item with that amount.
+      // "Set it myself" figures (v0.3–v0.5) became plain monthly amounts.
       if (x.manual != null && x.manual !== '') {
-        return [{ kind: 'recurring', id, name: name || 'Monthly amount', amount: roundMoney(num(x.manual)), day: x.mode === 'amount' ? clampDay(x.day) : 1, inRecord: false }]
+        return [monthlyFixed(id, name || 'Monthly amount', num(x.manual), x.mode === 'amount' ? clampDay(x.day) : 1)]
       }
-      const a: Averaged = {
-        kind,
-        id,
-        name,
-        source: str(x.source, LEFT_SOURCE),
-        mode: x.mode === 'amount' ? 'amount' : 'rate',
-        range: normalizeRange(x),
-        day: clampDay(x.day),
+      const window = normalizeWindow(null, x)
+      const source = str(x.source, LEFT_SOURCE)
+      if (x.mode === 'amount') {
+        return [{ kind: 'recurring', id, name, value: { mode: 'average', source, window }, every: { n: 1, unit: 'month' }, start: monthlyStart(clampDay(x.day)), inRecord: false }]
       }
-      return [a]
+      return [{ ...everydayItem(), id, name, value: { mode: 'rate', source, window } }]
     }
+    case 'extrapolate':
+      logDebug(`Dropped “${name || 'month-end'}”: extrapolate-to-month-end projections were retired`, 'warn')
+      return []
   }
   return []
 }
@@ -162,7 +207,7 @@ export function normalizeProjection(raw: unknown, fallback: { id?: string; name?
   const r = (raw ?? {}) as Record<string, unknown>
   const horizonDays = Math.min(MAX_HORIZON_DAYS, Math.max(1, Math.round(num(r.horizonDays ?? r.horizon, fallback.horizonDays ?? 90))))
   const base = {
-    schema: 2 as const,
+    schema: 3 as const,
     id: r.id ? safeId(r.id) : (fallback.id ?? newId()),
     name: str(r.name) || fallback.name || 'Everything',
     start: normalizeStart(r.start),
@@ -181,7 +226,7 @@ export function normalizeProjection(raw: unknown, fallback: { id?: string; name?
     // v0.2 `everyday` (or the prototype's `variable`): auto → an averaged item; a fixed figure → a monthly item.
     const ev = (r.everyday ?? r.variable) as Record<string, unknown> | undefined
     if (ev?.mode === 'manual') {
-      items.push({ kind: 'recurring', id: 'everyday', name: 'Everyday spending', amount: -Math.abs(roundMoney(num(ev.monthly))), day: 1, inRecord: false })
+      items.push(monthlyFixed('everyday', 'Everyday spending', -Math.abs(num(ev.monthly)), 1))
     } else {
       items.push(everydayItem())
     }
@@ -522,10 +567,10 @@ const knownLines = computed(() => lineNames(records.value))
 const selected = computed(() => projections.value.find((p) => p.id === selectedId.value) ?? projections.value[0])
 
 function projectFor(p: ProjectionFile) {
-  return project(p, records.value, today())
+  return project(p, records.value)
 }
 function resultsFor(p: ProjectionFile) {
-  return itemResults(p, records.value, today())
+  return itemResults(p, records.value)
 }
 const currentProjection = computed(() => (selected.value ? projectFor(selected.value) : null))
 

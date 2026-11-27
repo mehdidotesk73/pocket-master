@@ -347,6 +347,13 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.9.0 — 2026-11-27
+- **Changed:** two projection types. **Recurring** = a value (amount | average | rate of change of a
+  line over a window: all / past N days / past N records / between) repeating every N
+  days/weeks/months/years from a start date; **One-time** = an amount on a date. Forecast schema 3
+- **Removed:** Cyclical (extrapolate to month end; existing ones are dropped) and Cumulative as a
+  separate type (now Recurring with rate of change, every 1 day)
+
 ### v0.8.0 — 2026-11-27
 - **Changed:** Future speaks of *forecasts* (a set) and *projections* (its items: Recurring,
   One-time, Cyclical, Cumulative). Forecast bar with labelled **Edit** / **New**; small **Add**

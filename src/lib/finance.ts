@@ -62,23 +62,54 @@ export interface TemplateFile {
   rows: TemplateLine[]
 }
 
-/** A change that repeats every month on `day` (1–31, clamped to the month's last day). */
+/** `source` value meaning "the forecast's starting total" (left so far) rather than one line. */
+export const LEFT_SOURCE = ''
+
+/** Which records an average or rate is worked out from. 'last'/'lastRecords' count back from the latest. */
+export type RecordWindow =
+  | { mode: 'all' }
+  | { mode: 'last'; days: number }
+  | { mode: 'lastRecords'; count: number }
+  | { mode: 'between'; from?: ISODate; to?: ISODate }
+
+/** Kept for older call sites. */
+export type RecordRange = RecordWindow
+
+export type EveryUnit = 'day' | 'week' | 'month' | 'year'
+export interface Every {
+  n: number
+  unit: EveryUnit
+}
+
+/**
+ * What a recurring projection adds each time it occurs:
+ * - fixed:   an amount you type (signed)
+ * - average: the average value of a line (or the starting total) across the window
+ * - rate:    how fast that value changed across the window, × the time between occurrences.
+ *            For the starting total, the forecast's fixed and one-time projections in the
+ *            window are taken out first, so what's left is everyday spending.
+ */
+export type RecurringValue =
+  | { mode: 'fixed'; amount: number }
+  | { mode: 'average' | 'rate'; source: string; window: RecordWindow }
+
+/** Repeats every `every` from `start` (its day of month / month of year set the rhythm). */
 export interface Recurring {
   kind: 'recurring'
   id: string
   name: string
-  /** signed: + coming in, − going out */
-  amount: number
-  day: number
+  value: RecurringValue
+  every: Every
+  start: ISODate
   /**
-   * This month's amount already shows up as a line in the records (e.g. rent
-   * listed until paid). Skipped in the latest record's month; counted at the
-   * start of later months when working out averages.
+   * Fixed monthly amounts only: this month's amount is already a line in the records
+   * (e.g. rent listed until paid). Skipped in the latest record's month, and counted at
+   * the start of its month when working out rates.
    */
   inRecord: boolean
 }
 
-/** A single change on a date. */
+/** A single amount on a date. */
 export interface OneTime {
   kind: 'oneTime'
   id: string
@@ -88,61 +119,19 @@ export interface OneTime {
   date: ISODate
 }
 
-/** `source` value meaning "the projection's starting total" rather than one named line. */
-export const LEFT_SOURCE = ''
-
-/** Which records an average looks at. 'last' counts back from the latest record. */
-export type RecordRange =
-  | { mode: 'all' }
-  | { mode: 'last'; days: number }
-  | { mode: 'between'; from?: ISODate; to?: ISODate }
-
-/**
- * A change worked out from past records.
- * - 'rate': the source's average change per month across the range becomes a
- *   steady daily drift. For the starting total, this projection's scheduled
- *   items in the range are removed first (they're projected separately).
- * - 'amount': the source line's average value across the range, applied once a
- *   month on `day`.
- */
-export interface Averaged {
-  kind: 'averaged'
-  id: string
-  name: string
-  /** LEFT_SOURCE for the starting total, else a record line name (matched case-insensitively). */
-  source: string
-  mode: 'rate' | 'amount'
-  range: RecordRange
-  /** 'amount' mode: day of month to apply it. */
-  day: number
-}
-
-/**
- * Carries a value from the latest record on to the end of that month at the
- * same pace: a value V on day k of an n-day month becomes V × n / k, the
- * difference spread over the rest of the month. Only while that month is the
- * current one; a record from an earlier month is used as is and marked outdated.
- */
-export interface Extrapolate {
-  kind: 'extrapolate'
-  id: string
-  name: string
-  /** LEFT_SOURCE for the starting total, else a record line name. */
-  source: string
-}
-
-export type ProjectionItem = Recurring | OneTime | Averaged | Extrapolate
+export type ProjectionItem = Recurring | OneTime
 export type ItemKind = ProjectionItem['kind']
 
-/** Which lines of the latest record a projection starts from. */
+/** Which lines of the latest record a forecast starts from. */
 export type StartLines = { mode: 'all' } | { mode: 'lines'; names: string[] }
 
+/** A forecast: a set of projections added up from a starting total. Stored as projections/<id>.json. */
 export interface ProjectionFile {
-  schema: 2
+  schema: 3
   id: string
   name: string
   start: StartLines
-  /** How many days ahead to project. */
+  /** How many days ahead to forecast. */
   horizonDays: number
   items: ProjectionItem[]
 }
@@ -150,8 +139,9 @@ export interface ProjectionFile {
 export const HORIZON_PRESETS = [30, 90, 180, 365]
 export const MAX_HORIZON_DAYS = 1830
 
-/** Average days per month, used to turn monthly ↔ daily rates. */
+/** Average days per month / year, to turn a daily rate into an amount per occurrence. */
 export const DAYS_PER_MONTH = 30.44
+export const DAYS_PER_YEAR = 365.25
 /** A rate needs records spanning at least this many days. */
 export const MIN_RATE_DAYS = 28
 
@@ -206,39 +196,82 @@ export function lineNames(records: BalanceRecord[]): string[] {
 
 const norm = (s: string) => s.trim().toLowerCase()
 
-// ---------------------------------------------------------------- scheduled flows
+// ---------------------------------------------------------------- schedules
 
-/**
- * Net scheduled flow (cents) in the window (s0, s1].
- * `inRecord` recurring items count once at the start of each month after s0's
- * month, because the next record will list them as due.
- */
-export function scheduledCents(s0: ISODate, s1: ISODate, recurring: Recurring[], oneTime: OneTime[]): number {
-  const d0 = dayNum(s0)
-  const d1 = dayNum(s1)
-  if (d1 <= d0) return 0
-  const m0 = monthIndex(s0)
-  const m1 = monthIndex(s1)
-  let total = 0
-  for (let M = m0; M <= m1; M++) {
-    for (const r of recurring) {
-      if (r.inRecord) {
-        if (M > m0) total += toCents(r.amount)
-      } else {
-        const occ = dayNum(clampedDate(M, r.day))
-        if (occ > d0 && occ <= d1) total += toCents(r.amount)
-      }
+/** Days between occurrences (months and years on average). */
+export function periodDays(e: Every): number {
+  const n = Math.max(1, Math.round(e.n))
+  return n * (e.unit === 'day' ? 1 : e.unit === 'week' ? 7 : e.unit === 'month' ? DAYS_PER_MONTH : DAYS_PER_YEAR)
+}
+
+/** Does a recurring projection occur on date d? Month/year days clamp to the month's last day. */
+export function occursOn(r: Pick<Recurring, 'every' | 'start'>, d: ISODate): boolean {
+  if (d < r.start) return false
+  const n = Math.max(1, Math.round(r.every.n))
+  const diff = dayNum(d) - dayNum(r.start)
+  switch (r.every.unit) {
+    case 'day':
+      return diff % n === 0
+    case 'week':
+      return diff % (7 * n) === 0
+    case 'month': {
+      const months = monthIndex(d) - monthIndex(r.start)
+      return months % n === 0 && clampedDate(monthIndex(d), parseDate(r.start).day) === d
+    }
+    case 'year': {
+      const s = parseDate(r.start)
+      const t = parseDate(d)
+      return t.m === s.m && (t.y - s.y) % n === 0 && clampedDate(monthIndex(d), s.day) === d
     }
   }
-  for (const o of oneTime) {
-    const od = dayNum(o.date)
-    if (od > d0 && od <= d1) total += toCents(o.amount)
+}
+
+/** Occurrence dates in (from, to]. */
+export function occurrences(r: Pick<Recurring, 'every' | 'start'>, from: ISODate, to: ISODate): ISODate[] {
+  const out: ISODate[] = []
+  for (let k = dayNum(from) + 1; k <= dayNum(to); k++) {
+    const d = fromDayNumLocal(k)
+    if (occursOn(r, d)) out.push(d)
   }
+  return out
+}
+const fromDayNumLocal = (k: number) => addDays('1970-01-01', k)
+
+const fixedItems = (items: ProjectionItem[]) =>
+  items.filter((i): i is Recurring => i.kind === 'recurring' && i.value.mode === 'fixed')
+const oneTimes = (items: ProjectionItem[]) => items.filter((i): i is OneTime => i.kind === 'oneTime')
+
+/**
+ * Net change (cents) the fixed and one-time projections account for in (s0, s1].
+ * `inRecord` items count at the start of the month they fall in, and only for
+ * months after s0's (the record at s0 already lists them as due).
+ */
+export function scheduledCents(s0: ISODate, s1: ISODate, items: ProjectionItem[]): number {
+  if (dayNum(s1) <= dayNum(s0)) return 0
+  let total = 0
+  for (const r of fixedItems(items)) {
+    const amount = toCents((r.value as { amount: number }).amount)
+    if (r.inRecord) {
+      // count once per month after s0's month that has an occurrence, at that month's start
+      const seen = new Set<number>()
+      for (const d of occurrences(r, addDays(s0, -31), addDays(s1, 31))) {
+        const mi = monthIndex(d)
+        const first = clampedDate(mi, 1)
+        if (mi > monthIndex(s0) && first > s0 && first <= s1 && !seen.has(mi)) {
+          seen.add(mi)
+          total += amount
+        }
+      }
+    } else {
+      total += amount * occurrences(r, s0, s1).length
+    }
+  }
+  for (const o of oneTimes(items)) if (o.date > s0 && o.date <= s1) total += toCents(o.amount)
   return total
 }
 
-export function scheduled(s0: ISODate, s1: ISODate, recurring: Recurring[], oneTime: OneTime[]): number {
-  return fromCents(scheduledCents(s0, s1, recurring, oneTime))
+export function scheduled(s0: ISODate, s1: ISODate, items: ProjectionItem[]): number {
+  return fromCents(scheduledCents(s0, s1, items))
 }
 
 // ---------------------------------------------------------------- start lines
@@ -249,7 +282,7 @@ const inStart = (start: StartLines) => {
   return (name: string) => keys.has(norm(name))
 }
 
-/** The projection's starting total in a record: the sum of its selected lines (all = left so far). */
+/** The forecast's starting total in a record: the sum of its selected lines (all = left so far). */
 export function startValueCents(r: BalanceRecord, start: StartLines): number {
   if (start.mode === 'all') return toCents(r.left)
   const has = inStart(start)
@@ -269,82 +302,68 @@ export function describeSource(source: string, start: StartLines): string {
   return start.mode === 'all' ? 'left so far' : 'the starting total'
 }
 
-// ---------------------------------------------------------------- averaged items
+// ---------------------------------------------------------------- values from records
 
 export interface ItemResult {
-  /** Signed dollars per month (rate / amount), or the extra to month end (extrapolate); null if not computable. */
+  /** Signed dollars added per occurrence, or null when it can't be worked out from the records. */
   value: number | null
-  /** What the projection uses: value, or 0 when null. */
+  /** What the forecast uses: value, or 0 when null. */
   used: number
-  /** Records used and the days they span (averaged). */
+  /** For a rate: dollars per day. */
+  perDay?: number
+  /** Records used and the days they span. */
   count: number
   days: number
-  /** Extrapolate: the latest record is from an earlier month than today. */
-  outdated?: boolean
   /** Why `value` is null, in plain words. */
   reason?: string
 }
 
-export function recordsInRange(records: BalanceRecord[], range: RecordRange): BalanceRecord[] {
+export function recordsInWindow(records: BalanceRecord[], w: RecordWindow): BalanceRecord[] {
   const sorted = [...records].sort(byAt)
-  if (range.mode === 'all' || !sorted.length) return sorted
-  if (range.mode === 'last') {
-    const cut = dayNum(sorted[sorted.length - 1].date) - Math.max(0, Math.round(range.days))
+  if (w.mode === 'all' || !sorted.length) return sorted
+  if (w.mode === 'lastRecords') return sorted.slice(-Math.max(1, Math.round(w.count)))
+  if (w.mode === 'last') {
+    const cut = dayNum(sorted[sorted.length - 1].date) - Math.max(0, Math.round(w.days))
     return sorted.filter((r) => dayNum(r.date) >= cut)
   }
-  return sorted.filter((r) => (!range.from || r.date >= range.from) && (!range.to || r.date <= range.to))
+  return sorted.filter((r) => (!w.from || r.date >= w.from) && (!w.to || r.date <= w.to))
 }
+/** Kept for older call sites. */
+export const recordsInRange = recordsInWindow
 
-export function evaluateAveraged(
-  item: Averaged,
-  records: BalanceRecord[],
-  proj: Pick<ProjectionFile, 'items' | 'start'>,
-): ItemResult {
-  const points = recordsInRange(records, item.range)
-    .map((r) => ({ date: r.date, v: sourceValue(r, item.source, proj.start) }))
+/** What a recurring projection adds each time it occurs. */
+export function evaluateRecurring(item: Recurring, records: BalanceRecord[], proj: Pick<ProjectionFile, 'items' | 'start'>): ItemResult {
+  const v = item.value
+  if (v.mode === 'fixed') return { value: v.amount, used: v.amount, count: 0, days: 0 }
+
+  const points = recordsInWindow(records, v.window)
+    .map((r) => ({ date: r.date, v: sourceValue(r, v.source, proj.start) }))
     .filter((p): p is { date: ISODate; v: number } => p.v != null)
   const days = points.length ? dayNum(points[points.length - 1].date) - dayNum(points[0].date) : 0
-  const finish = (value: number | null, reason?: string): ItemResult => ({ value, used: value ?? 0, count: points.length, days, reason })
-
+  const base = { count: points.length, days }
   if (!points.length) {
-    return finish(null, item.source === LEFT_SOURCE ? 'No records in this range.' : `No records in this range have a line called “${item.source}”.`)
+    const reason = v.source === LEFT_SOURCE ? 'No records in this window.' : `No records in this window have a line called “${v.source}”.`
+    return { ...base, value: null, used: 0, reason }
   }
-  if (item.mode === 'amount') return finish(fromCents(points.reduce((s, p) => s + p.v, 0) / points.length))
-
+  if (v.mode === 'average') {
+    const avg = fromCents(points.reduce((s, p) => s + p.v, 0) / points.length)
+    return { ...base, value: avg, used: avg }
+  }
   if (points.length < 2 || days < MIN_RATE_DAYS) {
-    return finish(null, `Needs records spanning ${Math.ceil(MIN_RATE_DAYS / 7)}+ weeks (this range has ${days} day${days === 1 ? '' : 's'}).`)
+    return { ...base, value: null, used: 0, reason: `Needs records spanning ${Math.ceil(MIN_RATE_DAYS / 7)}+ weeks (this window has ${days} day${days === 1 ? '' : 's'}).` }
   }
-  const { recurring, oneTime } = split(proj.items)
   let change = 0
+  const others = proj.items.filter((i) => i.id !== item.id)
   for (let i = 1; i < points.length; i++) {
     change += points[i].v - points[i - 1].v
-    if (item.source === LEFT_SOURCE) change -= scheduledCents(points[i - 1].date, points[i].date, recurring, oneTime)
+    if (v.source === LEFT_SOURCE) change -= scheduledCents(points[i - 1].date, points[i].date, others)
   }
-  return finish(fromCents((change / days) * DAYS_PER_MONTH))
+  const perDayCents = change / days
+  const each = fromCents(perDayCents * periodDays(item.every))
+  return { ...base, value: each, used: each, perDay: fromCents(perDayCents) }
 }
 
-// ---------------------------------------------------------------- extrapolate
-
-export function evaluateExtrapolate(
-  item: Extrapolate,
-  latest: BalanceRecord | null,
-  start: StartLines,
-  today: ISODate,
-): ItemResult {
-  const base = { count: latest ? 1 : 0, days: 0 }
-  if (!latest) return { ...base, value: null, used: 0, reason: 'No records yet.' }
-  const v = sourceValue(latest, item.source, start)
-  if (v == null) return { ...base, value: null, used: 0, reason: `The latest record has no line called “${item.source}”.` }
-  if (monthIndex(latest.date) !== monthIndex(today)) {
-    return { ...base, value: 0, used: 0, outdated: true, reason: 'The latest record is from an earlier month, so its value is used as is.' }
-  }
-  const { y, m, day } = parseDate(latest.date)
-  const n = daysInMonth(y, m)
-  const extra = (v * n) / day - v
-  return { ...base, value: fromCents(extra), used: fromCents(extra) }
-}
-
-// ---------------------------------------------------------------- projection
+// ---------------------------------------------------------------- forecast
 
 export interface Point {
   date: ISODate
@@ -356,61 +375,31 @@ export interface Projection {
   series: Point[]
   end: Point
   min: Point
-  /** Per item id, for averaged and extrapolate items. */
+  /** Per recurring projection id: what it adds per occurrence. */
   results: Record<string, ItemResult>
-  /** Per item id: its cumulative change by each day of `series` (dollars, same length). */
+  /** Per projection id: its cumulative change by each day of `series` (dollars, same length). */
   contributions: Record<string, number[]>
-  /** Net daily drift from rate items (dollars/day). */
-  dailyDrift: number
 }
 
-function split(items: ProjectionItem[]) {
-  return {
-    recurring: items.filter((i): i is Recurring => i.kind === 'recurring'),
-    oneTime: items.filter((i): i is OneTime => i.kind === 'oneTime'),
-    averaged: items.filter((i): i is Averaged => i.kind === 'averaged'),
-    extrapolate: items.filter((i): i is Extrapolate => i.kind === 'extrapolate'),
-  }
-}
-
-/** Results for the computed items (shown in the editor even before a projection exists). */
-export function itemResults(proj: ProjectionFile, records: BalanceRecord[], today: ISODate): Record<string, ItemResult> {
-  const latest = [...records].sort(byAt).pop() ?? null
+export function itemResults(proj: ProjectionFile, records: BalanceRecord[]): Record<string, ItemResult> {
   const out: Record<string, ItemResult> = {}
-  for (const it of proj.items) {
-    if (it.kind === 'averaged') out[it.id] = evaluateAveraged(it, records, proj)
-    else if (it.kind === 'extrapolate') out[it.id] = evaluateExtrapolate(it, latest, proj.start, today)
-  }
+  for (const it of proj.items) if (it.kind === 'recurring') out[it.id] = evaluateRecurring(it, records, proj)
   return out
 }
 
-export function project(proj: ProjectionFile, records: BalanceRecord[], today: ISODate): Projection | null {
+export function project(proj: ProjectionFile, records: BalanceRecord[]): Projection | null {
   const sorted = [...records].sort(byAt)
   const latest = sorted[sorted.length - 1]
   if (!latest) return null
   const horizonDays = Math.min(MAX_HORIZON_DAYS, Math.max(1, Math.round(proj.horizonDays)))
   const latestMonth = monthIndex(latest.date)
-  const results = itemResults(proj, sorted, today)
-  // Each item's change per day (cents), so the forecast can show what each one contributes.
-  const { y, m } = parseDate(latest.date)
-  const monthEnd = dayNum(ymd(y, m, daysInMonth(y, m)))
-  const restDays = monthEnd - dayNum(latest.date)
-  const stepFor = (it: ProjectionItem): ((d: ISODate, mi: number) => number) => {
-    switch (it.kind) {
-      case 'recurring':
-        return (d, mi) => (clampedDate(mi, it.day) === d && !(it.inRecord && mi === latestMonth) ? toCents(it.amount) : 0)
-      case 'oneTime':
-        return (d) => (d === it.date ? toCents(it.amount) : 0)
-      case 'averaged': {
-        const used = toCents(results[it.id].used)
-        if (it.mode === 'rate') return () => used / DAYS_PER_MONTH
-        return (d, mi) => (clampedDate(mi, it.day) === d ? used : 0)
-      }
-      case 'extrapolate': {
-        const perDay = restDays > 0 ? toCents(results[it.id].used) / restDays : 0
-        return (d) => (dayNum(d) <= monthEnd ? perDay : 0)
-      }
-    }
+  const results = itemResults(proj, sorted)
+
+  const stepFor = (it: ProjectionItem): ((d: ISODate) => number) => {
+    if (it.kind === 'oneTime') return (d) => (d === it.date ? toCents(it.amount) : 0)
+    const each = toCents(results[it.id].used)
+    const skipThisMonth = it.inRecord && it.value.mode === 'fixed'
+    return (d) => (occursOn(it, d) && !(skipThisMonth && monthIndex(d) === latestMonth) ? each : 0)
   }
   const steps = proj.items.map((it) => ({ id: it.id, step: stepFor(it) }))
   const running = new Map<string, number>(proj.items.map((it) => [it.id, 0]))
@@ -421,9 +410,8 @@ export function project(proj: ProjectionFile, records: BalanceRecord[], today: I
   const series: Point[] = []
   for (let i = 1; i <= horizonDays; i++) {
     const d = addDays(latest.date, i)
-    const mi = monthIndex(d)
     for (const { id, step } of steps) {
-      const c = step(d, mi)
+      const c = step(d)
       value += c
       running.set(id, running.get(id)! + c)
       contributions[id].push(fromCents(running.get(id)!))
@@ -434,11 +422,7 @@ export function project(proj: ProjectionFile, records: BalanceRecord[], today: I
   const end = series[series.length - 1] ?? start
   let min = series[0] ?? start
   for (const p of series) if (p.value < min.value) min = p
-  const driftCents = proj.items.reduce(
-    (s2, it) => s2 + (it.kind === 'averaged' && it.mode === 'rate' ? toCents(results[it.id].used) / DAYS_PER_MONTH : 0),
-    0,
-  )
-  return { start, series, end, min, results, contributions, dailyDrift: fromCents(driftCents) }
+  return { start, series, end, min, results, contributions }
 }
 
 // ---------------------------------------------------------------- defaults & ids
@@ -449,15 +433,26 @@ export function newId(): string {
   return Math.random().toString(36).slice(2, 10)
 }
 
-export function everydayItem(): Averaged {
-  return { kind: 'averaged', id: 'everyday', name: 'Everyday spending', source: LEFT_SOURCE, mode: 'rate', range: { mode: 'all' }, day: 1 }
+/** A start date that suits any day of month: January has 31 days. */
+export const monthlyStart = (day: number, year = 2026) => ymd(year, 1, Math.min(31, Math.max(1, Math.round(day))))
+
+/** Everyday spending: the rate of change of left so far, added every day. */
+export function everydayItem(): Recurring {
+  return {
+    kind: 'recurring',
+    id: 'everyday',
+    name: 'Everyday spending',
+    value: { mode: 'rate', source: LEFT_SOURCE, window: { mode: 'all' } },
+    every: { n: 1, unit: 'day' },
+    start: '2000-01-01',
+    inRecord: false,
+  }
 }
 
 export function defaultProjection(id = 'everything'): ProjectionFile {
-  return { schema: 2, id, name: 'Everything', start: { mode: 'all' }, horizonDays: 90, items: [everydayItem()] }
+  return { schema: 3, id, name: 'Everything', start: { mode: 'all' }, horizonDays: 90, items: [everydayItem()] }
 }
 
-/** The default rows before v0.6.2, so a never-customised template can be updated to the new default. */
 export const PREVIOUS_DEFAULT_TEMPLATE_IDS = ['checking', 'rent', 'phone-ins', 'discover', 'capone', 'amex', 'macys', 'paying', 'receiving']
 
 /** First-run template: rows only, no amounts. */

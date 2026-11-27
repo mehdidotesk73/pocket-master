@@ -24,12 +24,15 @@ Pick one from **Forecast** at the top. You can keep several, for example:
 
 Tap **Add** to make one, or tap a projection to change it. Swipe or tap the type at the top of the panel:
 
-- **Recurring**: every month on the same day. Either a **fixed amount**, or the **average of a line** in your records (for a bill that varies). Tick **Already in my records until paid** for things like rent that you list in each record until paid, so it isn't counted twice this month.
-- **One-time**: a single amount on a date.
-- **Cyclical**: something that builds up through the month and starts over, like a card balance. It takes the value from your latest record and carries it to month end at the same pace. If your latest record is from an earlier month, it's marked **Outdated**.
-- **Cumulative**: a trend that keeps adding up. It uses how fast a value has been changing in your records, continued day by day. With **Left so far** (or the starting total), the forecast's other projections are taken out first, so what's left is your everyday spending. You need records spanning four weeks or more.
+- **Recurring**: repeats **every N days, weeks, months or years**, starting on a date you pick. For months and years, the start date's day is used each time; days past a month's end land on its last day. Its **value** is one of:
+  - **Amount**: a number you type, e.g. +$1,800 every 2 weeks for pay, or ($2,000) every month for rent.
+  - **Average**: the average value of a line in your records, for a bill that varies.
+  - **Rate of change**: how fast a line has been changing, times the time between repeats. With **Left so far** (or the starting total), the forecast's fixed and one-time projections are taken out first, so what's left is your **everyday spending**. Use **every 1 day** for a smooth line. You need records spanning four weeks or more.
 
-For the two kinds worked out from records, choose which records to use: **All**, the **past N days**, or **Between** two dates.
+  For Average and Rate of change, pick which **records** to use: **All**, the **past N days**, the **past N records**, or **Between** two dates.
+
+  For a monthly Amount, tick **Already in my records until paid** for things like rent that you list in each record until paid, so it isn't counted twice this month.
+- **One-time**: a fixed amount you type, on one date.
 
 Amounts are **+** (coming in) or **−** (going out): tap the sign to switch. Owed amounts show in parentheses.
 

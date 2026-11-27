@@ -9,7 +9,7 @@
 import { computed, nextTick, ref } from 'vue'
 import { Pencil, Plus } from '@lucide/vue'
 import { HORIZON_PRESETS, type ProjectionFile, type ProjectionItem, defaultProjection, newId, startValueCents } from '../../lib/finance'
-import { atNum, dayNum, fmtDate, fmtDateTime, fmtMoney } from '../../lib/money'
+import { atNum, dayNum, fmtDate, fmtDateTime, fmtMoney, today } from '../../lib/money'
 import ForecastChart, { type Segment } from './ForecastChart.vue'
 import ForecastPanel from './ForecastPanel.vue'
 import ProjectionPanel from './ProjectionPanel.vue'
@@ -118,7 +118,10 @@ async function deleteForecast() {
 // ---- projections: add / edit / remove
 function addProjection() {
   forecastEdit.value = null
-  itemEdit.value = { draft: { kind: 'recurring', id: newId(), name: '', amount: 0, day: 1, inRecord: false }, isNew: true }
+  itemEdit.value = {
+    draft: { kind: 'recurring', id: newId(), name: '', value: { mode: 'fixed', amount: 0 }, every: { n: 1, unit: 'month' }, start: today(), inRecord: false },
+    isNew: true,
+  }
   showChart()
 }
 function editProjection(item: ProjectionItem) {
@@ -229,7 +232,7 @@ const rows = computed(() =>
             <span class="kind">{{ r.type }}</span>
             <span class="name">{{ r.item.name || 'New projection' }}</span>
             <span class="amount money" :class="r.s.tone">{{ r.s.amount }}</span>
-            <span class="detail muted small"><span v-if="r.s.tag" class="tag">{{ r.s.tag }}</span>{{ r.s.detail }}</span>
+            <span class="detail muted small">{{ r.s.detail }}</span>
           </button>
         </li>
       </ul>

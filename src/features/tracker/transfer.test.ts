@@ -8,7 +8,17 @@ const records = [
 ]
 const projection = {
   ...defaultProjection(),
-  items: [{ kind: 'recurring' as const, id: 'p', name: 'Paycheck', amount: 3000, day: 15, inRecord: false }],
+  items: [
+    {
+      kind: 'recurring' as const,
+      id: 'p',
+      name: 'Paycheck',
+      value: { mode: 'fixed' as const, amount: 3000 },
+      every: { n: 1, unit: 'month' as const },
+      start: '2026-01-15',
+      inRecord: false,
+    },
+  ],
 }
 const checking = { ...defaultProjection('checking'), name: 'Checking', start: { mode: 'lines' as const, names: ['Checking'] }, items: [] }
 

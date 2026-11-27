@@ -143,12 +143,11 @@ OPFS root
 
 Three tabs, **Past · Present · Future** (default Present): `HistoryView`, `TodayView`,
 `FutureView`. **Naming in the UI:** a stored `ProjectionFile` is a *forecast*; its items are
-*projections*, shown as four types (`projectionText.ts` `uiTypeOf`): Recurring = `recurring` or
-`averaged`/amount, One-time = `oneTime`, Cyclical = `extrapolate`, Cumulative = `averaged`/rate.
+*projections*: Recurring or One-time.
 Future = forecast picker + **Edit** / **New** → `ForecastPanel`; `ForecastChart` (stacked bars of
 the start value and each projection's running contribution from `project().contributions`, the
 forecast total as a line, past records leading in); projections list + **Add** → `ProjectionPanel`
-(`LensCarousel` type selector). Both panels are `DockPanel`s (mid-height, bottom, page stays
+(`LensCarousel` type selector; value / window / repeats sections). Both panels are `DockPanel`s (mid-height, bottom, page stays
 visible) editing drafts that drive the chart live; Save writes, Cancel discards. The header's ☰ (top left) opens `SideMenu`, a drawer from the left with collapsible
 sections (start collapsed); Records holds the Import / Export tag buttons. Future = projection picker (+ `ProjectionModal` for name / start lines / days ahead /
 duplicate / delete), chart, and a compact item list; "+ Add" menu → `ItemModal` per kind (built on
@@ -179,21 +178,22 @@ All sums in integer cents.
 - **`scheduledCents(s0, s1)`**, window (s0, s1]: signed recurring items on their clamped day (day 31 →
   last day); `inRecord` items count once at the start of each month after s0's month; signed one-time
   items on their date.
-- **Projections** (`ProjectionFile`, schema 2): `{ id, name, start, horizonDays, items[] }`.
-  `start` is `{ mode: 'all' }` (left so far) or `{ mode: 'lines', names }` — the starting total is the
-  sum of those lines in the latest record (`startValueCents`). Items are a tagged union on `kind`:
-  - `recurring` / `oneTime`: signed amounts on a day of month / a date (`inRecord` as before).
-  - `averaged`: a source (`LEFT_SOURCE` = the starting total, or a line name, case-insensitive), a
-    `range` (`all` | `last` N days back from the latest record | `between` from/to), and a mode.
-    `rate`: Σ consecutive changes ÷ span × 30.44 → $/month as a daily drift; for the starting total,
-    this projection's scheduled items are subtracted first. Null when the span < 28 days.
-    `amount`: mean value across the range, applied monthly on `day`.
-  - `extrapolate`: value V of a source on day k of the latest record's n-day month → V·n/k; the extra
-    is spread over the remaining days of that month. If today is in a later month: 0 and `outdated`.
-- **`project(proj, records, today)`**: from (latest.date, starting total), each day add recurring
-  (skipping `inRecord` items in the latest record's month), one-time and amount items, the rate
-  drift, and the extrapolation share until month end; for `horizonDays` (≤ 1830). Returns series,
-  end, minimum and each computed item's result (`itemResults`, also used by the editor preview).
+- **Forecasts** (`ProjectionFile`, schema 3): `{ id, name, start, horizonDays, items[] }`. `start` is
+  `{ mode: 'all' }` (left so far) or `{ mode: 'lines', names }` — the starting total is the sum of
+  those lines in the latest record (`startValueCents`). Items (*projections*) are:
+  - `recurring`: `value` (`fixed` amount | `average` | `rate` of a `source` line — `LEFT_SOURCE` = the
+    starting total — over a `window`: all | last N days | last N records | between dates), `every`
+    `{ n, unit: day|week|month|year }` from `start` (`occursOn`: months/years use start's day,
+    clamped), and `inRecord` (fixed monthly only). Average = mean value per occurrence. Rate =
+    Σ changes ÷ span days (for the starting total, minus what fixed/one-time items explain via
+    `scheduledCents`) × `periodDays(every)` per occurrence. Null when the span < 28 days.
+  - `oneTime`: a signed amount on a date.
+  Older shapes (monthly `amount`/`day`, `averaged`, `extrapolate`, `dir`, `manual`) are converted in
+  `normalizeItem`; extrapolate-to-month-end is dropped.
+- **`project(proj, records)`**: from (latest.date, starting total), each day adds every projection that
+  occurs that day (`inRecord` ones skipped in the latest record's month) and tracks each one's running
+  contribution (for the stacked bars), for `horizonDays` (≤ 1830).
+
 
 ## §5 — Composables
 
