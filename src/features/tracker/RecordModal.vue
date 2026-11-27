@@ -349,10 +349,10 @@ onBeforeUnmount(() => {
 
       <footer class="foot">
         <div class="totals">
-          <div><span class="muted small">Assets</span><b class="money">{{ fmtMoney(live.assets) }}</b></div>
-          <div><span class="muted small">Liabilities</span><b class="money">{{ fmtMoney(live.liabilities) }}</b></div>
+          <div><span class="muted small">Total owned</span><b class="money">{{ fmtMoney(live.assets) }}</b></div>
+          <div><span class="muted small">Total owed</span><b class="money">{{ fmtMoney(live.liabilities) }}</b></div>
           <div class="left">
-            <span class="muted small">Left so far</span>
+            <span class="muted small">Net equity</span>
             <b class="money" :class="{ neg: live.left < 0 }">{{ fmtMoney(live.left) }}</b>
           </div>
         </div>

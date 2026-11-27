@@ -347,6 +347,11 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.9.1 — 2026-11-27
+- **Changed:** record totals are named **Total owned**, **Total owed** and **Net equity** (was
+  assets, liabilities and "left so far") everywhere: record sheet, Present, balance sheet, Past
+  table and chart, Future labels, help. Stored fields (`assets`, `liabilities`, `left`) unchanged
+
 ### v0.9.0 — 2026-11-27
 - **Changed:** two projection types. **Recurring** = a value (amount | average | rate of change of a
   line over a window: all / past N days / past N records / between) repeating every N

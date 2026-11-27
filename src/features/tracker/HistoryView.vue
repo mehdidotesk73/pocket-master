@@ -20,7 +20,7 @@ const figures = computed<Figure[]>(() => {
   return [
     { label: 'Records', value: String(r.length), sub: `since ${fmtDate(first.date)}` },
     {
-      label: 'Change in left so far',
+      label: 'Change in net equity',
       value: fmtMoney(change, { sign: true }),
       tone: change < 0 ? 'neg' : 'pos',
       sub: r.length > 1 ? `${fmtDate(first.date, { short: true })} → ${fmtDate(last.date, { short: true })}` : 'one record so far',
@@ -33,9 +33,9 @@ const figures = computed<Figure[]>(() => {
 const series = computed<ChartSeries[]>(() => {
   const r = records.value
   return [
-    { label: 'Left so far', color: 'var(--pos)', dots: true, width: 2.5, points: r.map((x) => ({ x: atNum(x.at), y: x.left })) },
-    { label: 'Assets', color: 'var(--assets)', width: 1.25, points: r.map((x) => ({ x: atNum(x.at), y: x.assets })) },
-    { label: 'Liabilities', color: 'var(--negative)', width: 1.25, points: r.map((x) => ({ x: atNum(x.at), y: x.liabilities })) },
+    { label: 'Net equity', color: 'var(--pos)', dots: true, width: 2.5, points: r.map((x) => ({ x: atNum(x.at), y: x.left })) },
+    { label: 'Total owned', color: 'var(--assets)', width: 1.25, points: r.map((x) => ({ x: atNum(x.at), y: x.assets })) },
+    { label: 'Total owed', color: 'var(--negative)', width: 1.25, points: r.map((x) => ({ x: atNum(x.at), y: x.liabilities })) },
   ]
 })
 
@@ -77,9 +77,9 @@ const editing = ref<BalanceRecord | null>(null)
             <thead>
               <tr>
                 <th>Date</th>
-                <th class="r">Assets</th>
-                <th class="r">Liabilities</th>
-                <th class="r">Left</th>
+                <th class="r">Owned</th>
+                <th class="r">Owed</th>
+                <th class="r">Net equity</th>
                 <th><span class="sr">Delete</span></th>
               </tr>
             </thead>

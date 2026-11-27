@@ -62,7 +62,7 @@ export interface TemplateFile {
   rows: TemplateLine[]
 }
 
-/** `source` value meaning "the forecast's starting total" (left so far) rather than one line. */
+/** `source` value meaning "the forecast's starting total" (net equity) rather than one line. */
 export const LEFT_SOURCE = ''
 
 /** Which records an average or rate is worked out from. 'last'/'lastRecords' count back from the latest. */
@@ -282,7 +282,7 @@ const inStart = (start: StartLines) => {
   return (name: string) => keys.has(norm(name))
 }
 
-/** The forecast's starting total in a record: the sum of its selected lines (all = left so far). */
+/** The forecast's starting total in a record: the sum of its selected lines (all = net equity). */
 export function startValueCents(r: BalanceRecord, start: StartLines): number {
   if (start.mode === 'all') return toCents(r.left)
   const has = inStart(start)
@@ -299,7 +299,7 @@ function sourceValue(r: BalanceRecord, source: string, start: StartLines): numbe
 
 export function describeSource(source: string, start: StartLines): string {
   if (source !== LEFT_SOURCE) return source
-  return start.mode === 'all' ? 'left so far' : 'the starting total'
+  return start.mode === 'all' ? 'net equity' : 'the starting total'
 }
 
 // ---------------------------------------------------------------- values from records
@@ -436,7 +436,7 @@ export function newId(): string {
 /** A start date that suits any day of month: January has 31 days. */
 export const monthlyStart = (day: number, year = 2026) => ymd(year, 1, Math.min(31, Math.max(1, Math.round(day))))
 
-/** Everyday spending: the rate of change of left so far, added every day. */
+/** Everyday spending: the rate of change of net equity, added every day. */
 export function everydayItem(): Recurring {
   return {
     kind: 'recurring',

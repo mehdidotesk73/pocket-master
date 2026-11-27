@@ -170,7 +170,7 @@ All sums in integer cents.
 - **Records** are lists of line items `{ id, name, amount }` with a **signed** amount: positive =
   asset, negative = liability. No line kinds. (Schema 1 had kinds and card share %; `normalizeRecord`
   converts those on load, cards at their share.)
-- **Sheet:** assets = Σ positive lines; liabilities = Σ |negative lines|; left = assets − liabilities.
+- **Sheet** (shown as Total owned / Total owed / Net equity): assets = Σ positive lines; liabilities = Σ |negative lines|; left = assets − liabilities.
 - **Template** (`template.json`): the rows every new record starts with, `{ id, name, negative,
   amount? }`. The New record sheet fills amounts from the latest record by row id; *Save as template*
   replaces it with the sheet's current rows. Rows can be added/removed per record; records keep their

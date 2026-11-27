@@ -31,14 +31,14 @@ const figures = computed<Figure[]>(() => {
   const change = prev ? l.left - prev.left : null
   const out: Figure[] = [
     {
-      label: 'Left so far',
+      label: 'Net equity',
       value: fmtMoney(l.left),
       tone: l.left < 0 ? 'neg' : 'pos',
       sub:
         `as of ${when(l.at)}` + (change != null ? ` · ${fmtMoney(change, { sign: true })} since ${when(prev!.at, l.at)}` : ''),
     },
-    { label: 'Assets', value: fmtMoney(l.assets) },
-    { label: 'Liabilities', value: fmtMoney(l.liabilities) },
+    { label: 'Total owned', value: fmtMoney(l.assets) },
+    { label: 'Total owed', value: fmtMoney(l.liabilities) },
   ]
   const p = currentProjection.value
   if (p) {
@@ -84,7 +84,7 @@ const exportNudge = computed(() => {
       <p>
         A record is a snapshot of your money on one day: a list of what you have (positive amounts, like
         bank balances) and what you owe (negative amounts, like card balances and bills due). The app adds
-        them up into one number, <b>left so far</b>.
+        them up: <b>total owned</b>, <b>total owed</b>, and the difference, your <b>net equity</b>.
       </p>
       <p class="muted">
         Save a new record whenever you check your accounts. The latest one is your live position, the

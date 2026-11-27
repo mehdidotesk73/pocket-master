@@ -15,7 +15,7 @@ The heading tells you the main finding. If the forecast goes below zero, it says
 
 Pick one from **Forecast** at the top. You can keep several, for example:
 
-- **Everything**: all lines of your latest record (left so far), with pay, rent and everyday spending.
+- **Everything**: all lines of your latest record (net equity), with pay, rent and everyday spending.
 - **Checking**: just checking (and maybe your cards), to see how checking swings during the month.
 
 **Edit** changes the forecast's name, which lines of your latest record it starts from, and how many days ahead it runs. **Duplicate** and **Delete** are there too. **New** makes a new forecast and opens it for editing. Both editors sit at the bottom of the screen, so you can watch the chart change as you go. Nothing is kept until you tap **Save** or **Create**.
@@ -27,7 +27,7 @@ Tap **Add** to make one, or tap a projection to change it. Swipe or tap the type
 - **Recurring**: repeats **every N days, weeks, months or years**, starting on a date you pick. For months and years, the start date's day is used each time; days past a month's end land on its last day. Its **value** is one of:
   - **Amount**: a number you type, e.g. +$1,800 every 2 weeks for pay, or ($2,000) every month for rent.
   - **Average**: the average value of a line in your records, for a bill that varies.
-  - **Rate of change**: how fast a line has been changing, times the time between repeats. With **Left so far** (or the starting total), the forecast's fixed and one-time projections are taken out first, so what's left is your **everyday spending**. Use **every 1 day** for a smooth line. You need records spanning four weeks or more.
+  - **Rate of change**: how fast a line has been changing, times the time between repeats. With **Net equity** (or the starting total), the forecast's fixed and one-time projections are taken out first, so what's left is your **everyday spending**. Use **every 1 day** for a smooth line. You need records spanning four weeks or more.
 
   For Average and Rate of change, pick which **records** to use: **All**, the **past N days**, the **past N records**, or **Between** two dates.
 

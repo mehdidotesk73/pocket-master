@@ -40,7 +40,7 @@ const future = computed(() => (shown.value ? projectFor(shown.value) : null))
 const results = computed(() => (shown.value ? resultsFor(shown.value) : {}))
 
 // ---- heading
-const subject = computed(() => (shown.value?.start.mode === 'all' ? 'Left so far' : (shown.value?.name ?? '')))
+const subject = computed(() => (shown.value?.start.mode === 'all' ? 'Net equity' : (shown.value?.name ?? '')))
 const heading = computed(() => {
   const f = future.value
   if (!f) return ''
@@ -65,7 +65,7 @@ const chart = computed(() => {
   const from = dayNum(l.date) - CHART_PAST_DAYS
   const past = records.value.filter((r) => dayNum(r.date) >= from).map((r) => ({ x: atNum(r.at), y: startValueCents(r, p.start) / 100 }))
   const segments: Segment[] = [
-    { id: '__start', label: p.start.mode === 'all' ? 'Starting balance' : 'Starting total', color: START_COLOR },
+    { id: '__start', label: p.start.mode === 'all' ? 'Starting net equity' : 'Starting total', color: START_COLOR },
     ...p.items.map((it) => ({ id: it.id, label: it.name || UI_INFO[uiTypeOf(it)].label, color: colorOf.value[it.id] })),
   ]
   const values: Record<string, number[]> = { __start: f.series.map(() => f.start.value), ...f.contributions }

@@ -1,13 +1,13 @@
 # Present
 
-## Left so far
+## Net equity
 
 A record is a list of line items, each a name and an amount:
 
 - **Positive** amounts are things you have: bank balances, money coming in.
 - **Negative** amounts are things you owe or have committed: card balances, bills due, money going out. They're shown in parentheses: **($730.48)**.
 
-The app sorts them for you: **left so far = what you have − what you owe**.
+The app sorts them for you: **net equity = total owned − total owed**.
 
 ## Saving a record
 

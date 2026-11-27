@@ -70,7 +70,7 @@ function setValue(p: Partial<{ amount: number; source: string; window: RecordWin
   const r = rec.value
   if (r) patch({ value: { ...r.value, ...p } as RecurringValue })
 }
-const startLabel = computed(() => (props.forecast.start.mode === 'all' ? 'Left so far' : 'Starting total'))
+const startLabel = computed(() => (props.forecast.start.mode === 'all' ? 'Net equity' : 'Starting total'))
 const sources = computed(() => {
   const r = rec.value
   const names = [...knownLines.value]

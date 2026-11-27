@@ -78,7 +78,7 @@ function remove() {
     <div class="field">
       <span>Starts from the latest record{{ latest ? ` (${fmtDateTime(latest.at, { short: true })})` : '' }}</span>
       <div class="seg" role="radiogroup" aria-label="Starting lines">
-        <button role="radio" :aria-checked="!pickLines" :class="{ on: !pickLines }" @click="pickLines = false">All lines (left so far)</button>
+        <button role="radio" :aria-checked="!pickLines" :class="{ on: !pickLines }" @click="pickLines = false">All lines (net equity)</button>
         <button role="radio" :aria-checked="pickLines" :class="{ on: pickLines }" @click="pickLines = true">Pick lines</button>
       </div>
     </div>
