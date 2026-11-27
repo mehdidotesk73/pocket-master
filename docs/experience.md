@@ -348,8 +348,10 @@ on focus, and reject more than two decimals instead of rounding them away.
 ## Version History
 
 ### v0.9.3 — 2026-11-27
-- **Changed:** forecast bars show each projection's amount *per period* (a weekly ($50) is ($50)
-  every week) instead of its running total; the starting balance lives only in the forecast line
+- **Changed:** forecast bars show each projection's amount on the day it happens (one bar per event
+  day, one day wide) instead of running totals; the starting balance lives only in the forecast line.
+  Fixed-width period buckets were tried first and dropped: two occurrences landing in one bucket
+  made bars look doubled or uneven
 
 ### v0.9.2 — 2026-11-27
 - **Changed:** with no records yet, a forecast still runs: it starts at $0 today, record-based values

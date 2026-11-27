@@ -2,11 +2,10 @@
 // Forecast chart: what happens in each period, as stacked bars, with the
 // forecast (the running total) as a line, and past records leading into it.
 //
-// Each bar is one period (a day, a week or a few weeks, depending on the
-// horizon) and is drawn at its last day. Its segments are what each projection
-// adds or takes away *in that period*: a weekly ($50) shows as ($50) every
-// week, a monthly +$100 as +$100 in the period holding its day. Positive
-// segments stack up from zero, negative ones down. The line is the total.
+// Bars are drawn on the days something happens, one day wide: a weekly ($50)
+// is a ($50) bar each week, a monthly +$100 a +$100 bar on its day. Two
+// projections share a bar only when they land on the same day (they stack:
+// money in up from zero, money out down). The line is the running total.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { fmtDate, fmtMoney, fromDayNum, monthIndex, monthLabel, monthFromIndex, dayNum, ymd } from '../../lib/money'
 
@@ -49,13 +48,18 @@ onBeforeUnmount(() => ro?.disconnect())
 
 const pad = { l: 56, r: 10, t: 12, b: 26 }
 
-/** About a dozen bars: daily for short forecasts, then weekly multiples. */
-function barIndexes(n: number): number[] {
-  if (!n) return []
-  const step = n <= 14 ? 1 : 7 * Math.max(1, Math.ceil(n / 7 / 13))
+/** Days on which any projection changes the total (each gets a bar). */
+function eventDays(n: number, segments: Segment[], values: Record<string, number[]>): number[] {
   const out: number[] = []
-  for (let i = step - 1; i < n; i += step) out.push(i)
-  if (out[out.length - 1] !== n - 1) out.push(n - 1)
+  for (let i = 0; i < n; i++) {
+    for (const s of segments) {
+      const run = values[s.id] ?? []
+      if (Math.abs((run[i] ?? 0) - (i > 0 ? (run[i - 1] ?? 0) : 0)) >= 0.005) {
+        out.push(i)
+        break
+      }
+    }
+  }
   return out
 }
 
@@ -69,9 +73,9 @@ function niceStep(range: number, target: number) {
 const geom = computed(() => {
   const W = width.value
   const H = props.height
-  const idx = barIndexes(props.days.length)
-  const bars = idx.map((i, k) => {
-    const prev = k > 0 ? idx[k - 1] : -1
+  const idx = eventDays(props.days.length, props.segments, props.values)
+  const bars = idx.map((i) => {
+    const prev = i - 1
     let up = 0
     let down = 0
     const parts = props.segments.map((s) => {
@@ -82,8 +86,7 @@ const geom = computed(() => {
       else down += v
       return { ...s, v, y0: from, y1: from + v }
     })
-    const from = props.days[prev + 1].date
-    return { i, x: dayNum(props.days[i].date), date: props.days[i].date, from, total: props.days[i].total, parts, up, down }
+    return { i, x: dayNum(props.days[i].date), date: props.days[i].date, total: props.days[i].total, parts, up, down }
   })
 
   const xs = [...props.past.map((p) => p.x), props.start.x, ...props.days.map((d) => dayNum(d.date))]
@@ -108,9 +111,9 @@ const geom = computed(() => {
   const sx = (x: number) => pad.l + ((x - x0) / (x1 - x0)) * plotW
   const sy = (y: number) => pad.t + (1 - (y - y0) / (y1 - y0)) * (H - pad.t - pad.b)
 
-  // Bar width: most of the gap between bars, capped.
-  const gap = bars.length > 1 ? sx(bars[1].x) - sx(bars[0].x) : plotW / 4
-  const bw = Math.max(3, Math.min(26, gap * 0.62))
+  // One day wide (a little gap between neighbouring days), never thinner than 2px.
+  const dayW = plotW / (x1 - x0)
+  const bw = Math.max(2, Math.min(24, dayW * 0.8))
 
   const yTicks: number[] = []
   for (let v = y0; v <= y1 + step / 2; v += step) yTicks.push(Math.round(v * 100) / 100)
@@ -207,9 +210,7 @@ const readout = computed(() => {
     </svg>
 
     <div v-if="readout" class="readout" :class="{ left: readout.left }">
-      <div class="muted">
-        {{ readout.b.from === readout.b.date ? fmtDate(readout.b.date) : `${fmtDate(readout.b.from, { short: true })} – ${fmtDate(readout.b.date, { short: true })}` }}
-      </div>
+      <div class="muted">{{ fmtDate(readout.b.date) }}</div>
       <div class="row total-row">
         <span class="sw line"></span>Forecast by then<b class="money">{{ fmtMoney(readout.b.total) }}</b>
       </div>
