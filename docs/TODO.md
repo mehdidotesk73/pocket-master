@@ -29,7 +29,7 @@ Track feature development, improvements, and known issues here. Move completed w
   `project()` returns `lines` (per line, day by day) + `netOnly`; `forecastLineNames`,
   `forecastSheetOn`; *Changes* select in `ProjectionPanel`; `→ line` in `summarize`. Editor readback
   (`readBack`, `DockPanel` summary slot) with warnings; Average monthly by default, no net equity;
-  "income and spending combined" label (`isCombinedDrift`); flat chart lead-in.
+  "income and spending combined" label (`isCombinedDrift`); step-line forecast.
 - **v0.7.0 — timestamped records** — `BalanceRecord.at`, `recordId(at)`, `normalizeRecord`/`loadFrom`
   migration, `RecordModal` `editing` prop, Past rows open records.
 

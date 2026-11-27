@@ -149,8 +149,8 @@ Three tabs, **Past · Present · Future** (default Present): `HistoryView`, `Tod
 *projections*: Recurring or One-time.
 Future = forecast picker + **Edit** / **New** → `ForecastPanel`; `ForecastChart` (a one-day-wide stacked bar on
 each day any projection changes the total — day-over-day differences of `project().contributions` — with
-the forecast total, starting balance included, as a line, past records leading in; the line joins event days point to
-point but holds flat until the day before the first event); projections list + **Add** → `ProjectionPanel`
+the forecast total, starting balance included, as a step line — flat between event days, vertical on
+each — past records leading in); projections list + **Add** → `ProjectionPanel`
 (`LensCarousel` type selector; changes / value / window / repeats sections, and a pinned readback from
 `readBack()` in `projectionText.ts`: the settings as one sentence, the total by the forecast's end, the
 target line's start → end, and warnings — an average repeating faster than monthly, measured on one line

@@ -170,8 +170,8 @@ On-device testing showed "Average of Capital One, every 30 days, changes Discove
 grew by $1,250 a month forever. Every projection is a *change*. A balance that sits at a level (a card
 paid off monthly) needs spending plus a payoff, not a different meaning for Average. The fix was to say
 what a setup does (the readback sentence, "It keeps adding …") rather than add modes. The point-to-point
-line made it worse: it spread a lump months away into a gentle slope from today, so it now holds flat
-until the first event.
+line (v0.9.4) made it worse: it spread a lump months away into a gentle slope from today. Every
+projection is a sudden change on its day, so the line is drawn as steps.
 
 ## Patterns Worth Reusing
 
@@ -370,7 +370,7 @@ on focus, and reject more than two decimals instead of rounding them away.
   forecast's end, the changed line's start → end, and amber warnings for setups that look unintended.
 - **Changed:** Average is for bill lines: no net equity, switches the repeat to monthly. The default
   everyday spending is labelled *income and spending combined* until pay is listed. The forecast line
-  holds flat until its first event.
+  is a step line again: flat between events, a vertical jump on each (point to point, v0.9.4, is gone).
 - **Defaults:** an average or rate of a line changes that line; amounts and net-equity rates are net
   only. Existing forecasts open unchanged (the field is optional).
 
