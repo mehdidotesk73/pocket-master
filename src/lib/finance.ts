@@ -19,6 +19,7 @@ import {
   isISODate,
   monthIndex,
   parseDate,
+  today as todayLocal,
   toCents,
   ymd,
 } from './money'
@@ -387,12 +388,17 @@ export function itemResults(proj: ProjectionFile, records: BalanceRecord[]): Rec
   return out
 }
 
-export function project(proj: ProjectionFile, records: BalanceRecord[]): Projection | null {
+/**
+ * The forecast from the latest record. With no records yet it still runs: it
+ * starts at zero on `startIfEmpty` (today), and record-based values count as 0.
+ */
+export function project(proj: ProjectionFile, records: BalanceRecord[], startIfEmpty: ISODate = todayLocal()): Projection {
   const sorted = [...records].sort(byAt)
-  const latest = sorted[sorted.length - 1]
-  if (!latest) return null
+  const latest = sorted[sorted.length - 1] ?? null
+  const startDate = latest?.date ?? startIfEmpty
   const horizonDays = Math.min(MAX_HORIZON_DAYS, Math.max(1, Math.round(proj.horizonDays)))
-  const latestMonth = monthIndex(latest.date)
+  // "Already in my records" only applies when there's a record that lists it.
+  const latestMonth = latest ? monthIndex(latest.date) : Number.NaN
   const results = itemResults(proj, sorted)
 
   const stepFor = (it: ProjectionItem): ((d: ISODate) => number) => {
@@ -405,11 +411,11 @@ export function project(proj: ProjectionFile, records: BalanceRecord[]): Project
   const running = new Map<string, number>(proj.items.map((it) => [it.id, 0]))
   const contributions: Record<string, number[]> = Object.fromEntries(proj.items.map((it) => [it.id, [] as number[]]))
 
-  const startCents = startValueCents(latest, proj.start)
+  const startCents = latest ? startValueCents(latest, proj.start) : 0
   let value = startCents
   const series: Point[] = []
   for (let i = 1; i <= horizonDays; i++) {
-    const d = addDays(latest.date, i)
+    const d = addDays(startDate, i)
     for (const { id, step } of steps) {
       const c = step(d)
       value += c
@@ -418,7 +424,7 @@ export function project(proj: ProjectionFile, records: BalanceRecord[]): Project
     }
     series.push({ date: d, value: fromCents(value) })
   }
-  const start = { date: latest.date, value: fromCents(startCents) }
+  const start = { date: startDate, value: fromCents(startCents) }
   const end = series[series.length - 1] ?? start
   let min = series[0] ?? start
   for (const p of series) if (p.value < min.value) min = p

@@ -61,8 +61,9 @@ const chart = computed(() => {
   const f = future.value
   const l = latest.value
   const p = shown.value
-  if (!f || !l || !p) return null
-  const from = dayNum(l.date) - CHART_PAST_DAYS
+  if (!f || !p) return null
+  // No records yet: the forecast starts at zero today, with no past to show.
+  const from = l ? dayNum(l.date) - CHART_PAST_DAYS : Infinity
   const past = records.value.filter((r) => dayNum(r.date) >= from).map((r) => ({ x: atNum(r.at), y: startValueCents(r, p.start) / 100 }))
   const segments: Segment[] = [
     { id: '__start', label: p.start.mode === 'all' ? 'Starting net equity' : 'Starting total', color: START_COLOR },
@@ -71,7 +72,7 @@ const chart = computed(() => {
   const values: Record<string, number[]> = { __start: f.series.map(() => f.start.value), ...f.contributions }
   return {
     past,
-    start: { x: atNum(l.at), y: f.start.value },
+    start: { x: l ? atNum(l.at) : dayNum(f.start.date), y: f.start.value },
     days: f.series.map((s) => ({ date: s.date, total: s.value })),
     segments,
     values,
@@ -185,8 +186,14 @@ const rows = computed(() =>
       <template v-if="future && chart">
         <h2 class="finding" :class="{ neg: future.min.value < 0 }">{{ heading }}</h2>
         <p class="muted small from">
-          From <b class="money">{{ fmtMoney(future.start.value) }}</b> ({{ startText }},
-          {{ latest ? fmtDateTime(latest.at, { short: true }) : '' }}) over {{ shown.horizonDays }} days
+          <template v-if="latest">
+            From <b class="money">{{ fmtMoney(future.start.value) }}</b> ({{ startText }},
+            {{ fmtDateTime(latest.at, { short: true }) }}) over {{ shown.horizonDays }} days
+          </template>
+          <template v-else>
+            No records yet, so this starts from <b class="money">$0.00</b> today over {{ shown.horizonDays }} days. Save a
+            record on Present to start from your real balances.
+          </template>
           <span v-if="forecastEdit || itemEdit" class="draft-tag">preview</span>
         </p>
         <ForecastChart

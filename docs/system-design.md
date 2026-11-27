@@ -190,7 +190,8 @@ All sums in integer cents.
   - `oneTime`: a signed amount on a date.
   Older shapes (monthly `amount`/`day`, `averaged`, `extrapolate`, `dir`, `manual`) are converted in
   `normalizeItem`; extrapolate-to-month-end is dropped.
-- **`project(proj, records)`**: from (latest.date, starting total), each day adds every projection that
+- **`project(proj, records, startIfEmpty = today)`** (never null): from (latest.date, starting total) —
+  or ($0, today) when there are no records — each day adds every projection that
   occurs that day (`inRecord` ones skipped in the latest record's month) and tracks each one's running
   contribution (for the stacked bars), for `horizonDays` (≤ 1830).
 

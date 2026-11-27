@@ -9,6 +9,8 @@ A **forecast** shows where some of your money is heading. It starts from your **
 - On the left, the **green line** is your past records.
 - Tap or hover a bar to see its breakdown.
 
+With no records yet, a forecast starts from $0 today, so you can set up projections before your first record.
+
 The heading tells you the main finding. If the forecast goes below zero, it says when.
 
 ## Forecasts

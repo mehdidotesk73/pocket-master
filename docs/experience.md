@@ -347,6 +347,10 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.9.2 — 2026-11-27
+- **Changed:** with no records yet, a forecast still runs: it starts at $0 today, record-based values
+  count as 0, and nothing is skipped as "already in my records"
+
 ### v0.9.1 — 2026-11-27
 - **Changed:** record totals are named **Total owned**, **Total owed** and **Net equity** (was
   assets, liabilities and "left so far") everywhere: record sheet, Present, balance sheet, Past

@@ -271,10 +271,20 @@ describe('forecast', () => {
     p.series.forEach((pt, k) => expect(pt.value).toBeCloseTo(50 + p.contributions[pay.id][k] + p.contributions[trip.id][k], 6))
   })
 
-  it('the latest record by time is where a forecast starts; no records → none', () => {
+  it('the latest record by time is where a forecast starts', () => {
     const p = project(proj({ horizonDays: 1 }), [rec('2026-11-26T20:00:00', 500), rec('2026-11-26T08:00:00', 100)])
-    expect(p!.start.value).toBe(500)
-    expect(project(proj(), [])).toBeNull()
+    expect(p.start.value).toBe(500)
+  })
+
+  it('with no records it starts at zero on the given day; record-based values count as 0', () => {
+    const items = [monthly(100, 26), { ...monthly(-50, 1), every: { n: 1, unit: 'week' as const }, start: '2026-11-26' }, everydayItem(), monthly(-2000, 1, { inRecord: true })]
+    const p = project(proj({ horizonDays: 31, items }), [], '2026-11-26')
+    expect(p.start).toEqual({ date: '2026-11-26', value: 0 })
+    expect(at(p, '2026-11-27')).toBe(0)
+    expect(at(p, '2026-12-01')).toBe(-2000) // in-record rent isn't skipped: no record lists it
+    expect(at(p, '2026-12-03')).toBe(-2050)
+    expect(at(p, '2026-12-26')).toBe(-2100) // 4 weekly −50s, +100 on the 26th
+    expect(p.results.everyday.used).toBe(0)
   })
 
   it('a forecast from picked lines starts from just those', () => {
