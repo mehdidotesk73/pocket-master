@@ -1,7 +1,8 @@
 <script setup lang="ts">
-// One candle per day of a line's value: body from the day's open to its close,
-// wick from its low to its high. Between records the value moves at an even
-// rate, so those days are small candles; record days show the actual jumps.
+// One candle per day of a line's value (by date; see dailyCandles): body from the
+// previous day's close to this day's, wick from its low to its high. Days between
+// record days move at the even daily rate (small, lighter candles); record days
+// close at their last record and show the day's records as the wick.
 // Green = it went up that day, red = down. Tap a candle to read it.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { DayCandle } from '../../lib/analysis'

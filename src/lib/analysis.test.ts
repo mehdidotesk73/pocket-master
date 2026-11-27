@@ -30,17 +30,30 @@ describe('history analysis', () => {
     expect(windowMix(records, { mode: 'lastRecords', count: 1 }).slices.map((s) => s.name).sort()).toEqual(['Checking', 'Saving'])
   })
 
-  it('daily candles: an even rate between records, record-to-record jumps on record days', () => {
+  it('daily candles by date: an even rate between record days, the day\'s records as its wick', () => {
     const c = dailyCandles(records, 'Card')
     expect(c.map((x) => x.date)).toEqual(Array.from({ length: 21 }, (_, i) => `2026-10-${String(i + 1).padStart(2, '0')}`))
-    // Oct 2: no record, between Oct 1 8 AM (−300) and Oct 11 8 AM (−500) → −20 a day
-    expect(c[1]).toMatchObject({ open: -313.33, close: -333.33, records: [], between: { from: '2026-10-01', to: '2026-10-11', perDay: -20 } })
-    // Oct 21: card climbs to −800 by 8 AM, then is paid to 0 at 8 PM
-    const last = c[20]
-    expect(last.records.map((r) => r.value)).toEqual([-800, 0])
-    expect(last.low).toBe(-800)
-    expect(last.close).toBe(0)
-    expect(last.high).toBe(0)
+    // Oct 1: one record, no change yet
+    expect(c[0]).toMatchObject({ open: -300, close: -300 })
+    // Oct 2: no record; from Oct 1 (−300) to Oct 11 (−500) is −20 a day
+    expect(c[1]).toMatchObject({ open: -300, close: -320, records: [], between: { from: '2026-10-01', to: '2026-10-11', perDay: -20 } })
+    // Oct 12–20 run toward Oct 21's FIRST record (−800), not its close: −30 a day
+    expect(c[19]).toMatchObject({ date: '2026-10-20', close: -770, between: { perDay: -30 } })
+    // Oct 21: opens at Oct 20's close, dips to the 8 AM record, closes at the 8 PM payoff
+    expect(c[20]).toMatchObject({ open: -770, low: -800, high: 0, close: 0 })
+    expect(c[20].records.map((r) => r.value)).toEqual([-800, 0])
+    // the daily changes add up to the whole change
+    const total = c.reduce((s, x) => s + (x.close - x.open), 0)
+    expect(Math.round(total * 100) / 100).toBe(300)
+  })
+
+  it('a same-day pair with no change makes a flat day', () => {
+    const pair = [
+      rec('2026-09-16T20:00:00', [['Card', -929.03]]),
+      rec('2026-09-17T08:00:00', [['Card', -987.1]]),
+      rec('2026-09-17T20:00:00', [['Card', -987.1]]),
+    ]
+    expect(dailyCandles(pair, 'Card')[1]).toMatchObject({ open: -929.03, close: -987.1, low: -987.1, high: -929.03 })
   })
 
   it('net equity candles; nothing with fewer than two records', () => {

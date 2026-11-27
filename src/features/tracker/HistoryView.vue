@@ -173,7 +173,7 @@ const editing = ref<BalanceRecord | null>(null)
           </div>
           <CandleChart :candles="candles" :show="rateShow" />
           <p class="muted small note">
-            One candle per day, from the day's opening value to its closing value: green if it went up, red if it went down. Days between records (lighter) change at the even rate between those two records; record days show the actual jumps. Tap a candle to read it. For a card, going up means you owe less.
+            One candle per day, from the previous day's close to this day's: green if it went up, red if it went down. A day with records closes at its last record, and its records show as the wick. Days between records (lighter) move at the even daily rate from one record day to the next. Tap a candle to read it. For a card, going up means you owe less.
           </p>
         </template>
       </section>

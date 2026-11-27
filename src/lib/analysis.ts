@@ -3,13 +3,13 @@
 //
 //   lineSeries     each record line's value at every record (for "Timeseries")
 //   windowMix      each line's average value over a window (for "Averages")
-//   dailyCandles   a line's value as one candle per day (records' jumps + the even rate between them)
+//   dailyCandles   a line's value as one candle per day, by date (record days + the even rate between them)
 //
 // A line missing from a record counts as $0 there: records keep their own rows,
 // and a row you removed is a balance you no longer hold.
 
 import { type BalanceRecord, LEFT_SOURCE, type RecordWindow, byAt, lineNames, recordsInWindow } from './finance'
-import { type ISODate, atNum, fromCents, fromDayNum, toCents } from './money'
+import { type ISODate, atNum, dayNum, fromCents, fromDayNum, toCents } from './money'
 
 const norm = (s: string) => s.trim().toLowerCase()
 
@@ -65,48 +65,64 @@ export interface DayCandle {
 
 /**
  * One candle per day for a line (or net equity, LEFT_SOURCE), from the first
- * record's day to the last's. Between records the value is taken to change at
- * an even rate, so a day with no record moves by that average rate; a day with
- * records also shows the record-to-record jumps (high/low include them).
+ * record's day to the last's, by date (time of day only orders records within
+ * a day):
+ * - a day with records closes at its last record; its candle runs from the
+ *   previous day's close to that, with the day's records as the wick
+ * - between two record days the value moves evenly, from the earlier day's
+ *   last record to the later day's first record, so each day in between is a
+ *   small candle of that average daily change
+ * The daily changes add up to the whole change from first record to last.
  */
 export function dailyCandles(records: BalanceRecord[], name: string): DayCandle[] {
   const sorted = [...records].sort(byAt)
   if (sorted.length < 2) return []
-  const pts = sorted.map((r) => ({ x: atNum(r.at), v: valueCents(r, name), at: r.at, date: r.date }))
-  const at = (x: number): number => {
-    if (x <= pts[0].x) return pts[0].v
-    const last = pts[pts.length - 1]
-    if (x >= last.x) return last.v
-    let i = 0
-    while (pts[i + 1].x < x) i++
-    const a = pts[i]
-    const b = pts[i + 1]
-    return b.x === a.x ? b.v : a.v + ((b.v - a.v) * (x - a.x)) / (b.x - a.x)
+  // records grouped by date, in order
+  const days: { d: number; date: ISODate; recs: { at: string; v: number }[] }[] = []
+  for (const r of sorted) {
+    const d = dayNum(r.date)
+    const v = valueCents(r, name)
+    const last = days[days.length - 1]
+    if (last && last.d === d) last.recs.push({ at: r.at, v })
+    else days.push({ d, date: r.date, recs: [{ at: r.at, v }] })
   }
-  const first = Math.floor(pts[0].x)
-  const lastDay = Math.floor(pts[pts.length - 1].x)
+  if (days.length < 2 && days[0].recs.length < 2) return []
   const out: DayCandle[] = []
-  for (let d = first; d <= lastDay; d++) {
-    const from = Math.max(d, pts[0].x)
-    const to = Math.min(d + 1, pts[pts.length - 1].x)
-    const inside = pts.filter((p) => p.x >= d && p.x < d + 1)
-    const vals = [at(from), at(to), ...inside.map((p) => p.v)]
-    const candle: DayCandle = {
-      date: fromDayNum(d),
-      open: fromCents(at(from)),
-      close: fromCents(at(to)),
+  let prevClose = days[0].recs[0].v
+  for (let k = 0; k < days.length; k++) {
+    const day = days[k]
+    if (k > 0) {
+      // the stretch from the previous record day's last record to this day's first
+      const a = days[k - 1]
+      const from = a.recs[a.recs.length - 1].v
+      const to = day.recs[0].v
+      const span = day.d - a.d
+      const perDay = fromCents((to - from) / span)
+      for (let d = a.d + 1; d < day.d; d++) {
+        const close = from + ((to - from) * (d - a.d)) / span
+        out.push({
+          date: fromDayNum(d),
+          open: fromCents(prevClose),
+          close: fromCents(close),
+          high: fromCents(Math.max(prevClose, close)),
+          low: fromCents(Math.min(prevClose, close)),
+          records: [],
+          between: { from: a.date, to: day.date, perDay },
+        })
+        prevClose = close
+      }
+    }
+    const vals = [prevClose, ...day.recs.map((r) => r.v)]
+    const close = day.recs[day.recs.length - 1].v
+    out.push({
+      date: day.date,
+      open: fromCents(prevClose),
+      close: fromCents(close),
       high: fromCents(Math.max(...vals)),
       low: fromCents(Math.min(...vals)),
-      records: inside.map((p) => ({ at: p.at, value: fromCents(p.v) })),
-    }
-    if (!inside.length) {
-      // the stretch between the records on either side of this day
-      const j = pts.findIndex((p) => p.x > d)
-      const a = pts[j - 1]
-      const b = pts[j]
-      candle.between = { from: a.date, to: b.date, perDay: fromCents((b.v - a.v) / (b.x - a.x)) }
-    }
-    out.push(candle)
+      records: day.recs.map((r) => ({ at: r.at, value: fromCents(r.v) })),
+    })
+    prevClose = close
   }
   return out
 }

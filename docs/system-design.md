@@ -180,10 +180,11 @@ from a record counts as $0 there.
   its own legend off; toggle chips instead).
 - `windowMix(records, window)`: each line's signed average over `recordsInWindow` → *Averages*
   (`DonutChart`; Owned / Owed / Owned + owed as absolute sizes; `WindowPicker` for the window).
-- `dailyCandles(records, line | LEFT_SOURCE)`: one OHLC candle per day from the first record's day to
-  the last's. The value is linear between consecutive records (by `atNum`, so same-day before/after
-  pairs jump within the day); open/close = value at the day's start/end, high/low also include the
-  records that day; days with no record carry `between { from, to, perDay }` → *Rates*
+- `dailyCandles(records, line | LEFT_SOURCE)`: one OHLC candle per day, **by date**, from the first
+  record's day to the last's. A record day closes at its last record (open = previous day's close,
+  high/low include that day's records). Between record days the value moves evenly from the earlier
+  day's last record to the later day's first record, so days with no record carry
+  `between { from, to, perDay }`. Daily changes sum to the whole change. → *Rates*
   (`CandleChart`; record-less days drawn lighter; Rising / Falling filter hides candles without
   rescaling).
 Colours per line come from `colorFor(index in lineNames)`, the same in every view.

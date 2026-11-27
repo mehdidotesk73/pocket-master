@@ -388,7 +388,10 @@ on focus, and reject more than two decimals instead of rounding them away.
   hide/show chips), **Averages** (each line's average over a window as a donut; Owned / Owed /
   Owned + owed), and **Rates** (one candle per day: the even rate between records on days without
   one, the actual record-to-record jumps on record days; Rising / Falling). A first version drew
-  one bar per record interval; replaced with daily candles after looking at it on the phone.
+  one bar per record interval; replaced with daily candles after looking at it on the phone. The
+  candles first ran on time of day, so a day whose 8 AM and 8 PM records matched still showed a
+  change (the hours before and after them came from the neighbouring stretches); they now run by
+  date: a record day closes at its last record, and the even rate runs between record days.
 - **Direction:** projections computed from records (Average, Rate of change, start points) were
   hard to reason about on the phone. Analysis moves to Past; Future will hold only amounts typed in,
   with a way to carry a number from Past into a projection.
