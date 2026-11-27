@@ -24,7 +24,6 @@ import {
 } from '../../lib/finance'
 import { addDays, isISODate, today } from '../../lib/money'
 import DockPanel from './DockPanel.vue'
-import LensCarousel from './LensCarousel.vue'
 import WheelPicker from './WheelPicker.vue'
 import { ChevronDown } from '@lucide/vue'
 import SignedMoneyInput from './SignedMoneyInput.vue'
@@ -46,14 +45,17 @@ const typeOptions = UI_TYPES.map((id) => ({ id, label: UI_INFO[id].label }))
 watch(type, (to, from) => {
   remembered[from] = item.value
   const cur = item.value
+  // carry the line it changes across the switch
+  const t = targetOf(cur)
+  const target = t ? { target: t } : {}
   const kept = remembered[to]
   if (kept) item.value = { ...kept, name: cur.name }
   else if (to === 'oneTime') {
     const amount = cur.kind === 'recurring' && cur.value.mode === 'fixed' ? cur.value.amount : 0
-    item.value = { kind: 'oneTime', id: cur.id, name: cur.name, amount, date: addDays(today(), 7) }
+    item.value = { kind: 'oneTime', id: cur.id, name: cur.name, ...target, amount, date: addDays(today(), 7) }
   } else {
     const amount = cur.kind === 'oneTime' ? cur.amount : 0
-    item.value = { kind: 'recurring', id: cur.id, name: cur.name, value: { mode: 'fixed', amount }, every: { n: 1, unit: 'month' }, start: today(), inRecord: false }
+    item.value = { kind: 'recurring', id: cur.id, name: cur.name, ...target, value: { mode: 'fixed', amount }, every: { n: 1, unit: 'month' }, start: today(), inRecord: false }
   }
 })
 watch(item, (v) => (remembered[type.value] = v))
@@ -195,12 +197,11 @@ function save() {
 
 <template>
   <DockPanel :title="isNew ? 'New projection' : 'Edit projection'" draft-key="projection-edit" @close="emit('cancel')">
-    <LensCarousel v-model="type" :options="typeOptions" label="Projection type" />
-
-    <label class="field">
-      <span>Name</span>
-      <input class="input" :value="item.name" placeholder="e.g. Paycheck, Rent, Everyday spending" @input="patch({ name: ($event.target as HTMLInputElement).value })" />
-    </label>
+    <!-- name · type -->
+    <div class="top">
+      <input class="input" :value="item.name" aria-label="Name" placeholder="Name, e.g. Paycheck" @input="patch({ name: ($event.target as HTMLInputElement).value })" />
+      <WheelPicker v-model="type" :options="typeOptions" label="Projection type" :rows="1" />
+    </div>
 
     <!-- One-time: changes · amount · date -->
     <div v-if="item.kind === 'oneTime'" class="row3">
@@ -223,6 +224,21 @@ function save() {
 
     <!-- Recurring -->
     <template v-else-if="rec">
+      <!-- every · unit · starting -->
+      <div class="row3 repeats">
+        <label class="field">
+          <span>Every</span>
+          <input class="input num" type="number" inputmode="numeric" min="1" :value="rec.every.n" aria-label="How many" @change="setEvery({ n: int(($event.target as HTMLInputElement).value, 1) })" />
+        </label>
+        <div class="field">
+          <span>Unit</span>
+          <WheelPicker :model-value="rec.every.unit"   :options="unitOptions" label="Unit" :rows="1" @update:model-value="(u: EveryUnit) => setEvery({ unit: u })" />
+        </div>
+        <label class="field">
+          <span>Starting</span>
+          <input class="input" type="date" :value="rec.start" @change="isISODate(($event.target as HTMLInputElement).value) && patch({ start: ($event.target as HTMLInputElement).value })" />
+        </label>
+      </div>
       <!-- changes · value · line (or amount) -->
       <div class="row3">
         <label class="field">
@@ -234,7 +250,7 @@ function save() {
         </label>
         <div class="field">
           <span>Value</span>
-          <WheelPicker v-model="valueMode" :options="valueOptions" label="Value" />
+          <WheelPicker v-model="valueMode" :options="valueOptions" label="Value" :rows="1" />
         </div>
         <label v-if="rec.value.mode === 'fixed'" class="field">
           <span>Amount</span>
@@ -249,6 +265,10 @@ function save() {
         </label>
       </div>
 
+      <label v-if="rec.value.mode === 'fixed' && rec.every.unit === 'month'" class="check">
+        <input class="checkbox" type="checkbox" :checked="rec.inRecord" @change="patch({ inRecord: ($event.target as HTMLInputElement).checked })" />
+        <span class="small">Already in my records until paid (skip it this month)</span>
+      </label>
       <!-- which records (average / rate) -->
       <div v-if="rec.value.mode !== 'fixed'" class="records">
         <div class="seg four" role="radiogroup" aria-label="Records window">
@@ -300,25 +320,6 @@ function save() {
         </template>
       </div>
 
-      <!-- every · unit · starting -->
-      <div class="row3 repeats">
-        <label class="field">
-          <span>Every</span>
-          <input class="input num" type="number" inputmode="numeric" min="1" :value="rec.every.n" aria-label="How many" @change="setEvery({ n: int(($event.target as HTMLInputElement).value, 1) })" />
-        </label>
-        <div class="field">
-          <span>Unit</span>
-          <WheelPicker :model-value="rec.every.unit" :options="unitOptions" label="Unit" @update:model-value="(u: EveryUnit) => setEvery({ unit: u })" />
-        </div>
-        <label class="field">
-          <span>Starting</span>
-          <input class="input" type="date" :value="rec.start" @change="isISODate(($event.target as HTMLInputElement).value) && patch({ start: ($event.target as HTMLInputElement).value })" />
-        </label>
-      </div>
-      <label v-if="rec.value.mode === 'fixed' && rec.every.unit === 'month'" class="check">
-        <input class="checkbox" type="checkbox" :checked="rec.inRecord" @change="patch({ inRecord: ($event.target as HTMLInputElement).checked })" />
-        <span class="small">Already in my records until paid (skip it this month)</span>
-      </label>
     </template>
 
     <p v-if="error" class="err small" role="alert">{{ error }}</p>
@@ -348,6 +349,19 @@ function save() {
 </template>
 
 <style scoped>
+/* compact controls inside this panel (still 16px text, so iOS doesn't zoom) */
+:deep(.input),
+:deep(.select) {
+  min-height: 38px;
+}
+
+.top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7.2rem;
+  gap: 0.45rem;
+  margin-bottom: 0.55rem;
+}
+
 .field {
   display: grid;
   gap: 0.2rem;

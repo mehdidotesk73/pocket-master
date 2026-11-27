@@ -1,11 +1,19 @@
 <script setup lang="ts" generic="T extends string">
 // A small vertical "lens on a carousel" (like an iOS picker wheel): the options
-// sit in a column that scrolls and snaps; whichever is under the lens in the
-// middle is chosen. Swipe it, tap an option, or use ↑/↓. Fits a narrow column.
+// sit in a column that scrolls and snaps; whichever is under the lens is chosen.
+// Swipe it, tap an option, or use ↑/↓. `rows` = 3 shows the neighbours; 1 fits
+// the height of an input (tap it to step to the next option).
+//
+// Only a swipe the user made can change the value: scrolls the browser makes on
+// its own (layout settling while a panel slides in, iOS momentum) just re-centre.
 import { nextTick, onMounted, ref, watch } from 'vue'
 
-const props = defineProps<{ options: { id: T; label: string }[]; label: string }>()
+const props = withDefaults(defineProps<{ options: { id: T; label: string }[]; label: string; rows?: 1 | 3 }>(), { rows: 3 })
 const model = defineModel<T>({ required: true })
+
+let touchedAt = 0
+const touched = () => (touchedAt = Date.now())
+const byUser = () => Date.now() - touchedAt < 1500
 
 const col = ref<HTMLElement>()
 let settleTimer: ReturnType<typeof setTimeout> | undefined
@@ -33,9 +41,18 @@ function onScroll() {
       const d = Math.abs(el.offsetTop + el.offsetHeight / 2 - mid)
       if (!best || d < best.d) best = { id: el.dataset.id as T, d }
     }
-    if (best && best.id !== model.value) model.value = best.id
-    else if (best) centre(best.id)
+    if (best && best.id !== model.value && byUser()) model.value = best.id
+    else centre(model.value)
   }, 90)
+}
+
+function onTap(id: T) {
+  touched()
+  if (props.rows === 1 && id === model.value) {
+    // one row: tapping steps to the next option
+    const i = props.options.findIndex((o) => o.id === id)
+    model.value = props.options[(i + 1) % props.options.length].id
+  } else model.value = id
 }
 
 function onKey(e: KeyboardEvent) {
@@ -51,8 +68,18 @@ onMounted(() => nextTick(() => centre(model.value, false)))
 </script>
 
 <template>
-  <div class="wheel" role="radiogroup" :aria-label="label" @keydown="onKey">
+  <div
+    class="wheel"
+    :class="{ one: rows === 1 }"
+    role="radiogroup"
+    :aria-label="label"
+    @keydown="onKey"
+    @pointerdown="touched"
+    @touchstart.passive="touched"
+    @wheel.passive="touched"
+  >
     <div class="lens" aria-hidden="true"></div>
+    <span v-if="rows === 1" class="hint" aria-hidden="true">⌃<br />⌄</span>
     <div ref="col" class="col" @scroll.passive="onScroll">
       <button
         v-for="o in options"
@@ -63,7 +90,7 @@ onMounted(() => nextTick(() => centre(model.value, false)))
         :aria-checked="model === o.id"
         :tabindex="model === o.id ? 0 : -1"
         :class="{ on: model === o.id }"
-        @click="model = o.id"
+        @click="onTap(o.id)"
       >
         {{ o.label }}
       </button>
@@ -80,6 +107,35 @@ onMounted(() => nextTick(() => centre(model.value, false)))
   border-radius: var(--btn-radius);
   background: var(--bg-input);
   overflow: hidden;
+}
+
+.wheel.one {
+  --row: 38px;
+  height: var(--row);
+}
+
+.wheel.one .col {
+  padding-block: 0;
+}
+
+.wheel.one .lens {
+  left: 2px;
+  right: 2px;
+  top: 2px;
+  height: calc(var(--row) - 4px);
+}
+
+.hint {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 9px;
+  line-height: 0.9;
+  color: var(--btn-primary-text);
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .lens {
