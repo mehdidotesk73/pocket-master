@@ -1,7 +1,7 @@
 // Plain-language text for projections (the items of a forecast): type labels,
 // one-line summaries for the list, the live preview, and a colour per
 // projection for the chart.
-import { type Every, type ItemResult, type ProjectionFile, type ProjectionItem, type RecordWindow, type Recurring, describeSource } from '../../lib/finance'
+import { type Every, type ItemResult, type ProjectionFile, type ProjectionItem, type RecordWindow, type Recurring, describeSource, targetOf } from '../../lib/finance'
 import { fmtDate, fmtMoney, parseDate } from '../../lib/money'
 
 export type UiType = 'recurring' | 'oneTime'
@@ -90,6 +90,12 @@ export function describeResult(item: Recurring, res: ItemResult): ResultText | n
 
 /** One-line summary for the list: amount per occurrence, then how and when. */
 export function summarize(item: ProjectionItem, res: ItemResult | undefined, p: ProjectionFile): { amount: string; detail: string; tone: ResultText['tone'] } {
+  const s = summarizeValue(item, res, p)
+  const t = targetOf(item)
+  return t ? { ...s, detail: `${s.detail} · → ${t}` } : s
+}
+
+function summarizeValue(item: ProjectionItem, res: ItemResult | undefined, p: ProjectionFile): { amount: string; detail: string; tone: ResultText['tone'] } {
   if (item.kind === 'oneTime') return { amount: fmtMoney(item.amount, { sign: true }), detail: `on ${fmtDate(item.date)}`, tone: toneOf(item.amount) }
   const when = describeEvery(item.every, item.start)
   const v = item.value

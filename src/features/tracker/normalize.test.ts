@@ -80,7 +80,7 @@ describe('projections', () => {
     ])
   })
 
-  it('round-trips the current shape: start lines, every N units, windows', () => {
+  it('round-trips the current shape: start lines, every N units, windows, target lines', () => {
     const cur = {
       schema: 3,
       id: 'checking',
@@ -97,7 +97,7 @@ describe('projections', () => {
           start: '2000-01-01',
           inRecord: false,
         },
-        { kind: 'recurring', id: 'b', name: 'Pay', value: { mode: 'fixed', amount: 1800 }, every: { n: 2, unit: 'week' }, start: '2026-12-04', inRecord: false },
+        { kind: 'recurring', id: 'b', name: 'Pay', target: 'Checking', value: { mode: 'fixed', amount: 1800 }, every: { n: 2, unit: 'week' }, start: '2026-12-04', inRecord: false },
         { kind: 'oneTime', id: 'o', name: 'Refund', amount: 150, date: '2026-12-05' },
       ],
     }

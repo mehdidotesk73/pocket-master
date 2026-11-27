@@ -15,6 +15,8 @@ import {
   type Recurring,
   type RecurringValue,
   LEFT_SOURCE,
+  NET_ONLY,
+  targetOf,
 } from '../../lib/finance'
 import { addDays, isISODate, today } from '../../lib/money'
 import DockPanel from './DockPanel.vue'
@@ -80,6 +82,22 @@ const sources = computed(() => {
   }
   return names
 })
+
+// ---- target: which line this changes. Picking the default (see targetOf) clears
+// the field, so it keeps following the value's line when that changes.
+const target = computed(() => targetOf(item.value))
+const targets = computed(() => {
+  const names = [...knownLines.value]
+  const t = target.value
+  if (t && !names.some((n) => n.toLowerCase() === t.toLowerCase())) names.unshift(t)
+  return names
+})
+function setTarget(t: string) {
+  const { target: _old, ...rest } = item.value
+  void _old
+  const fallback = targetOf(rest as ProjectionItem)
+  item.value = (t === fallback ? rest : { ...rest, target: t }) as ProjectionItem
+}
 
 // ---- window
 const win = computed(() => (rec.value && rec.value.value.mode !== 'fixed' ? rec.value.value.window : null))
@@ -159,6 +177,14 @@ function save() {
     <label class="field">
       <span>Name</span>
       <input class="input" :value="item.name" placeholder="e.g. Paycheck, Rent, Everyday spending" @input="patch({ name: ($event.target as HTMLInputElement).value })" />
+    </label>
+
+    <label class="field">
+      <span>Changes</span>
+      <select class="select" :value="target" aria-label="Line it changes" @change="setTarget(($event.target as HTMLSelectElement).value)">
+        <option :value="NET_ONLY">Net equity only (no line)</option>
+        <option v-for="n in targets" :key="n" :value="n">{{ n }}</option>
+      </select>
     </label>
 
     <!-- One-time: an amount on a date -->

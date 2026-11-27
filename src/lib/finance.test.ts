@@ -6,7 +6,10 @@ import {
   type Recurring,
   type RecordLine,
   LEFT_SOURCE,
+  NET_ONLY,
   evaluateRecurring,
+  forecastLineNames,
+  forecastSheetOn,
   everydayItem,
   lineNames,
   makeRecord,
@@ -19,6 +22,7 @@ import {
   scheduled,
   sheet,
   startValueCents,
+  targetOf,
   upsertRecord,
 } from './finance'
 import { addDays, clampedDate, monthIndex } from './money'
@@ -295,4 +299,61 @@ describe('forecast', () => {
   })
 
   void LEFT_SOURCE
+})
+
+describe('target lines', () => {
+  const once = (amount: number, date: string, target?: string): OneTime => ({ kind: 'oneTime', id: `o${amount}`, name: 'o', amount, date, ...(target != null ? { target } : {}) })
+
+  it('defaults: an average or rate of a line changes that line; amounts and net-equity rates are net only', () => {
+    expect(targetOf(fromRecords('rate', 'House'))).toBe('House')
+    expect(targetOf(fromRecords('average', 'Amex'))).toBe('Amex')
+    expect(targetOf(everydayItem())).toBe(NET_ONLY)
+    expect(targetOf(monthly(100, 1))).toBe(NET_ONLY)
+    expect(targetOf(monthly(100, 1, { target: 'Checking' }))).toBe('Checking')
+    expect(targetOf(fromRecords('rate', 'House', { target: '' }))).toBe(NET_ONLY)
+  })
+
+  it('the forecast’s lines: the start selection, then targets not among them', () => {
+    const r = rec('2026-11-01', 0, [line('Checking', 100), line('Amex', -50), line('Saving', 10)])
+    const p = proj({ start: { mode: 'lines', names: ['checking'] }, items: [monthly(5, 1, { target: 'Amex' }), monthly(5, 2, { target: 'Car' })] })
+    expect(forecastLineNames(p, r)).toEqual(['Checking', 'Amex', 'Car'])
+  })
+
+  it('splits the forecast per line; lines plus net-only add up to the total every day', () => {
+    const r = rec('2026-11-01', 950, [line('Checking', 1000), line('Amex', -50)])
+    const p = proj({
+      horizonDays: 40,
+      items: [
+        monthly(2000, 15, { target: 'Checking' }),
+        { ...everydayItem(), value: { mode: 'fixed', amount: -10 }, target: 'Amex' },
+        once(-300, '2026-11-20'),
+      ],
+    })
+    const f = project(p, [r])
+    expect(f.lines.map((l) => [l.name, l.start])).toEqual([['Checking', 1000], ['Amex', -50]])
+    f.series.forEach((pt, i) => {
+      const sum = f.lines.reduce((s, l) => s + l.values[i], 0) + f.netOnly[i]
+      expect(Math.round(sum * 100)).toBe(Math.round(pt.value * 100))
+    })
+    const on = forecastSheetOn(f, '2026-11-30')
+    expect(on.lines.map((l) => [l.name, l.amount])).toEqual([['Checking', 3000], ['Amex', -340]])
+    expect(on.netOnly).toBe(-300)
+    expect(on.total).toBe(2360)
+    // On or before the start: the starting sheet.
+    expect(forecastSheetOn(f, '2026-11-01').lines.map((l) => l.amount)).toEqual([1000, -50])
+  })
+
+  it('a rate of a line moves that line (an appreciating asset)', () => {
+    const recs = [rec('2026-01-01', 0, [line('House', 300000)]), rec('2026-03-02', 0, [line('House', 306000)])]
+    const f = project(proj({ horizonDays: 10, items: [{ ...fromRecords('rate', 'House'), every: { n: 1, unit: 'day' }, start: '2000-01-01' }] }), recs)
+    const house = f.lines.find((l) => l.name === 'House')!
+    expect(house.start).toBe(306000)
+    expect(house.values[9]).toBe(307000) // $6,000 over 60 days = $100/day
+    expect(f.netOnly[9]).toBe(0)
+  })
+
+  it('a target missing from the records starts at 0; with no records every line does', () => {
+    const f = project(proj({ horizonDays: 3, items: [once(25, '2026-12-02', 'Cash jar')] }), [], '2026-12-01')
+    expect(f.lines).toEqual([{ name: 'Cash jar', start: 0, values: [25, 25, 25] }])
+  })
 })
