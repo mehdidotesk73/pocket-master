@@ -5,7 +5,7 @@ A **forecast** shows where some of your money is heading. It starts from your **
 ## The chart
 
 - **Bars** are drawn on each day something happens, one day wide, in each projection's colour: a weekly ($50) is a ($50) bar every week, a monthly +$100 a +$100 bar on its day. Projections only share a bar when they fall on the same day. Money in stacks above zero, money out below.
-- The **line** is the forecast: your starting balance plus everything so far.
+- The **line** is the forecast: your starting balance plus everything so far, joined point to point through the days something happens. Between those days nothing actually changes, so for the exact figure on a given day, tap the chart.
 - On the left, the **green line** is your past records.
 - Tap or hover a bar to see that day's amounts and the forecast by then.
 

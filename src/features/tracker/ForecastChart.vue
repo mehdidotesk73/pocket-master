@@ -5,7 +5,8 @@
 // Bars are drawn on the days something happens, one day wide: a weekly ($50)
 // is a ($50) bar each week, a monthly +$100 a +$100 bar on its day. Two
 // projections share a bar only when they land on the same day (they stack:
-// money in up from zero, money out down). The line is the running total.
+// money in up from zero, money out down). The line is the running total,
+// drawn point to point through those days.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { fmtDate, fmtMoney, fromDayNum, monthIndex, monthLabel, monthFromIndex, dayNum, ymd } from '../../lib/money'
 
@@ -131,7 +132,11 @@ const geom = computed(() => {
 
   const path = (pts: { x: number; y: number }[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join('')
   const pastPath = path([...props.past, props.start].filter((p, i, a) => i === a.length - 1 || p.x <= props.start.x))
-  const linePath = path([props.start, ...props.days.map((d) => ({ x: dayNum(d.date), y: d.total }))])
+  // The forecast line joins the total on each day something happens (plus the
+  // last day), point to point, rather than stepping: easier to read as a trend.
+  const lastDay = props.days.length - 1
+  const knots = [...new Set([...idx, ...(lastDay >= 0 ? [lastDay] : [])])].sort((a, b) => a - b)
+  const linePath = path([props.start, ...knots.map((i) => ({ x: dayNum(props.days[i].date), y: props.days[i].total }))])
 
   return { W, H, sx, sy, bw, bars, yTicks, xTicks, pastPath, linePath, zeroY: sy(0) }
 })

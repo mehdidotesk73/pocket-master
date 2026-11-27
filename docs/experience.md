@@ -347,6 +347,9 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.9.4 — 2026-11-27
+- **Changed:** the forecast line joins the totals on event days point to point instead of stepping
+
 ### v0.9.3 — 2026-11-27
 - **Changed:** forecast bars show each projection's amount on the day it happens (one bar per event
   day, one day wide) instead of running totals; the starting balance lives only in the forecast line.
