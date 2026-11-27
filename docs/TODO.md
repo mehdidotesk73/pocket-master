@@ -65,6 +65,17 @@ Balance-sheet forecasts, in order (step 1, target lines, is done in v0.10.0):
       unchanged, so they count as neither.
 - [ ] Maybe: card payoff as a transfer projection (moves a projected balance between two lines).
 
+New direction (agreed 2026-11-27): analysis lives in Past, Future holds only amounts you type.
+
+- [x] **Past analysis charts** (v0.14.0) — `lib/analysis.ts` (`lineSeries`, `windowMix`,
+      `intervalRates`); Each line / Mix (donut) / Rate tabs; `DonutChart`, `RateChart`, `WindowPicker`.
+- [ ] **Use as projection** from Past: a line's average or rate opens the projection editor
+      pre-filled with a plain amount the user can change.
+- [ ] **Monthly in / spent / net change** in Past (from records).
+- [ ] **Simplify Future to plain amounts**: drop Average / Rate / window / start point from the
+      editor; convert existing computed projections once to fixed amounts at their current value
+      (readback says what each was).
+
 ## Docs
 
 (Documentation gaps, missing help content, outdated instructions)

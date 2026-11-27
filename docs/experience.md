@@ -383,6 +383,14 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.14.0 — 2026-11-27
+- **Added:** Past has a chart card with four views: Totals, **Each line** over time (hide/show
+  chips), **Mix** (each line's average over a window as a donut; Owned / Owed / Owned + owed), and
+  **Rate** (change per day between records as bars spanning each interval; Growing / Shrinking).
+- **Direction:** projections computed from records (Average, Rate of change, start points) were
+  hard to reason about on the phone. Analysis moves to Past; Future will hold only amounts typed in,
+  with a way to carry a number from Past into a projection.
+
 ### v0.12.2 — 2026-11-27
 - **Changed:** the projection editor is compact: name with the type beside it, then Every · Unit ·
   Starting, then Changes · Value · Line (or Amount); type, Value and Unit are drum wheels (one row at

@@ -172,6 +172,19 @@ records take the latest record's row order. Negative money displays as ($1.00) e
 (`fmtMoney`, `fmtPlain`; fields show it only when not focused). The sign is a button because the iPhone decimal keypad has no minus key; typing a
 leading `-` on a keyboard also flips it.
 
+## §4a — History analysis (`src/lib/analysis.ts`)
+
+Pure functions over records for the Past tab's chart card (tests in `analysis.test.ts`). A line missing
+from a record counts as $0 there.
+- `lineSeries(records)`: each line (by `lineNames`) valued at every record → *Each line* (`LineChart`,
+  its own legend off; toggle chips instead).
+- `windowMix(records, window)`: each line's signed average over `recordsInWindow` → *Mix*
+  (`DonutChart`; Owned / Owed / Owned + owed as absolute sizes; `WindowPicker` for the window).
+- `intervalRates(records, line | LEFT_SOURCE)`: change per day between consecutive days, using each
+  day's last record → *Rate* (`RateChart`: a bar spanning each interval; Growing / Shrinking filter
+  hides bars without rescaling).
+Colours per line come from `colorFor(index in lineNames)`, the same in every view.
+
 ## §4 — Calculations (`src/lib/finance.ts`)
 
 All sums in integer cents.
