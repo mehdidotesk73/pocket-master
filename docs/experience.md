@@ -4,6 +4,12 @@ Record what you learn as you build: patterns that work, ideas that didn't pan ou
 
 ## What Didn't Work (Gotchas & Dead Ends)
 
+### `navigator.storage.estimate().usage` Is Not Your Data Size
+
+On iOS Safari it reported 101.8 MB for ~3 KB of records (it counts the whole site: offline caches,
+padding, rounding), and it grew with each preview deploy. Show the app's own measure of its files
+instead; `quota` is fine as a rough "space allowed".
+
 ### Mobile-First Design Constraints
 
 Touch targets need to be at least 44×44px. Avoid hover-only interactions — users on mobile have no hover. Rethink interactions like "expand on hover" as "toggle on tap" or always-expanded. Test regularly on actual mobile devices, not just the browser's responsive mode.
@@ -346,6 +352,10 @@ text, so typing appends ("300.00650") and rounding hides it as 300.01. Select th
 on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
+
+### v0.9.5 — 2026-11-27
+- **Changed:** storage shown as **your data** (exact size and file count) instead of the browser's
+  site-wide usage estimate; Export sheet adds "space allowed" (quota)
 
 ### v0.9.4 — 2026-11-27
 - **Changed:** the forecast line joins the totals on event days point to point instead of stepping

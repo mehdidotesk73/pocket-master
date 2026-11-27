@@ -32,7 +32,7 @@ const { reloadLatest, updateWaiting, applyUpdate } = setupPWAUpdates(() => {
 const updateAvailable = computed(() => versionStatus.value === 'update-ready' || updateWaiting.value)
 
 // ---- app state: storage + tracker
-const { state: store, needsInstallWarning, usageLabel } = useStore()
+const { state: store, needsInstallWarning, dataLabel } = useStore()
 const { loaded, records, loadError } = useTracker()
 onMounted(() => loadTracker())
 
@@ -278,7 +278,7 @@ function openHelp() {
           </span>
           · {{ store.health.installed ? 'installed' : 'browser tab' }}
           · {{ store.health.persisted ? 'persistent' : store.health.persisted === false ? 'not persistent' : 'persistence unknown' }}
-          · {{ usageLabel }} used
+          · your data {{ dataLabel }}
         </span>
 
 

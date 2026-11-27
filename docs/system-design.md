@@ -122,7 +122,10 @@ OPFS root
   dependable path). If OPFS or the worker isn't available the app falls back to memory and shows an
   error banner saying nothing will be kept.
 - **Persistence:** `navigator.storage.persist()` on start; the footer shows installed / persistent /
-  usage, with a warning when not installed or not persistent.
+  **your data** (`storeState.data`: count and UTF-8 byte total of the index's current files, kept in
+  step on every index write), with a warning when not installed or not persistent. The Export sheet
+  also shows `estimate().quota` as "space allowed". `estimate().usage` is not shown: iOS Safari
+  reported ~100 MB for ~3 KB of data (offline caches, padding).
 - **Export/import** (`BackupModal` with `section: 'export' | 'import'`, opened from the side menu
   ☰ → Records → Import / Export (`components/SideMenu.vue`), and Export from Present's backup nudge):
   - *Zip file*: fflate zip of `index.json` + `<id>.<ext>` (`records/<date>.json`, `projection.json`,

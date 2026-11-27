@@ -51,10 +51,14 @@ export const storeState = reactive({
   health: {
     installed: false,
     persisted: null as boolean | null,
+    /** Browser's estimate for the whole site (app's offline copy, padding…). Not your data size. */
     usageBytes: null as number | null,
+    /** How much the browser lets this site store. */
     quotaBytes: null as number | null,
   },
   lastExport: null as string | null,
+  /** Your data, measured from the files themselves: how many, and their total size in bytes. */
+  data: { files: 0, bytes: 0 },
 })
 
 // ---------------------------------------------------------------- backends
@@ -233,6 +237,7 @@ export class Store {
       }
     }
     if (loaded) this.index = loaded
+    this.syncStats()
 
     if (this.index.schemaVersion > STORE_SCHEMA) {
       // Data written by a newer build (e.g. an old cached tab). Don't touch it.
@@ -257,7 +262,14 @@ export class Store {
     }
   }
 
+  /** Keep storeState.data in step with the index (exact sizes of the current files). */
+  private syncStats() {
+    const files = Object.values(this.index.files)
+    storeState.data = { files: files.length, bytes: files.reduce((n, m) => n + (m.size || 0), 0) }
+  }
+
   private async writeIndex() {
+    this.syncStats()
     const prev = this.index.seq
     const next = prev + 1
     await this.backend.write(indexName(next), JSON.stringify({ ...this.index, seq: next }))
@@ -299,7 +311,7 @@ export class Store {
         id,
         ext,
         rev: (prev?.rev ?? 0) + 1,
-        size: text.length,
+        size: new TextEncoder().encode(text).byteLength,
         updatedAt: new Date().toISOString(),
       }
       await this.backend.write(filePath(meta), text) // 1. full new revision, flushed

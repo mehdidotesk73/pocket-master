@@ -9,7 +9,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { copyText, readClipboardText } from '../../lib/clipboard'
 import { fmtDate } from '../../lib/money'
 import { noteExported, refreshHealth, storeState } from '../../lib/storage/store'
-import { exportAll, formatBytes } from '../../lib/storage/useStore'
+import { exportAll, formatBytes, useStore } from '../../lib/storage/useStore'
 import { CLIPBOARD_LIMIT_BYTES, type ImportBundle, parseImportText, useTracker } from './useTracker'
 
 /** Which half to show: the side menu opens one or the other. */
@@ -130,6 +130,7 @@ async function confirmImport(mode: 'merge' | 'replace') {
 }
 
 const h = computed(() => storeState.health)
+const { dataLabel } = useStore()
 
 function onKey(e: KeyboardEvent) {
   if (e.key === 'Escape') emit('close')
@@ -238,10 +239,12 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
           <dd>{{ storeState.lastExport ? fmtDate(storeState.lastExport.slice(0, 10)) : 'never' }}</dd>
           <dt>Files</dt>
           <dd>records/ ({{ records.length }}) · projections/ ({{ projections.length }}) · template.json</dd>
-          <dt>Storage</dt>
+          <dt>Your data</dt>
+          <dd>{{ dataLabel }} <span class="muted">(exact)</span></dd>
+          <dt>Space allowed</dt>
           <dd>
-            {{ storeState.backend === 'opfs' ? 'Files on this device' : 'Not available: nothing is kept' }} ·
-            {{ formatBytes(h.usageBytes) }} used
+            <template v-if="storeState.backend !== 'opfs'">Not available: nothing is kept</template>
+            <template v-else>about {{ formatBytes(h.quotaBytes) }}, set by the browser</template>
           </dd>
           <dt>Installed app</dt>
           <dd :class="{ warn: !h.installed }">{{ h.installed ? 'Yes' : 'No, opened in a browser tab' }}</dd>
