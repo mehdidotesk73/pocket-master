@@ -149,8 +149,13 @@ Three tabs, **Past · Present · Future** (default Present): `HistoryView`, `Tod
 *projections*: Recurring or One-time.
 Future = forecast picker + **Edit** / **New** → `ForecastPanel`; `ForecastChart` (a one-day-wide stacked bar on
 each day any projection changes the total — day-over-day differences of `project().contributions` — with
-the forecast total, starting balance included, as a line, past records leading in); projections list + **Add** → `ProjectionPanel`
-(`LensCarousel` type selector; value / window / repeats sections). Both panels are `DockPanel`s (mid-height, bottom, page stays
+the forecast total, starting balance included, as a line, past records leading in; the line joins event days point to
+point but holds flat until the day before the first event); projections list + **Add** → `ProjectionPanel`
+(`LensCarousel` type selector; changes / value / window / repeats sections, and a pinned readback from
+`readBack()` in `projectionText.ts`: the settings as one sentence, the total by the forecast's end, the
+target line's start → end, and warnings — an average repeating faster than monthly, measured on one line
+but changing another, a net-equity rate with no income listed). Average can't pick net equity and
+switches the repeat to monthly; `FutureView` passes the draft's `project()` result in as `result`. Both panels are `DockPanel`s (mid-height, bottom, page stays
 visible) editing drafts that drive the chart live; Save writes, Cancel discards. The header's ☰ (top left) opens `SideMenu`, a drawer from the left with collapsible
 sections (start collapsed); Records holds the Import / Export tag buttons. Future = projection picker (+ `ProjectionModal` for name / start lines / days ahead /
 duplicate / delete), chart, and a compact item list; "+ Add" menu → `ItemModal` per kind (built on

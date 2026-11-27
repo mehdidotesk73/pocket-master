@@ -134,8 +134,10 @@ const geom = computed(() => {
   const pastPath = path([...props.past, props.start].filter((p, i, a) => i === a.length - 1 || p.x <= props.start.x))
   // The forecast line joins the total on each day something happens (plus the
   // last day), point to point, rather than stepping: easier to read as a trend.
+  // Before the first event nothing changes, so it holds flat until the day before.
   const lastDay = props.days.length - 1
-  const knots = [...new Set([...idx, ...(lastDay >= 0 ? [lastDay] : [])])].sort((a, b) => a - b)
+  const leadIn = idx.length && idx[0] > 0 ? [idx[0] - 1] : []
+  const knots = [...new Set([...leadIn, ...idx, ...(lastDay >= 0 ? [lastDay] : [])])].sort((a, b) => a - b)
   const linePath = path([props.start, ...knots.map((i) => ({ x: dayNum(props.days[i].date), y: props.days[i].total }))])
 
   return { W, H, sx, sy, bw, bars, yTicks, xTicks, pastPath, linePath, zeroY: sy(0) }

@@ -1,7 +1,20 @@
 // Plain-language text for projections (the items of a forecast): type labels,
 // one-line summaries for the list, the live preview, and a colour per
 // projection for the chart.
-import { type Every, type ItemResult, type ProjectionFile, type ProjectionItem, type RecordWindow, type Recurring, describeSource, targetOf } from '../../lib/finance'
+import {
+  type Every,
+  type ItemResult,
+  type Projection,
+  type ProjectionFile,
+  type ProjectionItem,
+  type RecordWindow,
+  type Recurring,
+  LEFT_SOURCE,
+  MIN_RATE_DAYS,
+  describeSource,
+  periodDays,
+  targetOf,
+} from '../../lib/finance'
 import { fmtDate, fmtMoney, parseDate } from '../../lib/money'
 
 export type UiType = 'recurring' | 'oneTime'
@@ -88,11 +101,105 @@ export function describeResult(item: Recurring, res: ItemResult): ResultText | n
   return { text: `Averages ${fmtMoney(res.value, { sign: true })}, added ${describeEvery(item.every, item.start)} (${span}).`, tone: toneOf(res.value) }
 }
 
+/** Does the forecast hold anything typed in as money coming in (pay)? */
+export function hasIncome(p: Pick<ProjectionFile, 'items'>, except?: string): boolean {
+  return p.items.some(
+    (i) => i.id !== except && (i.kind === 'oneTime' ? i.amount > 0 : i.value.mode === 'fixed' && i.value.amount > 0),
+  )
+}
+
+/** A rate of net equity with no income listed is income and spending combined. */
+export const isCombinedDrift = (item: ProjectionItem, p: Pick<ProjectionFile, 'items'>) =>
+  item.kind === 'recurring' && item.value.mode === 'rate' && item.value.source === LEFT_SOURCE && !hasIncome(p, item.id)
+
+const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
+const possessive = (s: string) => `${s}’s`
+const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
+export interface ReadBack {
+  /** The projection's settings as one sentence. */
+  sentence: string
+  /** What it comes to by the end of the forecast. */
+  total: string
+  /** Its effect on the line it changes. */
+  line: string
+  /** Where a worked-out value comes from. */
+  basis: string
+  warnings: string[]
+  tone: ResultText['tone']
+}
+
+/**
+ * The editor's live readback: the settings as a sentence, what they add up to by
+ * the forecast's end, the line they move, and anything that looks unintended.
+ */
+export function readBack(item: ProjectionItem, f: Projection, p: ProjectionFile): ReadBack {
+  const target = targetOf(item)
+  const to = target ? `to ${target}` : 'to net equity only'
+  const run = f.contributions[item.id] ?? []
+  const total = run.length ? run[run.length - 1] : 0
+  const times = run.filter((v, i) => Math.abs(v - (i ? run[i - 1] : 0)) >= 0.005).length
+  const end = fmtDate(f.end.date)
+  const warnings: string[] = []
+  let sentence = ''
+  let basis = ''
+  let tone: ResultText['tone'] = toneOf(total)
+
+  if (item.kind === 'oneTime') {
+    sentence = `On ${fmtDate(item.date)}, add ${fmtMoney(item.amount, { sign: true })} ${to}.`
+    if (item.date <= f.start.date || item.date > f.end.date) warnings.push(`That date is outside this forecast (${fmtDate(f.start.date, { short: true })} – ${end}).`)
+  } else {
+    const v = item.value
+    const when = capital(describeEvery(item.every, item.start))
+    const res = f.results[item.id]
+    if (v.mode === 'fixed') {
+      sentence = `${when}, add ${fmtMoney(v.amount, { sign: true })} ${to}.`
+    } else {
+      const src = describeSource(v.source, p.start)
+      if (!res || res.value == null) {
+        sentence = `${when}, add ${possessive(src)} ${v.mode === 'rate' ? 'rate of change' : 'average'} ${to}.`
+        warnings.push(res?.reason ?? 'Not enough records.')
+        tone = 'warn'
+      } else if (v.mode === 'average') {
+        sentence = `${when}, add ${possessive(src)} average of ${fmtMoney(res.value, { sign: true })} ${to}.`
+      } else {
+        const each = periodDays(item.every) === 1 ? '' : `, ${fmtMoney(res.value, { sign: true })} each time,`
+        sentence = `${when}, add ${possessive(src)} change of ${fmtMoney(res.perDay ?? 0, { sign: true })} a day${each} ${to}.`
+      }
+      if (res) basis = `Worked out from ${res.count} record${res.count === 1 ? '' : 's'}${res.days ? ` over ${res.days} days` : ''}, ${describeWindow(v.window)}.`
+      if (v.mode === 'average' && periodDays(item.every) < MIN_RATE_DAYS) {
+        warnings.push('An average is a typical amount, added once per repeat. Repeating more often than monthly adds it again each time.')
+      }
+      if (v.source !== LEFT_SOURCE && !same(v.source, target)) {
+        warnings.push(`Measured on ${v.source} but changes ${target || 'net equity only'}.`)
+      }
+      if (isCombinedDrift(item, p)) {
+        warnings.push('Nothing in this forecast is listed as income, so this is income and spending combined. Add your pay as an Amount to see spending alone.')
+      }
+    }
+  }
+
+  const totalText =
+    times === 0
+      ? `Nothing happens by ${end}.`
+      : times === 1
+        ? `${fmtMoney(total, { sign: true })} by ${end}.`
+        : `It keeps adding: ${fmtMoney(total, { sign: true })} over ${times} times by ${end}.`
+
+  let line = 'Moves the total only, not any particular line.'
+  if (target) {
+    const l = f.lines.find((x) => same(x.name, target))
+    if (l) line = `${l.name}: ${fmtMoney(l.start)} → ${fmtMoney(l.values[l.values.length - 1] ?? l.start)} by ${end}, with everything in this forecast.`
+  }
+  return { sentence, total: totalText, line, basis, warnings, tone: warnings.length ? 'warn' : tone }
+}
+
 /** One-line summary for the list: amount per occurrence, then how and when. */
 export function summarize(item: ProjectionItem, res: ItemResult | undefined, p: ProjectionFile): { amount: string; detail: string; tone: ResultText['tone'] } {
   const s = summarizeValue(item, res, p)
   const t = targetOf(item)
-  return t ? { ...s, detail: `${s.detail} · → ${t}` } : s
+  const combined = isCombinedDrift(item, p) ? ' · income and spending combined' : ''
+  return { ...s, detail: `${s.detail}${combined}${t ? ` · → ${t}` : ''}` }
 }
 
 function summarizeValue(item: ProjectionItem, res: ItemResult | undefined, p: ProjectionFile): { amount: string; detail: string; tone: ResultText['tone'] } {

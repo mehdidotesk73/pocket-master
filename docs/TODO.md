@@ -27,7 +27,9 @@ Track feature development, improvements, and known issues here. Move completed w
   `ProjectionPanel`, `LensCarousel`, `DockPanel`; `project().contributions`.
 - **v0.10.0 — projections change a line** — optional `target` on items (`targetOf`, `NET_ONLY`);
   `project()` returns `lines` (per line, day by day) + `netOnly`; `forecastLineNames`,
-  `forecastSheetOn`; *Changes* select in `ProjectionPanel`; `→ line` in `summarize`.
+  `forecastSheetOn`; *Changes* select in `ProjectionPanel`; `→ line` in `summarize`. Editor readback
+  (`readBack`, `DockPanel` summary slot) with warnings; Average monthly by default, no net equity;
+  "income and spending combined" label (`isCombinedDrift`); flat chart lead-in.
 - **v0.7.0 — timestamped records** — `BalanceRecord.at`, `recordId(at)`, `normalizeRecord`/`loadFrom`
   migration, `RecordModal` `editing` prop, Past rows open records.
 
