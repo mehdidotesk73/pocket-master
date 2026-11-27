@@ -173,12 +173,12 @@ what a setup does (the readback sentence, "It keeps adding …") rather than add
 line (v0.9.4) made it worse: it spread a lump months away into a gentle slope from today. Every
 projection is a sudden change on its day, so the line is drawn as steps.
 
-### Past chart: what was tried before owed-as-bars
-Sketched on the phone with mock data and dropped: up/down bars (owned above $0, owed below, net
-line), a shaded gap between owned and net, owed stacked on top of owned (its top edge, owned + owed,
-means nothing), per-account stacked areas, and plain dots. Bars and areas read as clutter at phone
-width. Kept: owned and net as lines with dots, owed as a bar between them. It's the only version
-that draws net = owned − owed without extra shapes.
+### Past chart: designs tried before the dots
+Sketched on the phone with mock data and dropped: up/down bars (owned above $0, owed below), a shaded
+gap between owned and net, owed stacked on top of owned (its top edge, owned + owed, means nothing),
+per-account stacked areas, owned and net as lines with owed as a bar between them, and a candlestick
+(it shows one series only, so the owned/owed relation is lost; kept as an idea for a monthly view).
+Kept: net equity as the one line, owned and owed as dots. Three full lines read as clutter.
 
 ## Patterns Worth Reusing
 
@@ -370,9 +370,8 @@ on focus, and reject more than two decimals instead of rounding them away.
 ## Version History
 
 ### v0.12.0 — 2026-11-27
-- **Changed:** the Past chart shows total owned (blue) and net equity (ink) as lines with a dot per
-  record, and total owed as a red bar between them on each record (net equity = owned − owed, so
-  the bar is the gap). The separate owed line is gone; the tap readout lists all three.
+- **Changed:** the Past chart keeps net equity as a line (now in ink, with a dot per record) and shows
+  total owned and total owed as dots only, no lines. The tap readout lists all three.
 
 ### v0.10.0 — 2026-11-27
 - **Added:** each projection names the **line it changes** (*Changes* in the editor; `→ line` in the

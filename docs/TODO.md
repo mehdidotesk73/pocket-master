@@ -25,9 +25,8 @@ Track feature development, improvements, and known issues here. Move completed w
   `recordsInWindow` (+ lastRecords), `normalizeItem` migration, `ProjectionPanel` sections.
 - **v0.8.0 — forecasts & projections UI** — `FutureView`, `ForecastChart`, `ForecastPanel`,
   `ProjectionPanel`, `LensCarousel`, `DockPanel`; `project().contributions`.
-- **v0.12.0 — Past chart: owed as bars** — `LineChart` `spans` prop (vertical bars between two values,
-  drawn over the lines, under the dots, and in the readout); `HistoryView` draws owned + net equity as
-  lines with dots and owed as the bar between them.
+- **v0.12.0 — Past chart: net equity line, owned/owed dots** — `ChartSeries.line: false` (dots only)
+  in `LineChart`; `HistoryView` series.
 - **v0.10.0 — projections change a line** — optional `target` on items (`targetOf`, `NET_ONLY`);
   `project()` returns `lines` (per line, day by day) + `netOnly`; `forecastLineNames`,
   `forecastSheetOn`; *Changes* select in `ProjectionPanel`; `→ line` in `summarize`. Editor readback

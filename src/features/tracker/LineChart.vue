@@ -10,14 +10,9 @@ export interface ChartSeries {
   points: { x: number; y: number }[]
   dashed?: boolean
   dots?: boolean
+  /** false = dots only, no line joining them */
+  line?: boolean
   width?: number
-}
-
-/** Vertical bars between two values at an x (e.g. owed: from net equity up to owned). */
-export interface ChartSpans {
-  label: string
-  color: string
-  items: { x: number; from: number; to: number; value: number }[]
 }
 
 export interface ChartMarker {
@@ -30,12 +25,11 @@ export interface ChartMarker {
 const props = withDefaults(
   defineProps<{
     series: ChartSeries[]
-    spans?: ChartSpans | null
     markers?: ChartMarker[]
     height?: number
     includeZero?: boolean
   }>(),
-  { spans: null, markers: () => [], height: 230, includeZero: false },
+  { markers: () => [], height: 230, includeZero: false },
 )
 
 const wrap = ref<HTMLElement>()
@@ -111,9 +105,7 @@ const geom = computed(() => {
     dotsAt: s.dots ? s.points.map((p) => ({ cx: sx(p.x), cy: sy(p.y) })) : [],
   }))
 
-  const bars = (props.spans?.items ?? []).map((b) => ({ x: sx(b.x), y0: sy(b.from), y1: sy(b.to) }))
-
-  return { W, H, sx, sy, x0, x1, yTicks, xTicks, paths, bars, zeroY: y0 < 0 && y1 > 0 ? sy(0) : null }
+  return { W, H, sx, sy, x0, x1, yTicks, xTicks, paths, zeroY: y0 < 0 && y1 > 0 ? sy(0) : null }
 })
 
 const fmtAxis = (v: number) => {
@@ -144,10 +136,6 @@ const readout = computed(() => {
     })
     .filter((r): r is NonNullable<typeof r> => !!r)
   if (!rows.length) return null
-  // A span at the same x as the first row (e.g. owed at that record) joins the readout.
-  const sp = props.spans
-  const hit = sp?.items.find((b) => b.x === rows[0].p.x)
-  if (sp && hit) rows.push({ label: sp.label, color: sp.color, p: { x: hit.x, y: hit.value } })
   const x = g.sx(rows[0].p.x)
   return { x, rows, date: fmtDate(fromDayNum(rows[0].p.x)), left: x > g.W / 2 }
 })
@@ -184,22 +172,17 @@ const readout = computed(() => {
         />
       </g>
 
-      <!-- lines, then span bars over them, then dots on top -->
-      <path
-        v-for="s in geom.paths"
-        :key="'l' + s.label"
-        :d="s.d"
-        fill="none"
-        :style="{ stroke: s.color, strokeWidth: s.width ?? 2 }"
-        :stroke-dasharray="s.dashed ? '6 5' : undefined"
-        stroke-linejoin="round"
-        stroke-linecap="round"
-      />
-      <g v-if="spans" class="spans" :style="{ stroke: spans.color }">
-        <line v-for="(b, i) in geom.bars" :key="'b' + i" :x1="b.x" :x2="b.x" :y1="b.y0" :y2="b.y1" />
-      </g>
-      <g v-for="s in geom.paths" :key="'d' + s.label">
-        <circle v-for="(d, i) in s.dotsAt" :key="i" :cx="d.cx" :cy="d.cy" r="3.2" :style="{ fill: s.color }" />
+      <g v-for="s in geom.paths" :key="s.label">
+        <path
+          v-if="s.line !== false"
+          :d="s.d"
+          fill="none"
+          :style="{ stroke: s.color, strokeWidth: s.width ?? 2 }"
+          :stroke-dasharray="s.dashed ? '6 5' : undefined"
+          stroke-linejoin="round"
+          stroke-linecap="round"
+        />
+        <circle v-for="(d, i) in s.dotsAt" :key="i" :cx="d.cx" :cy="d.cy" r="3" :style="{ fill: s.color }" />
       </g>
 
       <g v-for="m in markers" :key="'m' + m.x">
@@ -231,9 +214,9 @@ const readout = computed(() => {
 
     <div class="legend small">
       <span v-for="s in series" :key="s.label">
-        <span class="sw" :class="{ dashed: s.dashed }" :style="{ borderColor: s.color }"></span>{{ s.label }}
+        <span v-if="s.line === false" class="dot-sw" :style="{ background: s.color }"></span>
+        <span v-else class="sw" :class="{ dashed: s.dashed }" :style="{ borderColor: s.color }"></span>{{ s.label }}
       </span>
-      <span v-if="spans"><span class="bar-sw" :style="{ background: spans.color }"></span>{{ spans.label }}</span>
     </div>
   </div>
 </template>
@@ -337,15 +320,11 @@ svg {
   margin-right: 0.35rem;
 }
 
-.spans line {
-  stroke-width: 4;
-}
-
-.legend .bar-sw {
+.legend .dot-sw {
   display: inline-block;
-  width: 4px;
-  height: 12px;
-  border-radius: 1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   vertical-align: middle;
   margin-right: 0.35rem;
 }
