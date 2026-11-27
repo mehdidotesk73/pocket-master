@@ -33,6 +33,8 @@ Tap **Add** to make one, or tap a projection to change it. Swipe or tap the type
 
   For Average and Rate of change, pick which **records** to use: **All**, the **past N days**, the **past N records**, or **Between** two dates.
 
+  For Rate of change you can also **start from a known value**: what the line was at a point you know, either on a day of each month or on a date. A card you pay off in full starts each month at **$0 on the 1st**. With that, one record is enough: ($1,500) on Nov 26 means ($60) a day since Nov 1, carried forward. Records on or before the start point are left out, and the four-week minimum doesn't apply. "Each month" uses the month of your latest record, so it moves on by itself when a new month's record comes in.
+
   For a monthly Amount, tick **Already in my records until paid** for things like rent that you list in each record until paid, so it isn't counted twice this month.
 - **One-time**: a fixed amount you type, on one date.
 

@@ -195,6 +195,10 @@ All sums in integer cents.
     clamped), and `inRecord` (fixed monthly only). Average = mean value per occurrence. Rate =
     Σ changes ÷ span days (for the starting total, minus what fixed/one-time items explain via
     `scheduledCents`) × `periodDays(every)` per occurrence. Null when the span < 28 days.
+    A rate may carry `from: RateStart` — `{ amount, date }` or `{ amount, day }` (day of the latest
+    record's month, rolling back a month when it falls after that record: `rateStartDate`). It's put
+    first as a point; window records on or before it are dropped; the 28-day minimum is skipped; it
+    needs at least one record after it. Rates return `span { from, to }` for the readback.
   - `oneTime`: a signed amount on a date.
   - Both may carry `target`, the **line it changes** (`targetOf`): absent = default — an average or
     rate of a line changes that line; amounts and net-equity rates are net only (`NET_ONLY` = `''`).

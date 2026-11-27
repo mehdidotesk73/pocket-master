@@ -12,6 +12,7 @@ import {
   type BalanceRecord,
   type Every,
   type EveryUnit,
+  type RateStart,
   type RecordWindow,
   type Recurring,
   type RecurringValue,
@@ -146,6 +147,16 @@ const monthlyFixed = (id: string, name: string, amount: number, day: number, inR
 /** `target` only when the file set one (absent = the default line; see targetOf). */
 const target = (x: Record<string, unknown>): { target?: string } => (typeof x.target === 'string' ? { target: x.target.trim() } : {})
 
+/** A rate's start point, only when it's a usable one (rates only). */
+function rateStart(v: Record<string, unknown>): { from?: RateStart } {
+  const f = v.from as Record<string, unknown> | undefined
+  if (v.mode !== 'rate' || !f || typeof f !== 'object') return {}
+  const amount = roundMoney(num(f.amount))
+  if (isISODate(f.date)) return { from: { amount, date: f.date } }
+  if (f.day != null) return { from: { amount, day: clampDay(f.day) } }
+  return {}
+}
+
 function normalizeItem(x: Record<string, unknown>, kindHint?: string): ProjectionItem[] {
   const kind = (x.kind as string) ?? kindHint
   const id = str(x.id) || newId()
@@ -156,7 +167,7 @@ function normalizeItem(x: Record<string, unknown>, kindHint?: string): Projectio
         const v = x.value as Record<string, unknown>
         const value: RecurringValue =
           v.mode === 'average' || v.mode === 'rate'
-            ? { mode: v.mode, source: str(v.source, LEFT_SOURCE), window: normalizeWindow(v.window) }
+            ? { mode: v.mode, source: str(v.source, LEFT_SOURCE), window: normalizeWindow(v.window), ...rateStart(v) }
             : { mode: 'fixed', amount: roundMoney(num(v.amount)) }
         return [
           {

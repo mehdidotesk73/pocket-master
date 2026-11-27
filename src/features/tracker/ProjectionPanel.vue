@@ -12,6 +12,7 @@ import {
   type Projection,
   type ProjectionFile,
   type ProjectionItem,
+  type RateStart,
   type RecordWindow,
   type Recurring,
   type RecurringValue,
@@ -124,6 +125,21 @@ function setBetween(key: 'from' | 'to', v: string) {
   if (isISODate(v)) next[key] = v
   else delete next[key]
   setValue({ window: next })
+}
+
+// ---- start point (rates only): a known value to measure from
+const from = computed(() => (rec.value?.value.mode === 'rate' ? (rec.value.value.from ?? null) : null))
+function setFrom(f: RateStart | null) {
+  const r = rec.value
+  if (!r || r.value.mode !== 'rate') return
+  const { from: _old, ...rest } = r.value
+  void _old
+  patch({ value: f ? { ...rest, from: f } : rest })
+}
+function setFromKind(kind: string) {
+  const f = from.value
+  if (!f) return
+  setFrom(kind === 'date' ? { amount: f.amount, date: `${today().slice(0, 8)}01` } : { amount: f.amount, day: 1 })
 }
 
 // ---- repeats
@@ -253,10 +269,39 @@ function save() {
               <input class="input" type="date" :value="win.to ?? ''" @change="setBetween('to', ($event.target as HTMLInputElement).value)" />
             </label>
           </div>
+          <template v-if="rec.value.mode === 'rate'">
+            <label class="check">
+              <input class="checkbox" type="checkbox" :checked="!!from" @change="setFrom(($event.target as HTMLInputElement).checked ? { amount: 0, day: 1 } : null)" />
+              <span class="small">Start from a known value (e.g. a card at $0 on the 1st)</span>
+            </label>
+            <div v-if="from" class="row2">
+              <label class="field">
+                <span>Value then</span>
+                <SignedMoneyInput :model-value="from.amount" aria-label="Value at the start point" @update:model-value="(v: number) => setFrom({ ...from!, amount: v })" />
+              </label>
+              <label class="field">
+                <span>On</span>
+                <select class="select" :value="'day' in from ? 'day' : 'date'" aria-label="Start point kind" @change="setFromKind(($event.target as HTMLSelectElement).value)">
+                  <option value="day">each month</option>
+                  <option value="date">a date</option>
+                </select>
+              </label>
+            </div>
+            <label v-if="from && 'day' in from" class="inline">
+              Day
+              <input class="input num n" type="number" inputmode="numeric" min="1" max="31" :value="from.day" aria-label="Day of the month" @change="setFrom({ amount: from!.amount, day: Math.min(31, int(($event.target as HTMLInputElement).value, 1)) })" />
+              of the latest record's month
+            </label>
+            <label v-else-if="from && 'date' in from" class="field">
+              <span>Date</span>
+              <input class="input" type="date" :value="from.date" @change="isISODate(($event.target as HTMLInputElement).value) && setFrom({ amount: from!.amount, date: ($event.target as HTMLInputElement).value })" />
+            </label>
+          </template>
+
           <p class="muted small note">
             <template v-if="rec.value.mode === 'average'">For a bill line: its typical amount across these records, added each time it repeats.</template>
             <template v-else>
-              How fast the line changed across these records, times the time between repeats.
+              How fast the line changed across these records<template v-if="from">, measured from the start point (earlier records are left out)</template>, times the time between repeats.
               <template v-if="rec.value.source === LEFT_SOURCE">The forecast's fixed and one-time projections are taken out first, so what's left is everyday spending.</template>
             </template>
           </p>

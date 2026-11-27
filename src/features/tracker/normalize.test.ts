@@ -80,7 +80,7 @@ describe('projections', () => {
     ])
   })
 
-  it('round-trips the current shape: start lines, every N units, windows, target lines', () => {
+  it('round-trips the current shape: start lines, every N units, windows, target lines, rate start points', () => {
     const cur = {
       schema: 3,
       id: 'checking',
@@ -92,7 +92,7 @@ describe('projections', () => {
           kind: 'recurring',
           id: 'e',
           name: 'Spending',
-          value: { mode: 'rate', source: '', window: { mode: 'lastRecords', count: 5 } },
+          value: { mode: 'rate', source: '', window: { mode: 'lastRecords', count: 5 }, from: { amount: 0, day: 1 } },
           every: { n: 1, unit: 'day' },
           start: '2000-01-01',
           inRecord: false,

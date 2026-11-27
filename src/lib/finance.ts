@@ -83,6 +83,13 @@ export interface Every {
 }
 
 /**
+ * A known value a rate is measured from, placed before the window's records:
+ * on a fixed date, or on a day of the latest record's month (so it rolls each
+ * month: "$0 on the 1st" for a card paid in full).
+ */
+export type RateStart = { amount: number; date: ISODate } | { amount: number; day: number }
+
+/**
  * What a recurring projection adds each time it occurs:
  * - fixed:   an amount you type (signed)
  * - average: the average value of a line (or the starting total) across the window
@@ -92,7 +99,7 @@ export interface Every {
  */
 export type RecurringValue =
   | { mode: 'fixed'; amount: number }
-  | { mode: 'average' | 'rate'; source: string; window: RecordWindow }
+  | { mode: 'average' | 'rate'; source: string; window: RecordWindow; from?: RateStart }
 
 /**
  * Which line of the balance sheet a projection changes. Absent = the default
@@ -355,6 +362,16 @@ export interface ItemResult {
   days: number
   /** Why `value` is null, in plain words. */
   reason?: string
+  /** For a rate: the first and last points it was measured between (the start point, if set, first). */
+  span?: { from: Point; to: Point }
+}
+
+/** The date a start point stands on, given the latest record's date. */
+export function rateStartDate(from: RateStart, latest: ISODate): ISODate {
+  if ('date' in from) return from.date
+  const mi = monthIndex(latest)
+  const here = clampedDate(mi, from.day)
+  return here <= latest ? here : clampedDate(mi - 1, from.day)
 }
 
 export function recordsInWindow(records: BalanceRecord[], w: RecordWindow): BalanceRecord[] {
@@ -375,21 +392,32 @@ export function evaluateRecurring(item: Recurring, records: BalanceRecord[], pro
   const v = item.value
   if (v.mode === 'fixed') return { value: v.amount, used: v.amount, count: 0, days: 0 }
 
-  const points = recordsInWindow(records, v.window)
+  let points = recordsInWindow(records, v.window)
     .map((r) => ({ date: r.date, v: sourceValue(r, v.source, proj.start) }))
     .filter((p): p is { date: ISODate; v: number } => p.v != null)
-  const days = points.length ? dayNum(points[points.length - 1].date) - dayNum(points[0].date) : 0
-  const base = { count: points.length, days }
   if (!points.length) {
     const reason = v.source === LEFT_SOURCE ? 'No records in this window.' : `No records in this window have a line called “${v.source}”.`
-    return { ...base, value: null, used: 0, reason }
+    return { count: 0, days: 0, value: null, used: 0, reason }
   }
+  // A start point stands in for everything before it: records on or before its date are dropped.
+  const from = v.mode === 'rate' && v.from ? v.from : null
+  if (from) {
+    const d = rateStartDate(from, points[points.length - 1].date)
+    points = [{ date: d, v: toCents(from.amount) }, ...points.filter((p) => p.date > d)]
+  }
+  const count = points.length - (from ? 1 : 0)
+  const days = dayNum(points[points.length - 1].date) - dayNum(points[0].date)
+  const base = { count, days }
   if (v.mode === 'average') {
     const avg = fromCents(points.reduce((s, p) => s + p.v, 0) / points.length)
     return { ...base, value: avg, used: avg }
   }
-  if (points.length < 2 || days < MIN_RATE_DAYS) {
-    return { ...base, value: null, used: 0, reason: `Needs records spanning ${Math.ceil(MIN_RATE_DAYS / 7)}+ weeks (this window has ${days} day${days === 1 ? '' : 's'}).` }
+  if (from && count === 0) {
+    return { ...base, value: null, used: 0, reason: 'No records after the start point yet.' }
+  }
+  // Without a start point, a short span gives a wild trend; with one, the user vouched for it.
+  if (!from && (points.length < 2 || days < MIN_RATE_DAYS)) {
+    return { ...base, value: null, used: 0, reason: `Needs records spanning ${Math.ceil(MIN_RATE_DAYS / 7)}+ weeks (this window has ${days} day${days === 1 ? '' : 's'}), or a start point.` }
   }
   let change = 0
   const others = proj.items.filter((i) => i.id !== item.id)
@@ -399,7 +427,10 @@ export function evaluateRecurring(item: Recurring, records: BalanceRecord[], pro
   }
   const perDayCents = change / days
   const each = fromCents(perDayCents * periodDays(item.every))
-  return { ...base, value: each, used: each, perDay: fromCents(perDayCents) }
+  const first = points[0]
+  const last = points[points.length - 1]
+  const span = { from: { date: first.date, value: fromCents(first.v) }, to: { date: last.date, value: fromCents(last.v) } }
+  return { ...base, value: each, used: each, perDay: fromCents(perDayCents), span }
 }
 
 // ---------------------------------------------------------------- forecast

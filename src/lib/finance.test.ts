@@ -3,6 +3,7 @@ import {
   type BalanceRecord,
   type OneTime,
   type ProjectionFile,
+  type RateStart,
   type Recurring,
   type RecordLine,
   LEFT_SOURCE,
@@ -18,6 +19,7 @@ import {
   occursOn,
   periodDays,
   project,
+  rateStartDate,
   recordsInWindow,
   scheduled,
   sheet,
@@ -355,5 +357,46 @@ describe('target lines', () => {
   it('a target missing from the records starts at 0; with no records every line does', () => {
     const f = project(proj({ horizonDays: 3, items: [once(25, '2026-12-02', 'Cash jar')] }), [], '2026-12-01')
     expect(f.lines).toEqual([{ name: 'Cash jar', start: 0, values: [25, 25, 25] }])
+  })
+})
+
+describe('rate start point', () => {
+  const card = (balance: number, date: string) => rec(date, 0, [line('Capital One', balance)])
+  const pace = (from: RateStart, extra: Partial<Recurring> = {}) =>
+    fromRecords('rate', 'Capital One', { every: { n: 1, unit: 'day' }, start: '2000-01-01', ...extra, value: { mode: 'rate', source: 'Capital One', window: { mode: 'all' }, from } })
+
+  it('one record and "$0 on the 1st" give the cycle pace; the 28-day minimum doesn’t apply', () => {
+    const r = evaluateRecurring(pace({ amount: 0, day: 1 }), [card(-1500, '2026-11-26')], proj())
+    expect(r.perDay).toBe(-60)
+    expect(r.value).toBe(-60)
+    expect(r.count).toBe(1)
+    expect(r.days).toBe(25)
+    expect(r.span).toEqual({ from: { date: '2026-11-01', value: 0 }, to: { date: '2026-11-26', value: -1500 } })
+  })
+
+  it('records on or before the start point are left out; later ones count', () => {
+    const recs = [card(-900, '2026-10-20'), card(-400, '2026-11-11'), card(-1000, '2026-11-21')]
+    const r = evaluateRecurring(pace({ amount: 0, date: '2026-11-01' }), recs, proj())
+    expect(r.count).toBe(2)
+    expect(r.perDay).toBe(-50) // 0 → −1,000 over 20 days
+  })
+
+  it('a day of the month rolls back a month when it’s after the latest record', () => {
+    expect(rateStartDate({ amount: 0, day: 1 }, '2026-11-26')).toBe('2026-11-01')
+    expect(rateStartDate({ amount: 0, day: 15 }, '2026-11-10')).toBe('2026-10-15')
+    expect(rateStartDate({ amount: 0, day: 31 }, '2026-11-30')).toBe('2026-11-30')
+    expect(rateStartDate({ amount: 0, date: '2026-09-09' }, '2026-11-30')).toBe('2026-09-09')
+  })
+
+  it('needs a record after the start point', () => {
+    const r = evaluateRecurring(pace({ amount: 0, day: 26 }), [card(-1500, '2026-11-26')], proj())
+    expect(r.value).toBeNull()
+    expect(r.reason).toMatch(/No records after the start point/)
+  })
+
+  it('carries the card forward at that pace, on its own line', () => {
+    const f = project(proj({ horizonDays: 4, items: [pace({ amount: 0, day: 1 })] }), [card(-1500, '2026-11-26')])
+    const cap = f.lines.find((l) => l.name === 'Capital One')!
+    expect(cap.values).toEqual([-1560, -1620, -1680, -1740]) // Nov 30: ($1,740), the month-end balance
   })
 })
