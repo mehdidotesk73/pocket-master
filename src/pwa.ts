@@ -34,12 +34,27 @@ export function setupPWAUpdates(onResume?: () => void) {
   const updateWaiting = ref(false)
   let applying = false
 
+  /**
+   * Switch to the waiting worker and reload. updateServiceWorker(true) reloads
+   * only when the new worker reports it has taken control, and installed iOS
+   * apps often never report it: the page stays put. So give it a few seconds,
+   * then fall back to the forced reload. The flag is always released, so a
+   * later tap can try again (it used to stay set, and taps did nothing).
+   */
   async function applyUpdate() {
     if (applying) return
     applying = true
-    await flushStore()
-    logDebug('Applying app update…')
-    await updateServiceWorker(true)
+    try {
+      await flushStore()
+      logDebug('Applying app update…')
+      await Promise.race([updateServiceWorker(true), new Promise((r) => setTimeout(r, 3000))])
+      await new Promise((r) => setTimeout(r, 1500))
+      // Still here: the switch didn't reload the page.
+      logDebug('Update didn’t reload by itself; forcing a reload.', 'warn')
+      await reloadLatest()
+    } finally {
+      applying = false
+    }
   }
 
   function tryApply() {

@@ -276,6 +276,11 @@ pending writes and no open drafts (`markUnsaved`). Otherwise the header shows *U
 the update goes in after the next save, or when the user taps it. `visibilitychange` → version check
 + `reg.update()` (iOS freezes timers in the background). `reloadLatest()` flushes the store first and
 only ever clears the service worker + Cache Storage — never OPFS, IndexedDB or localStorage.
+`applyUpdate()` calls `updateServiceWorker(true)`, which reloads only on the new worker's
+`controlling` event; installed iOS apps often never fire it. So after ~4.5 s still on the page it
+falls back to `reloadLatest()`, and its "applying" flag is always released. The header/footer button
+tries a waiting worker first (`applyUpdate`), then the version check (`useVersionCheck`, 6 s timeout),
+then the forced reload.
 
 **Home Screen install:** manifest has real name/colours, `start_url`/`scope` `/`, 192/512 icons plus a
 180×180 opaque `apple-touch-icon.png`; `index.html` has the `apple-mobile-web-app-*` meta tags.

@@ -180,6 +180,13 @@ per-account stacked areas, owned and net as lines with owed as a bar between the
 (it shows one series only, so the owned/owed relation is lost; kept as an idea for a monthly view).
 Kept: net equity as the one line, owned and owed as dots. Three full lines read as clutter.
 
+### `updateServiceWorker(true)` can hang forever in an installed iOS app
+It reloads only when the new worker fires `controlling`, which installed iOS apps (and pages with no
+controlling worker) often never do. `applyUpdate()` set an "applying" flag first and never released it,
+so after one silent automatic attempt every tap on *Update ready — Reload* returned early: the button
+did nothing. Reproduced with two local builds and a draft open. Fix: race the call against a timeout,
+fall back to the forced reload (`reloadLatest()`), and release the flag in `finally`.
+
 ## Patterns Worth Reusing
 
 ### Two-Party Link Apps: the URL Fragment as Credential, and the Join Race
@@ -374,6 +381,11 @@ on focus, and reject more than two decimals instead of rounding them away.
   Every · Unit · Starting on another, with Value and Unit as small vertical wheels. The readback is
   one line until tapped; warnings show as a "to check" count. Switching to Amount keeps the line the
   projection changes.
+
+### v0.12.1 — 2026-11-27
+- **Fixed:** the *Update ready — Reload* button did nothing in the installed iPhone app. Applying an
+  update now falls back to a forced reload when the new worker never takes over, and the button can
+  always be tapped again.
 
 ### v0.12.0 — 2026-11-27
 - **Changed:** the Past chart keeps net equity as a line (now in ink, with a dot per record) and shows
