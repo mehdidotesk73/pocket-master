@@ -187,6 +187,13 @@ so after one silent automatic attempt every tap on *Update ready — Reload* ret
 did nothing. Reproduced with two local builds and a draft open. Fix: race the call against a timeout,
 fall back to the forced reload (`reloadLatest()`), and release the flag in `finally`.
 
+### A scroll-snap picker can pick by itself
+The first `WheelPicker` chose whatever sat under its lens when a scroll settled, including scrolls
+the browser made while the dock panel slid in. On the phone that flipped a Rate projection to
+another mode as the editor opened, which reset its line and repeat ("Every month on the 1st, add
+Checking…" on a Discover pace). Now a settled scroll changes the value only within 1.5 s of the
+user's own touch, pointer or wheel; otherwise it re-centres on the current value.
+
 ## Patterns Worth Reusing
 
 ### Two-Party Link Apps: the URL Fragment as Credential, and the Join Race
@@ -375,6 +382,13 @@ text, so typing appends ("300.00650") and rounding hides it as 300.01. Select th
 on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
+
+### v0.12.2 — 2026-11-27
+- **Changed:** the projection editor is compact: name with the type beside it, then Every · Unit ·
+  Starting, then Changes · Value · Line (or Amount); type, Value and Unit are drum wheels (one row at
+  rest, opening over the page while touched), ported from the bitcoin-explorer metric panel. The readback is
+  one line until tapped; warnings show as a "to check" count. Switching to Amount keeps the line the
+  projection changes.
 
 ### v0.12.1 — 2026-11-27
 - **Fixed:** the *Update ready — Reload* button did nothing in the installed iPhone app. Applying an
