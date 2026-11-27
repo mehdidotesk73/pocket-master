@@ -31,6 +31,7 @@ onBeforeUnmount(() => {
       <button class="x" aria-label="Close" @click="emit('close')">✕</button>
     </header>
     <div class="body"><slot /></div>
+    <div v-if="$slots.summary" class="summary"><slot name="summary" /></div>
     <footer v-if="$slots.footer" class="foot"><slot name="footer" /></footer>
   </section>
 </template>
@@ -87,6 +88,14 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 0.25rem 1rem 0.75rem;
+}
+
+.summary {
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--line);
+  max-height: 20dvh;
+  flex-shrink: 0;
+  overflow-y: auto;
 }
 
 .foot {

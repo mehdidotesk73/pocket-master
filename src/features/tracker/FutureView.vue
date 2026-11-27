@@ -258,6 +258,7 @@ const rows = computed(() =>
       v-if="itemEdit && selected"
       v-model="itemEdit.draft"
       :forecast="shown!"
+      :result="future"
       :is-new="itemEdit.isNew"
       @save="saveItem"
       @remove="removeItem"

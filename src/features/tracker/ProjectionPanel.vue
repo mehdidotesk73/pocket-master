@@ -9,25 +9,31 @@
 import { computed, reactive, ref, watch } from 'vue'
 import {
   type EveryUnit,
+  type Projection,
   type ProjectionFile,
   type ProjectionItem,
   type RecordWindow,
   type Recurring,
   type RecurringValue,
   LEFT_SOURCE,
+  MIN_RATE_DAYS,
+  NET_ONLY,
+  periodDays,
+  targetOf,
 } from '../../lib/finance'
 import { addDays, isISODate, today } from '../../lib/money'
 import DockPanel from './DockPanel.vue'
 import LensCarousel from './LensCarousel.vue'
 import SignedMoneyInput from './SignedMoneyInput.vue'
-import { UI_INFO, UI_TYPES, type UiType, VALUE_MODES, WINDOW_MODES, describeEvery, describeResult, uiTypeOf } from './projectionText'
+import { UI_INFO, UI_TYPES, type UiType, VALUE_MODES, WINDOW_MODES, describeEvery, readBack, uiTypeOf } from './projectionText'
 import { useTracker } from './useTracker'
 
 const item = defineModel<ProjectionItem>({ required: true })
-const props = defineProps<{ forecast: ProjectionFile; isNew: boolean }>()
+/** `result` is the forecast worked out with this draft in it (drives the readback). */
+const props = defineProps<{ forecast: ProjectionFile; result: Projection | null; isNew: boolean }>()
 const emit = defineEmits<{ (e: 'save'): void; (e: 'remove'): void; (e: 'cancel'): void }>()
 
-const { knownLines, resultsFor } = useTracker()
+const { knownLines } = useTracker()
 
 // ---- type
 const type = ref<UiType>(uiTypeOf(item.value))
@@ -60,10 +66,14 @@ const valueMode = computed({
   set: (m: RecurringValue['mode']) => {
     const r = rec.value
     if (!r || r.value.mode === m) return
-    const prevSource = r.value.mode === 'fixed' ? (knownLines.value[0] ?? LEFT_SOURCE) : r.value.source
+    let source = r.value.mode === 'fixed' ? (knownLines.value[0] ?? LEFT_SOURCE) : r.value.source
+    // An average of net equity means nothing as an amount: start from a line instead.
+    if (m === 'average' && source === LEFT_SOURCE) source = knownLines.value[0] ?? LEFT_SOURCE
     const prevWindow: RecordWindow = r.value.mode === 'fixed' ? { mode: 'last', days: 90 } : r.value.window
-    const value: RecurringValue = m === 'fixed' ? { mode: 'fixed', amount: 0 } : { mode: m, source: prevSource, window: prevWindow }
-    patch({ value, inRecord: false })
+    const value: RecurringValue = m === 'fixed' ? { mode: 'fixed', amount: 0 } : { mode: m, source, window: prevWindow }
+    // An average is a typical amount per cycle: repeat it monthly unless it already repeats that slowly.
+    const every = m === 'average' && periodDays(r.every) < MIN_RATE_DAYS ? { n: 1, unit: 'month' as const } : r.every
+    patch({ value, every, inRecord: false })
   },
 })
 function setValue(p: Partial<{ amount: number; source: string; window: RecordWindow }>) {
@@ -80,6 +90,22 @@ const sources = computed(() => {
   }
   return names
 })
+
+// ---- target: which line this changes. Picking the default (see targetOf) clears
+// the field, so it keeps following the value's line when that changes.
+const target = computed(() => targetOf(item.value))
+const targets = computed(() => {
+  const names = [...knownLines.value]
+  const t = target.value
+  if (t && !names.some((n) => n.toLowerCase() === t.toLowerCase())) names.unshift(t)
+  return names
+})
+function setTarget(t: string) {
+  const { target: _old, ...rest } = item.value
+  void _old
+  const fallback = targetOf(rest as ProjectionItem)
+  item.value = (t === fallback ? rest : { ...rest, target: t }) as ProjectionItem
+}
 
 // ---- window
 const win = computed(() => (rec.value && rec.value.value.mode !== 'fixed' ? rec.value.value.window : null))
@@ -114,14 +140,8 @@ function setEvery(p: Partial<{ n: number; unit: EveryUnit }>) {
   patch({ every, inRecord: r.inRecord && every.unit === 'month' })
 }
 
-// ---- preview
-const preview = computed(() => {
-  const r = rec.value
-  if (!r || r.value.mode === 'fixed') return null
-  const items = [...props.forecast.items.filter((i) => i.id !== r.id), r]
-  const res = resultsFor({ ...props.forecast, items })[r.id]
-  return res ? describeResult(r, res) : null
-})
+// ---- readback: the settings as a sentence, plus what they come to
+const said = computed(() => (props.result ? readBack(item.value, props.result, props.forecast) : null))
 const whenText = computed(() => (rec.value ? describeEvery(rec.value.every, rec.value.start) : ''))
 
 // ---- save / remove
@@ -161,6 +181,14 @@ function save() {
       <input class="input" :value="item.name" placeholder="e.g. Paycheck, Rent, Everyday spending" @input="patch({ name: ($event.target as HTMLInputElement).value })" />
     </label>
 
+    <label class="field">
+      <span>Changes</span>
+      <select class="select" :value="target" aria-label="Line it changes" @change="setTarget(($event.target as HTMLSelectElement).value)">
+        <option :value="NET_ONLY">Net equity only (no line)</option>
+        <option v-for="n in targets" :key="n" :value="n">{{ n }}</option>
+      </select>
+    </label>
+
     <!-- One-time: an amount on a date -->
     <div v-if="item.kind === 'oneTime'" class="row2">
       <label class="field">
@@ -192,7 +220,7 @@ function save() {
           <label class="field">
             <span>Line</span>
             <select class="select" :value="rec.value.source" @change="setValue({ source: ($event.target as HTMLSelectElement).value })">
-              <option :value="LEFT_SOURCE">{{ startLabel }}{{ rec.value.mode === 'rate' ? ' (everyday spending)' : '' }}</option>
+              <option v-if="rec.value.mode === 'rate' || rec.value.source === LEFT_SOURCE" :value="LEFT_SOURCE">{{ startLabel }}{{ rec.value.mode === 'rate' ? ' (everyday spending)' : '' }}</option>
               <option v-for="n in sources" :key="n" :value="n">{{ n }}</option>
             </select>
           </label>
@@ -226,7 +254,7 @@ function save() {
             </label>
           </div>
           <p class="muted small note">
-            <template v-if="rec.value.mode === 'average'">The line's average value across these records is added each time.</template>
+            <template v-if="rec.value.mode === 'average'">For a bill line: its typical amount across these records, added each time it repeats.</template>
             <template v-else>
               How fast the line changed across these records, times the time between repeats.
               <template v-if="rec.value.source === LEFT_SOURCE">The forecast's fixed and one-time projections are taken out first, so what's left is everyday spending.</template>
@@ -255,10 +283,18 @@ function save() {
         </label>
       </div>
 
-      <p v-if="preview" class="preview" :class="preview.tone">{{ preview.text }}</p>
     </template>
 
     <p v-if="error" class="err small" role="alert">{{ error }}</p>
+
+    <template v-if="said" #summary>
+      <div class="readback" :class="said.tone" aria-live="polite">
+        <p class="sentence">{{ said.sentence }}</p>
+        <p class="small">{{ said.total }} {{ said.line }}</p>
+        <p v-for="w in said.warnings" :key="w" class="small warn-line">{{ w }}</p>
+        <p v-if="said.basis" class="small muted">{{ said.basis }}</p>
+      </div>
+    </template>
 
     <template #footer>
       <button v-if="!isNew" class="btn danger remove" @click="remove">{{ confirmRemove ? 'Tap again' : 'Remove' }}</button>
@@ -368,23 +404,32 @@ function save() {
   color: var(--btn-primary-text);
 }
 
-.preview {
-  margin: 0.5rem 0 0.2rem;
-  padding: 0.5rem 0.65rem;
-  border-radius: 0.5rem;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  font-size: 0.88rem;
+.readback {
+  padding-left: 0.6rem;
+  border-left: 3px solid var(--line);
 }
 
-.preview.pos {
-  border-color: var(--pos);
+.readback p {
+  margin: 0 0 0.2rem;
 }
-.preview.neg {
-  border-color: var(--negative);
+
+.readback .sentence {
+  font-size: 0.92rem;
+  font-weight: 600;
 }
-.preview.warn {
-  border-color: var(--projection);
+
+.readback.pos {
+  border-left-color: var(--pos);
+}
+.readback.neg {
+  border-left-color: var(--negative);
+}
+.readback.warn {
+  border-left-color: var(--projection);
+}
+
+.warn-line {
+  color: var(--projection);
 }
 
 .remove {

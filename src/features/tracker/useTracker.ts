@@ -143,6 +143,9 @@ const monthlyFixed = (id: string, name: string, amount: number, day: number, inR
  *   v0.2–5  recurring/oneTime with dir in|out, averaged with from/to and "set it myself" (manual)
  * Extrapolate-to-month-end projections are dropped (that type was retired).
  */
+/** `target` only when the file set one (absent = the default line; see targetOf). */
+const target = (x: Record<string, unknown>): { target?: string } => (typeof x.target === 'string' ? { target: x.target.trim() } : {})
+
 function normalizeItem(x: Record<string, unknown>, kindHint?: string): ProjectionItem[] {
   const kind = (x.kind as string) ?? kindHint
   const id = str(x.id) || newId()
@@ -160,6 +163,7 @@ function normalizeItem(x: Record<string, unknown>, kindHint?: string): Projectio
             kind,
             id,
             name,
+            ...target(x),
             value,
             every: normalizeEvery(x.every),
             start: isISODate(x.start) ? x.start : monthlyStart(1),
@@ -170,7 +174,7 @@ function normalizeItem(x: Record<string, unknown>, kindHint?: string): Projectio
       return [monthlyFixed(id, name, signedAmount(x), clampDay(x.day), Boolean(x.inRecord ?? x.covered))]
     }
     case 'oneTime':
-      return isISODate(x.date) ? [{ kind, id, name, amount: signedAmount(x), date: x.date }] : []
+      return isISODate(x.date) ? [{ kind, id, name, ...target(x), amount: signedAmount(x), date: x.date }] : []
     case 'averaged': {
       // "Set it myself" figures (v0.3–v0.5) became plain monthly amounts.
       if (x.manual != null && x.manual !== '') {

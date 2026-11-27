@@ -149,8 +149,13 @@ Three tabs, **Past · Present · Future** (default Present): `HistoryView`, `Tod
 *projections*: Recurring or One-time.
 Future = forecast picker + **Edit** / **New** → `ForecastPanel`; `ForecastChart` (a one-day-wide stacked bar on
 each day any projection changes the total — day-over-day differences of `project().contributions` — with
-the forecast total, starting balance included, as a line, past records leading in); projections list + **Add** → `ProjectionPanel`
-(`LensCarousel` type selector; value / window / repeats sections). Both panels are `DockPanel`s (mid-height, bottom, page stays
+the forecast total, starting balance included, as a step line — flat between event days, vertical on
+each — past records leading in); projections list + **Add** → `ProjectionPanel`
+(`LensCarousel` type selector; changes / value / window / repeats sections, and a pinned readback from
+`readBack()` in `projectionText.ts`: the settings as one sentence, the total by the forecast's end, the
+target line's start → end, and warnings — an average repeating faster than monthly, measured on one line
+but changing another, a net-equity rate with no income listed). Average can't pick net equity and
+switches the repeat to monthly; `FutureView` passes the draft's `project()` result in as `result`. Both panels are `DockPanel`s (mid-height, bottom, page stays
 visible) editing drafts that drive the chart live; Save writes, Cancel discards. The header's ☰ (top left) opens `SideMenu`, a drawer from the left with collapsible
 sections (start collapsed); Records holds the Import / Export tag buttons. Future = projection picker (+ `ProjectionModal` for name / start lines / days ahead /
 duplicate / delete), chart, and a compact item list; "+ Add" menu → `ItemModal` per kind (built on
@@ -191,12 +196,21 @@ All sums in integer cents.
     Σ changes ÷ span days (for the starting total, minus what fixed/one-time items explain via
     `scheduledCents`) × `periodDays(every)` per occurrence. Null when the span < 28 days.
   - `oneTime`: a signed amount on a date.
+  - Both may carry `target`, the **line it changes** (`targetOf`): absent = default — an average or
+    rate of a line changes that line; amounts and net-equity rates are net only (`NET_ONLY` = `''`).
+    Picking the default in the editor clears the field, so it keeps following the value's line.
+    Optional field, so no schema bump: older files read as "default".
   Older shapes (monthly `amount`/`day`, `averaged`, `extrapolate`, `dir`, `manual`) are converted in
   `normalizeItem`; extrapolate-to-month-end is dropped.
 - **`project(proj, records, startIfEmpty = today)`** (never null): from (latest.date, starting total) —
   or ($0, today) when there are no records — each day adds every projection that
   occurs that day (`inRecord` ones skipped in the latest record's month) and tracks each one's running
   contribution (for the stacked bars), for `horizonDays` (≤ 1830).
+  It also returns **`lines`** — every line of the balance sheet day by day (`forecastLineNames`: the
+  start selection's lines from the latest record, then targets not among them, starting at 0) — and
+  **`netOnly`**, the running sum of net-only projections. Σ lines + netOnly = the total, every day.
+  **`forecastSheetOn(f, date)`** reads the forecast's balance sheet on a date (the start sheet on or
+  before the start).
 
 
 ## §5 — Composables

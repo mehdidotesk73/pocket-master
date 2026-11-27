@@ -164,6 +164,15 @@ Emitting declarations for an *app* makes `vue-tsc` demand exported names for eve
 
 `__BUILD_ID__` and `__BUILD_TIME__` are injected by Vite's `define`, and `virtual:pwa-register` only exists at build time. TypeScript knows about none of them without an `src/env.d.ts` declaring the constants and referencing `vite/client` and `vite-plugin-pwa/client`. Without it the build fails with `TS2304: Cannot find name '__BUILD_ID__'`.
 
+### Every projection is a change, never a level
+On-device testing showed "Average of Capital One, every 30 days, changes Discover" being read as
+"Discover will sit around Capital One's typical balance". The engine adds it each time, so Discover
+grew by $1,250 a month forever. Every projection is a *change*. A balance that sits at a level (a card
+paid off monthly) needs spending plus a payoff, not a different meaning for Average. The fix was to say
+what a setup does (the readback sentence, "It keeps adding …") rather than add modes. The point-to-point
+line (v0.9.4) made it worse: it spread a lump months away into a gentle slope from today. Every
+projection is a sudden change on its day, so the line is drawn as steps.
+
 ## Patterns Worth Reusing
 
 ### Two-Party Link Apps: the URL Fragment as Credential, and the Join Race
@@ -352,6 +361,18 @@ text, so typing appends ("300.00650") and rounding hides it as 300.01. Select th
 on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
+
+### v0.10.0 — 2026-11-27
+- **Added:** each projection names the **line it changes** (*Changes* in the editor; `→ line` in the
+  list). The forecast is now worked out per line as well as in total — the base for a forecast
+  balance sheet (e.g. end of month).
+- **Added:** the projection editor reads its settings back as a sentence, with the total by the
+  forecast's end, the changed line's start → end, and amber warnings for setups that look unintended.
+- **Changed:** Average is for bill lines: no net equity, switches the repeat to monthly. The default
+  everyday spending is labelled *income and spending combined* until pay is listed. The forecast line
+  is a step line again: flat between events, a vertical jump on each (point to point, v0.9.4, is gone).
+- **Defaults:** an average or rate of a line changes that line; amounts and net-equity rates are net
+  only. Existing forecasts open unchanged (the field is optional).
 
 ### v0.9.5 — 2026-11-27
 - **Changed:** storage shown as **your data** (exact size and file count) instead of the browser's

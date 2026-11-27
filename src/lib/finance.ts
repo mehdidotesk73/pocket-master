@@ -94,11 +94,19 @@ export type RecurringValue =
   | { mode: 'fixed'; amount: number }
   | { mode: 'average' | 'rate'; source: string; window: RecordWindow }
 
+/**
+ * Which line of the balance sheet a projection changes. Absent = the default
+ * (see `targetOf`); NET_ONLY = it only moves the total, no particular line.
+ */
+export const NET_ONLY = ''
+
 /** Repeats every `every` from `start` (its day of month / month of year set the rhythm). */
 export interface Recurring {
   kind: 'recurring'
   id: string
   name: string
+  /** The line this changes; see `targetOf`. */
+  target?: string
   value: RecurringValue
   every: Every
   start: ISODate
@@ -115,6 +123,8 @@ export interface OneTime {
   kind: 'oneTime'
   id: string
   name: string
+  /** The line this changes; see `targetOf`. */
+  target?: string
   /** signed */
   amount: number
   date: ISODate
@@ -303,6 +313,34 @@ export function describeSource(source: string, start: StartLines): string {
   return start.mode === 'all' ? 'net equity' : 'the starting total'
 }
 
+/**
+ * The line a projection changes, or NET_ONLY. When not set: an average or rate of
+ * a line changes that line; anything else (amounts, net-equity rates) is net only.
+ */
+export function targetOf(item: ProjectionItem): string {
+  if (item.target != null) return item.target.trim()
+  if (item.kind === 'recurring' && item.value.mode !== 'fixed') return item.value.source
+  return NET_ONLY
+}
+
+/**
+ * The lines a forecast has: the latest record's lines in its start selection, then
+ * any line a projection targets that isn't among them (starting at 0), in item order.
+ */
+export function forecastLineNames(proj: Pick<ProjectionFile, 'start' | 'items'>, latest: BalanceRecord | null): string[] {
+  const has = inStart(proj.start)
+  const out = new Map<string, string>()
+  for (const l of latest?.lines ?? []) {
+    const k = norm(l.name)
+    if (k && has(l.name) && !out.has(k)) out.set(k, l.name.trim())
+  }
+  for (const it of proj.items) {
+    const t = targetOf(it)
+    if (t && !out.has(norm(t))) out.set(norm(t), t)
+  }
+  return [...out.values()]
+}
+
 // ---------------------------------------------------------------- values from records
 
 export interface ItemResult {
@@ -371,6 +409,15 @@ export interface Point {
   value: number
 }
 
+/** One line of the balance sheet through the forecast. */
+export interface ForecastLine {
+  name: string
+  /** Its value in the latest record (0 if it isn't there, or isn't in the start selection). */
+  start: number
+  /** Its value on each day of `series` (dollars, same length). */
+  values: number[]
+}
+
 export interface Projection {
   start: Point
   series: Point[]
@@ -380,6 +427,19 @@ export interface Projection {
   results: Record<string, ItemResult>
   /** Per projection id: its cumulative change by each day of `series` (dollars, same length). */
   contributions: Record<string, number[]>
+  /** Every line of the balance sheet, day by day. */
+  lines: ForecastLine[]
+  /** Cumulative change from net-only projections, by day. Total = Σ lines + this. */
+  netOnly: number[]
+}
+
+/** The forecast's balance sheet on a date in its range (the start sheet on or before the start). */
+export function forecastSheetOn(f: Projection, date: ISODate): { date: ISODate; lines: RecordLine[]; netOnly: number; total: number } {
+  const i = f.series.findIndex((p) => p.date === date)
+  const k = date <= f.start.date || i < 0 ? -1 : i
+  const lines = f.lines.map((l, n) => ({ id: `f${n}`, name: l.name, amount: k < 0 ? l.start : l.values[k] }))
+  const netOnly = k < 0 ? 0 : f.netOnly[k]
+  return { date: k < 0 ? f.start.date : f.series[k].date, lines, netOnly, total: k < 0 ? f.start.value : f.series[k].value }
 }
 
 export function itemResults(proj: ProjectionFile, records: BalanceRecord[]): Record<string, ItemResult> {
@@ -407,7 +467,18 @@ export function project(proj: ProjectionFile, records: BalanceRecord[], startIfE
     const skipThisMonth = it.inRecord && it.value.mode === 'fixed'
     return (d) => (occursOn(it, d) && !(skipThisMonth && monthIndex(d) === latestMonth) ? each : 0)
   }
-  const steps = proj.items.map((it) => ({ id: it.id, step: stepFor(it) }))
+  // Per-line running values (cents), keyed by normalised name; net-only changes kept apart.
+  const has = inStart(proj.start)
+  const lineState = forecastLineNames(proj, latest).map((name) => {
+    const k = norm(name)
+    const cents = latest ? latest.lines.filter((l) => norm(l.name) === k && has(l.name)).reduce((s, l) => s + toCents(l.amount), 0) : 0
+    return { key: k, name, start: cents, cents, values: [] as number[] }
+  })
+  const lineByKey = new Map(lineState.map((l) => [l.key, l]))
+  let netOnlyCents = 0
+  const netOnly: number[] = []
+
+  const steps = proj.items.map((it) => ({ id: it.id, step: stepFor(it), line: lineByKey.get(norm(targetOf(it))) ?? null }))
   const running = new Map<string, number>(proj.items.map((it) => [it.id, 0]))
   const contributions: Record<string, number[]> = Object.fromEntries(proj.items.map((it) => [it.id, [] as number[]]))
 
@@ -416,19 +487,26 @@ export function project(proj: ProjectionFile, records: BalanceRecord[], startIfE
   const series: Point[] = []
   for (let i = 1; i <= horizonDays; i++) {
     const d = addDays(startDate, i)
-    for (const { id, step } of steps) {
+    for (const { id, step, line } of steps) {
       const c = step(d)
-      value += c
-      running.set(id, running.get(id)! + c)
+      if (c) {
+        value += c
+        running.set(id, running.get(id)! + c)
+        if (line) line.cents += c
+        else netOnlyCents += c
+      }
       contributions[id].push(fromCents(running.get(id)!))
     }
+    for (const l of lineState) l.values.push(fromCents(l.cents))
+    netOnly.push(fromCents(netOnlyCents))
     series.push({ date: d, value: fromCents(value) })
   }
   const start = { date: startDate, value: fromCents(startCents) }
   const end = series[series.length - 1] ?? start
   let min = series[0] ?? start
   for (const p of series) if (p.value < min.value) min = p
-  return { start, series, end, min, results, contributions }
+  const lines = lineState.map((l) => ({ name: l.name, start: fromCents(l.start), values: l.values }))
+  return { start, series, end, min, results, contributions, lines, netOnly }
 }
 
 // ---------------------------------------------------------------- defaults & ids

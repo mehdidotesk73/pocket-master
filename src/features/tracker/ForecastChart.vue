@@ -132,11 +132,17 @@ const geom = computed(() => {
 
   const path = (pts: { x: number; y: number }[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join('')
   const pastPath = path([...props.past, props.start].filter((p, i, a) => i === a.length - 1 || p.x <= props.start.x))
-  // The forecast line joins the total on each day something happens (plus the
-  // last day), point to point, rather than stepping: easier to read as a trend.
+  // The forecast line is a step: every projection changes the total at once on
+  // its day, so it holds flat between events and jumps vertically on each one.
   const lastDay = props.days.length - 1
-  const knots = [...new Set([...idx, ...(lastDay >= 0 ? [lastDay] : [])])].sort((a, b) => a - b)
-  const linePath = path([props.start, ...knots.map((i) => ({ x: dayNum(props.days[i].date), y: props.days[i].total }))])
+  const steps: { x: number; y: number }[] = [props.start]
+  let y = props.start.y
+  for (const i of idx) {
+    const x = dayNum(props.days[i].date)
+    steps.push({ x, y }, { x, y: (y = props.days[i].total) })
+  }
+  if (lastDay >= 0) steps.push({ x: dayNum(props.days[lastDay].date), y })
+  const linePath = path(steps)
 
   return { W, H, sx, sy, bw, bars, yTicks, xTicks, pastPath, linePath, zeroY: sy(0) }
 })
