@@ -7,6 +7,7 @@ import {
   type Projection,
   type ProjectionFile,
   type ProjectionItem,
+  type RateStart,
   type RecordWindow,
   type Recurring,
   LEFT_SOURCE,
@@ -62,6 +63,13 @@ export function describeEvery(e: Every, start: string): string {
     case 'year':
       return `every ${unit} on ${MONTHS[m - 1]} ${day}`
   }
+}
+
+/** "from $0.00 on the 1st of each month", "from ($200.00) on Nov 1". */
+export function describeFrom(f: RateStart): string {
+  return 'day' in f
+    ? `from ${fmtMoney(f.amount)} on the ${f.day === 31 ? 'last day' : ordinal(f.day)} of each month`
+    : `from ${fmtMoney(f.amount)} on ${fmtDate(f.date, { short: true })}`
 }
 
 export function describeWindow(w: RecordWindow): string {
@@ -166,7 +174,13 @@ export function readBack(item: ProjectionItem, f: Projection, p: ProjectionFile)
         const each = periodDays(item.every) === 1 ? '' : `, ${fmtMoney(res.value, { sign: true })} each time,`
         sentence = `${when}, add ${possessive(src)} change of ${fmtMoney(res.perDay ?? 0, { sign: true })} a day${each} ${to}.`
       }
-      if (res) basis = `Worked out from ${res.count} record${res.count === 1 ? '' : 's'}${res.days ? ` over ${res.days} days` : ''}, ${describeWindow(v.window)}.`
+      const recs = res ? `${res.count} record${res.count === 1 ? '' : 's'}` : ''
+      if (res?.span) {
+        const { from: a, to: b } = res.span
+        basis = `Measured from ${fmtMoney(a.value)} on ${fmtDate(a.date, { short: true })}${v.mode === 'rate' && v.from ? ' (your start point)' : ''} to ${fmtMoney(b.value)} on ${fmtDate(b.date, { short: true })}: ${res.days} days, ${recs}, ${describeWindow(v.window)}.`
+      } else if (res) {
+        basis = `Worked out from ${recs}${res.days ? ` over ${res.days} days` : ''}, ${describeWindow(v.window)}.`
+      }
       if (v.mode === 'average' && periodDays(item.every) < MIN_RATE_DAYS) {
         warnings.push('An average is a typical amount, added once per repeat. Repeating more often than monthly adds it again each time.')
       }
@@ -209,7 +223,7 @@ function summarizeValue(item: ProjectionItem, res: ItemResult | undefined, p: Pr
   if (v.mode === 'fixed') {
     return { amount: fmtMoney(v.amount, { sign: true }), detail: `${when}${item.inRecord ? ' · in records until paid' : ''}`, tone: toneOf(v.amount) }
   }
-  const how = `${v.mode === 'rate' ? 'rate' : 'average'} of ${describeSource(v.source, p.start)} · ${describeWindow(v.window)}`
+  const how = `${v.mode === 'rate' ? 'rate' : 'average'} of ${describeSource(v.source, p.start)} · ${v.mode === 'rate' && v.from ? `${describeFrom(v.from)} · ` : ''}${describeWindow(v.window)}`
   if (!res || res.value == null) return { amount: '—', detail: `${when} · ${how} · needs more records`, tone: 'warn' }
   return { amount: fmtMoney(res.value, { sign: true }), detail: `${when} · ${how}`, tone: toneOf(res.value) }
 }

@@ -56,8 +56,8 @@ One-time setup — tick these off as they're done:
 
 Balance-sheet forecasts, in order (step 1, target lines, is done in v0.10.0):
 
-- [ ] **Start point on Rate of change** — optional "from $X on date D" added before the window's
-      records; skips the 28-day minimum. Gives a card's cycle pace from one record ($0 on the 1st).
+- [x] **Start point on Rate of change** (v0.11.0) — `RateStart`, `rateStartDate`, `span` on
+      `ItemResult`; "Start from a known value" in `ProjectionPanel`; `describeFrom`.
 - [ ] **Balance sheet on [date]** in Future — `forecastSheetOn` shown with the `BalanceSheet`
       component, with an *End of month* shortcut.
 - [ ] **Past: monthly in / spent / net change** — worked out from records (net change − scheduled

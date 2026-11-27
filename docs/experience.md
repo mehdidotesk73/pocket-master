@@ -373,6 +373,14 @@ on focus, and reject more than two decimals instead of rounding them away.
 - **Changed:** the Past chart keeps net equity as a line (now in ink, with a dot per record) and shows
   total owned and total owed as dots only, no lines. The tap readout lists all three.
 
+### v0.11.0 — 2026-11-27
+- **Added:** Rate of change can **start from a known value**, on a day of each month (rolls with the
+  latest record) or a date, e.g. a card at $0 on the 1st. One record then gives the cycle's pace;
+  records before the point are left out and the 28-day minimum doesn't apply.
+- **Changed:** the readback says what a rate was measured between ("from $0.00 on Nov 1 (your start
+  point) to ($1,500.00) on Nov 26").
+- Optional field, so no migration.
+
 ### v0.10.0 — 2026-11-27
 - **Added:** each projection names the **line it changes** (*Changes* in the editor; `→ line` in the
   list). The forecast is now worked out per line as well as in total — the base for a forecast
