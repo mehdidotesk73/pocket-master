@@ -4,7 +4,7 @@ import { type LocalDateTime, atNum, fmtDate, fmtDateTime, fmtMoney, fmtTime } fr
 import type { BalanceRecord } from '../../lib/finance'
 import RecordModal from './RecordModal.vue'
 import FigureRow, { type Figure } from './FigureRow.vue'
-import LineChart, { type ChartSeries } from './LineChart.vue'
+import LineChart, { type ChartSeries, type ChartSpans } from './LineChart.vue'
 import { useTracker } from './useTracker'
 
 const { records, deleteRecord } = useTracker()
@@ -30,14 +30,20 @@ const figures = computed<Figure[]>(() => {
   ]
 })
 
+// Owned (blue) and net equity (ink) as lines with a dot per record; the red bar
+// between them on each record is what's owed, since net equity = owned − owed.
 const series = computed<ChartSeries[]>(() => {
   const r = records.value
   return [
-    { label: 'Net equity', color: 'var(--pos)', dots: true, width: 2.5, points: r.map((x) => ({ x: atNum(x.at), y: x.left })) },
-    { label: 'Total owned', color: 'var(--assets)', width: 1.25, points: r.map((x) => ({ x: atNum(x.at), y: x.assets })) },
-    { label: 'Total owed', color: 'var(--negative)', width: 1.25, points: r.map((x) => ({ x: atNum(x.at), y: x.liabilities })) },
+    { label: 'Total owned', color: 'var(--assets)', dots: true, width: 1.75, points: r.map((x) => ({ x: atNum(x.at), y: x.assets })) },
+    { label: 'Net equity', color: 'var(--ink)', dots: true, width: 2.25, points: r.map((x) => ({ x: atNum(x.at), y: x.left })) },
   ]
 })
+const owed = computed<ChartSpans>(() => ({
+  label: 'Total owed',
+  color: 'var(--negative)',
+  items: records.value.map((x) => ({ x: atNum(x.at), from: x.left, to: x.assets, value: x.liabilities })),
+}))
 
 const newestFirst = computed(() => [...records.value].reverse())
 
@@ -67,7 +73,7 @@ const editing = ref<BalanceRecord | null>(null)
 
       <section class="card">
         <h2>Over time</h2>
-        <LineChart :series="series" include-zero />
+        <LineChart :series="series" :spans="owed" include-zero />
       </section>
 
       <section class="card table-card">
