@@ -152,8 +152,9 @@ each day any projection changes the total — day-over-day differences of `proje
 the forecast total, starting balance included, as a step line — flat between event days, vertical on
 each — past records leading in); projections list + **Add** → `ProjectionPanel`
 (name with the type beside it, then compact three-column rows — Every · Unit · Starting, then
-Changes · Value · Line-or-Amount — with type, Unit and Value as one-row `WheelPicker`s (a vertical
-lens carousel that changes only on the user's own swipe or tap, so layout scrolls can't flip it);
+Changes · Value · Line-or-Amount — with type, Unit and Value as `WheelPicker`s (ported from the bitcoin-explorer metric
+panel: one row at rest, a 3D drum overlay while touched, native scroll-snap; it changes only on
+the user's own gesture, so layout scrolls can't flip it);
 the records window and start point follow for Average / Rate; and a pinned, collapsed
 readback (one line plus a "N to check" pill; tap for the rest) from
 `readBack()` in `projectionText.ts`: the settings as one sentence, the total by the forecast's end, the

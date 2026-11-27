@@ -385,7 +385,8 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ### v0.12.2 — 2026-11-27
 - **Changed:** the projection editor is compact: name with the type beside it, then Every · Unit ·
-  Starting, then Changes · Value · Line (or Amount); type, Value and Unit are one-row vertical wheels. The readback is
+  Starting, then Changes · Value · Line (or Amount); type, Value and Unit are drum wheels (one row at
+  rest, opening over the page while touched), ported from the bitcoin-explorer metric panel. The readback is
   one line until tapped; warnings show as a "to check" count. Switching to Amount keeps the line the
   projection changes.
 

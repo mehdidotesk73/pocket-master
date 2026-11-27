@@ -200,7 +200,7 @@ function save() {
     <!-- name · type -->
     <div class="top">
       <input class="input" :value="item.name" aria-label="Name" placeholder="Name, e.g. Paycheck" @input="patch({ name: ($event.target as HTMLInputElement).value })" />
-      <WheelPicker v-model="type" :options="typeOptions" label="Projection type" :rows="1" />
+      <WheelPicker v-model="type" :options="typeOptions" label="Projection type" />
     </div>
 
     <!-- One-time: changes · amount · date -->
@@ -232,7 +232,7 @@ function save() {
         </label>
         <div class="field">
           <span>Unit</span>
-          <WheelPicker :model-value="rec.every.unit"   :options="unitOptions" label="Unit" :rows="1" @update:model-value="(u: EveryUnit) => setEvery({ unit: u })" />
+          <WheelPicker :model-value="rec.every.unit"   :options="unitOptions" label="Unit" @update:model-value="(u: EveryUnit) => setEvery({ unit: u })" />
         </div>
         <label class="field">
           <span>Starting</span>
@@ -250,7 +250,7 @@ function save() {
         </label>
         <div class="field">
           <span>Value</span>
-          <WheelPicker v-model="valueMode" :options="valueOptions" label="Value" :rows="1" />
+          <WheelPicker v-model="valueMode" :options="valueOptions" label="Value" />
         </div>
         <label v-if="rec.value.mode === 'fixed'" class="field">
           <span>Amount</span>
