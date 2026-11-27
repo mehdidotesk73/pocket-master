@@ -5,15 +5,20 @@
 // current rows can be saved as the template every new record starts from.
 //
 // The sign is a ± toggle because the iPhone decimal keypad has no minus key.
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+// Negative amounts read as (730.48) until the field is focused; while typing,
+// it's just the number. Rows reorder by dragging the grip on the left.
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { GripVertical } from '@lucide/vue'
 import { type BalanceRecord, type RecordLine, type TemplateLine, newId, sheet } from '../../lib/finance'
-import { fmtDate, fmtMoney, isISODate, parseMoney, today } from '../../lib/money'
+import { fmtDateTime, fmtMoney, isLocalDateTime, nowLocal, parseMoney } from '../../lib/money'
 import { markUnsaved } from '../../lib/storage/store'
 import { useTracker } from './useTracker'
 
-const emit = defineEmits<{ (e: 'close'): void; (e: 'saved', date: string): void }>()
+/** Open on an existing record to change it; otherwise it's a new record taken now. */
+const props = defineProps<{ editing?: BalanceRecord }>()
+const emit = defineEmits<{ (e: 'close'): void; (e: 'saved', at: string): void }>()
 
-const { template, records, latest, recordDates, saveRecord, saveTemplate } = useTracker()
+const { template, latest, recordTimes, saveRecord, saveTemplate, deleteRecord } = useTracker()
 
 interface Row {
   id: string
@@ -22,7 +27,12 @@ interface Row {
   text: string // magnitude as typed
 }
 
-const date = ref(today())
+// The record's moment: a date and a time (HH:MM). Seconds are kept from when
+// the sheet opened (or from the record) so two quick saves never collide.
+const start = props.editing?.at ?? nowLocal()
+// One native date-and-time field (datetime-local: a single box and picker on iOS).
+const when = ref(start.slice(0, 16)) // 'YYYY-MM-DDTHH:MM'
+const seconds = start.slice(17, 19)
 const rows = reactive<Row[]>([])
 const touched = ref(false)
 const saving = ref(false)
@@ -31,12 +41,21 @@ const templateNote = ref('')
 
 const toText = (n: number | undefined) => (n == null ? '' : Math.abs(n).toFixed(2))
 
-/** Rows come from the template; amounts from `from` (by row id), else the template's own amount. */
+/**
+ * Rows come from the template, in the order of `from` (the latest record) so a
+ * reorder carries over; template rows it doesn't have go at the end. Amounts
+ * come from `from` (by row id), else the template's own amount.
+ */
 function fill(from: BalanceRecord | null, useRecordRows = false) {
   const byId = new Map((from?.lines ?? []).map((l) => [l.id, l]))
+  const order = new Map((from?.lines ?? []).map((l, i) => [l.id, i]))
+  const rank = (id: string) => order.get(id) ?? Number.MAX_SAFE_INTEGER
   const source: TemplateLine[] = useRecordRows && from
     ? from.lines.map((l) => ({ id: l.id, name: l.name, amount: l.amount, negative: l.amount < 0 }))
     : template.value.rows
+        .map((t, i) => ({ t, i }))
+        .sort((a, b) => rank(a.t.id) - rank(b.t.id) || a.i - b.i)
+        .map(({ t }) => t)
   rows.splice(
     0,
     rows.length,
@@ -52,35 +71,112 @@ function fill(from: BalanceRecord | null, useRecordRows = false) {
     }),
   )
 }
-fill(latest.value)
-
-// Picking the date of an existing record (before typing anything) loads that record as it was saved.
-watch(date, (d) => {
-  if (touched.value) return
-  const existing = records.value.find((r) => r.date === d)
-  if (existing) fill(existing, true)
-  else fill(latest.value)
-})
+if (props.editing) fill(props.editing, true)
+else fill(latest.value)
 
 function onBodyInput(e: Event) {
-  if ((e.target as HTMLInputElement).type !== 'date') touched.value = true
+  const t = (e.target as HTMLInputElement).type
+  if (t !== 'datetime-local') touched.value = true
 }
 
-const isUpdate = computed(() => recordDates.value.has(date.value))
+const isUpdate = !!props.editing
+const at = computed(() => `${when.value.slice(0, 16)}:${seconds}`)
+/** Another record already at this exact moment (saving would replace it). */
+const clash = computed(() => at.value !== props.editing?.at && recordTimes.value.has(at.value))
 
 const magnitude = (r: Row) => Math.abs(parseMoney(r.text) ?? 0)
 const signed = (r: Row) => (r.negative ? -1 : 1) * magnitude(r)
-const invalid = (r: Row) => r.text.trim() !== '' && parseMoney(r.text) == null
+// More than 2 decimals is a typo (e.g. "300.00650"), not something to round away silently.
+const invalid = (r: Row) => r.text.trim() !== '' && (parseMoney(r.text) == null || /\.\d{3,}/.test(r.text))
 
-// Typing a minus (desktop keyboards) flips the row negative and keeps the number positive.
+// Typing a minus or pasting (730.48) flips the row negative and keeps just the number.
 function onAmount(r: Row, e: Event) {
   const v = (e.target as HTMLInputElement).value
-  if (/^\s*[-−]/.test(v)) {
+  if (/^\s*[-−(]/.test(v)) {
     r.negative = true
-    r.text = v.replace(/^\s*[-−]\s*/, '')
+    r.text = v.replace(/^\s*[-−(]\s*/, '').replace(/\)\s*$/, '')
   } else {
     r.text = v
   }
+}
+
+// ---- display: (730.48) for negatives, except in the field being typed in
+const editingAmount = ref<string | null>(null)
+// Show the bare number while editing, and select it so typing replaces it
+// (otherwise "(300.00)" → "300.00" can leave the caret at the end).
+function onAmountFocus(r: Row, e: FocusEvent) {
+  editingAmount.value = r.id
+  const el = e.target as HTMLInputElement
+  nextTick(() => {
+    if (document.activeElement === el) el.select()
+  })
+}
+function shownAmount(r: Row): string {
+  if (editingAmount.value === r.id) return r.text
+  const v = parseMoney(r.text)
+  if (r.text.trim() === '' || v == null) return r.text
+  const mag = Math.abs(v).toFixed(2)
+  return r.negative && Math.abs(v) >= 0.005 ? `(${mag})` : mag
+}
+
+// ---- drag to reorder (pointer events: works for touch, pen and mouse)
+// The dragged row follows the pointer: on one side it leaves a gap, on the
+// other it covers part of its neighbour. They swap once the gap is larger than
+// the neighbour's still-visible height (i.e. past the neighbour's midpoint).
+const drag = reactive({ id: '', pointerId: -1, startY: 0, dy: 0 })
+const rowEls = new Map<string, HTMLElement>()
+function setRowEl(id: string, el: unknown) {
+  if (el instanceof HTMLElement) rowEls.set(id, el)
+  else rowEls.delete(id)
+}
+const heightOf = (id: string) => rowEls.get(id)?.getBoundingClientRect().height ?? 44
+
+function onGripDown(e: PointerEvent, id: string) {
+  e.preventDefault()
+  ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+  ;(document.activeElement as HTMLElement | null)?.blur?.()
+  Object.assign(drag, { id, pointerId: e.pointerId, startY: e.clientY, dy: 0 })
+  touched.value = true
+}
+
+function onGripMove(e: PointerEvent) {
+  if (!drag.id || e.pointerId !== drag.pointerId) return
+  drag.dy = e.clientY - drag.startY
+  let i = rows.findIndex((r) => r.id === drag.id)
+  // Downwards: gap above = dy, covered part of the next row = dy, visible = h − dy.
+  while (drag.dy > 0 && i < rows.length - 1) {
+    const h = heightOf(rows[i + 1].id)
+    if (drag.dy <= h - drag.dy) break
+    rows.splice(i + 1, 0, rows.splice(i, 1)[0])
+    i++
+    drag.startY += h
+    drag.dy -= h
+  }
+  // Upwards, mirrored.
+  while (drag.dy < 0 && i > 0) {
+    const h = heightOf(rows[i - 1].id)
+    if (-drag.dy <= h + drag.dy) break
+    rows.splice(i - 1, 0, rows.splice(i, 1)[0])
+    i--
+    drag.startY -= h
+    drag.dy += h
+  }
+}
+
+function onGripUp(e: PointerEvent) {
+  if (e.pointerId !== drag.pointerId) return
+  Object.assign(drag, { id: '', pointerId: -1, dy: 0 })
+}
+
+// Keyboard: arrow keys on the grip move the row by one.
+function onGripKey(e: KeyboardEvent, id: string) {
+  const i = rows.findIndex((r) => r.id === id)
+  const j = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : -1
+  if (j < 0 || j >= rows.length) return
+  e.preventDefault()
+  rows.splice(j, 0, rows.splice(i, 1)[0])
+  touched.value = true
+  nextTick(() => rowEls.get(id)?.querySelector<HTMLElement>('.grip')?.focus())
 }
 
 function toggleSign(r: Row) {
@@ -123,8 +219,8 @@ async function saveAsTemplate() {
 
 async function save() {
   error.value = ''
-  if (!isISODate(date.value)) {
-    error.value = 'Pick a valid date.'
+  if (!isLocalDateTime(at.value)) {
+    error.value = 'Pick a valid date and time.'
     return
   }
   if (hasInvalid.value) {
@@ -133,15 +229,27 @@ async function save() {
   }
   saving.value = true
   try {
-    await saveRecord(date.value, draftLines.value)
+    await saveRecord(at.value, draftLines.value, props.editing?.at)
     markUnsaved('record-modal', false)
-    emit('saved', date.value)
+    emit('saved', at.value)
     emit('close')
   } catch (e) {
     error.value = `Couldn’t save: ${(e as Error).message}`
   } finally {
     saving.value = false
   }
+}
+
+const confirmDelete = ref(false)
+async function remove() {
+  if (!props.editing) return
+  if (!confirmDelete.value) {
+    confirmDelete.value = true
+    return
+  }
+  await deleteRecord(props.editing.at)
+  markUnsaved('record-modal', false)
+  emit('close')
 }
 
 function close() {
@@ -174,21 +282,39 @@ onBeforeUnmount(() => {
       </header>
 
       <div class="body" @input="onBodyInput">
-        <label class="date-row">
-          <span>Date</span>
-          <input v-model="date" class="input" type="date" required />
+        <label class="when">
+          <span>Date and time</span>
+          <input v-model="when" class="input" type="datetime-local" required />
         </label>
-        <p v-if="isUpdate" class="note small">
-          A record for {{ fmtDate(date) }} already exists. Saving replaces it.
+        <p v-if="clash" class="note small">
+          There's already a record at {{ fmtDateTime(at) }}. Saving replaces it; change the time to keep both.
         </p>
 
         <p class="hint small muted">
           Tap <b class="pos">+</b>/<b class="neg">−</b> to switch a row between something you have and something you
-          owe.
+          owe. Drag <GripVertical class="inline-ic" aria-hidden="true" /> to reorder.
         </p>
 
         <ul ref="list" class="rows">
-          <li v-for="r in rows" :key="r.id" class="row" :class="{ bad: invalid(r) }">
+          <li
+            v-for="r in rows"
+            :key="r.id"
+            :ref="(el) => setRowEl(r.id, el)"
+            class="row"
+            :class="{ bad: invalid(r), dragging: drag.id === r.id }"
+            :style="drag.id === r.id ? { transform: `translateY(${drag.dy}px)` } : undefined"
+          >
+            <button
+              class="grip"
+              :aria-label="`Move ${r.name || 'row'} (drag, or use the arrow keys)`"
+              @pointerdown="onGripDown($event, r.id)"
+              @pointermove="onGripMove"
+              @pointerup="onGripUp"
+              @pointercancel="onGripUp"
+              @keydown="onGripKey($event, r.id)"
+            >
+              <GripVertical class="grip-ic" aria-hidden="true" />
+            </button>
             <input v-model="r.name" class="name" placeholder="Name" aria-label="Line name" />
             <button
               class="sign"
@@ -201,10 +327,12 @@ onBeforeUnmount(() => {
             <input
               class="amount"
               :class="r.negative ? 'neg' : 'pos'"
-              :value="r.text"
+              :value="shownAmount(r)"
               inputmode="decimal"
               placeholder="0.00"
-              :aria-label="`${r.name || 'Row'} amount`"
+              :aria-label="`${r.name || 'Row'} amount${r.negative ? ' (owed)' : ''}`"
+              @focus="onAmountFocus(r, $event)"
+              @blur="editingAmount = null"
               @input="onAmount(r, $event)"
             />
             <button class="rm" :aria-label="`Remove ${r.name || 'row'}`" @click="removeRow(r.id)">✕</button>
@@ -221,15 +349,18 @@ onBeforeUnmount(() => {
 
       <footer class="foot">
         <div class="totals">
-          <div><span class="muted small">Assets</span><b class="money">{{ fmtMoney(live.assets) }}</b></div>
-          <div><span class="muted small">Liabilities</span><b class="money">{{ fmtMoney(live.liabilities) }}</b></div>
+          <div><span class="muted small">Total owned</span><b class="money">{{ fmtMoney(live.assets) }}</b></div>
+          <div><span class="muted small">Total owed</span><b class="money">{{ fmtMoney(live.liabilities) }}</b></div>
           <div class="left">
-            <span class="muted small">Left so far</span>
+            <span class="muted small">Net equity</span>
             <b class="money" :class="{ neg: live.left < 0 }">{{ fmtMoney(live.left) }}</b>
           </div>
         </div>
         <p v-if="error" class="err small">{{ error }}</p>
         <div class="actions">
+          <button v-if="isUpdate" class="btn danger del" @click="remove">
+            {{ confirmDelete ? 'Tap again to delete' : 'Delete' }}
+          </button>
           <button class="btn ghost" @click="close">Cancel</button>
           <button class="btn primary" :disabled="saving" @click="save">
             {{ saving ? 'Saving…' : isUpdate ? 'Update record' : 'Save record' }}
@@ -306,12 +437,31 @@ onBeforeUnmount(() => {
   padding: 0.6rem 1rem 1rem;
 }
 
-.date-row {
+.when {
   display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 0.75rem;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+/* iOS gives date inputs a minimum width and centred text: let it fill the row instead. */
+.when .input {
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+}
+
+.when .input::-webkit-date-and-time-value {
+  text-align: left;
+}
+
+.when > span {
+  font-size: 0.8rem;
   font-weight: 600;
+  color: var(--mute);
+}
+
+.del {
+  margin-right: auto;
 }
 
 .note {
@@ -334,12 +484,59 @@ onBeforeUnmount(() => {
 }
 
 .row {
+  position: relative;
+  background: var(--panel);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 32px 6rem 30px;
+  grid-template-columns: 24px minmax(0, 1fr) 30px 6rem 30px;
   align-items: center;
   gap: 0.25rem;
   min-height: var(--tap);
   border-bottom: 1px solid var(--line);
+}
+
+.row.dragging {
+  z-index: 2;
+  border-radius: var(--btn-radius);
+  background: var(--panel-2);
+  box-shadow: var(--shadow);
+  outline: 1px solid var(--line);
+}
+
+.grip {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--mute);
+  opacity: 0.6;
+  cursor: grab;
+  touch-action: none; /* the drag, not the page scroll, gets the touch */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dragging .grip {
+  cursor: grabbing;
+  opacity: 1;
+}
+
+.grip:focus-visible {
+  outline: 2px solid var(--accent);
+  opacity: 1;
+}
+
+.grip-ic {
+  width: 1rem;
+  height: 1rem;
+}
+
+.inline-ic {
+  width: 0.9em;
+  height: 0.9em;
+  vertical-align: -0.1em;
 }
 
 .row.bad .amount {
@@ -374,24 +571,35 @@ onBeforeUnmount(() => {
   color: var(--negative);
 }
 
+/* The have/owe toggle: deliberately quiet — a muted sign, no ring, same tap area. */
 .sign {
   width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: 1.5px solid currentColor;
+  height: 40px;
+  border: none;
+  border-radius: var(--btn-radius);
   background: transparent;
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-size: 0.95rem;
+  font-weight: 500;
   line-height: 1;
   padding: 0;
+  opacity: 0.6;
+  transition:
+    opacity 0.12s ease,
+    background-color 0.12s ease;
+}
+
+.sign:hover,
+.sign:focus-visible {
+  opacity: 1;
+  background: var(--panel-2);
 }
 
 .sign.pos {
-  color: var(--pos);
+  color: color-mix(in srgb, var(--pos) 70%, var(--mute));
 }
 
 .sign.neg {
-  color: var(--negative);
+  color: color-mix(in srgb, var(--negative) 70%, var(--mute));
 }
 
 .rm {

@@ -4,6 +4,12 @@ Record what you learn as you build: patterns that work, ideas that didn't pan ou
 
 ## What Didn't Work (Gotchas & Dead Ends)
 
+### `navigator.storage.estimate().usage` Is Not Your Data Size
+
+On iOS Safari it reported 101.8 MB for ~3 KB of records (it counts the whole site: offline caches,
+padding, rounding), and it grew with each preview deploy. Show the app's own measure of its files
+instead; `quota` is fine as a rough "space allowed".
+
 ### Mobile-First Design Constraints
 
 Touch targets need to be at least 44×44px. Avoid hover-only interactions — users on mobile have no hover. Rethink interactions like "expand on hover" as "toggle on tap" or always-expanded. Test regularly on actual mobile devices, not just the browser's responsive mode.
@@ -339,7 +345,89 @@ safety with only create/write/delete.
 only. Any field that needs a sign needs its own control. Records use a +/− toggle per row and keep the
 typed number positive.
 
+### Editing Fields That Reformat on Focus
+
+A field that shows "(300.00)" and switches to "300.00" on focus can leave the caret after the old
+text, so typing appends ("300.00650") and rounding hides it as 300.01. Select the field's contents
+on focus, and reject more than two decimals instead of rounding them away.
+
 ## Version History
+
+### v0.9.5 — 2026-11-27
+- **Changed:** storage shown as **your data** (exact size and file count) instead of the browser's
+  site-wide usage estimate; Export sheet adds "space allowed" (quota)
+
+### v0.9.4 — 2026-11-27
+- **Changed:** the forecast line joins the totals on event days point to point instead of stepping
+
+### v0.9.3 — 2026-11-27
+- **Changed:** forecast bars show each projection's amount on the day it happens (one bar per event
+  day, one day wide) instead of running totals; the starting balance lives only in the forecast line.
+  Fixed-width period buckets were tried first and dropped: two occurrences landing in one bucket
+  made bars look doubled or uneven
+
+### v0.9.2 — 2026-11-27
+- **Changed:** with no records yet, a forecast still runs: it starts at $0 today, record-based values
+  count as 0, and nothing is skipped as "already in my records"
+
+### v0.9.1 — 2026-11-27
+- **Changed:** record totals are named **Total owned**, **Total owed** and **Net equity** (was
+  assets, liabilities and "left so far") everywhere: record sheet, Present, balance sheet, Past
+  table and chart, Future labels, help. Stored fields (`assets`, `liabilities`, `left`) unchanged
+
+### v0.9.0 — 2026-11-27
+- **Changed:** two projection types. **Recurring** = a value (amount | average | rate of change of a
+  line over a window: all / past N days / past N records / between) repeating every N
+  days/weeks/months/years from a start date; **One-time** = an amount on a date. Forecast schema 3
+- **Removed:** Cyclical (extrapolate to month end; existing ones are dropped) and Cumulative as a
+  separate type (now Recurring with rate of change, every 1 day)
+
+### v0.8.0 — 2026-11-27
+- **Changed:** Future speaks of *forecasts* (a set) and *projections* (its items: Recurring,
+  One-time, Cyclical, Cumulative). Forecast bar with labelled **Edit** / **New**; small **Add**
+- **Added:** stacked-bar forecast chart (start + each projection's running contribution, total as a
+  line); docked edit panels that preview live on the chart; lens-carousel type selector
+- **Fixed:** amount fields select their contents on focus; >2 decimals is flagged, not rounded
+
+### v0.7.0 — 2026-11-26
+- **Changed:** each record has a date and time (`at`), its own file
+  `records/<YYYY-MM-DDTHH-MM-SS>.json`; any number per day. Old date-only records get their saved
+  time (or noon) and are renamed on load
+- **Added:** one native date-and-time field (`datetime-local`) in the record sheet — separate date
+  and time inputs rendered as mismatched boxes on iOS, and the time box overflowed; "Edit latest" on Present; tap a Past row to open,
+  update (including date/time) or delete a record
+
+### v0.6.3 — 2026-11-26
+- **Added:** drag to reorder rows in the New record sheet (grip on the left; swaps when the gap left
+  behind is larger than the covered neighbour's visible part; arrow keys on the grip too). New records
+  follow the latest record's row order
+- **Changed:** negative money shows in parentheses everywhere — ($730.48) — including amount fields
+  when not being edited; `parseMoney` accepts the parenthesis form
+
+### v0.6.2 — 2026-11-26
+- **Changed:** the +/− toggle in the New record sheet is quieter (muted sign, no ring)
+- **Changed:** default record rows are Checking, Discover, Capital One, Amex, Macy's, Saving; a
+  template still on the old default is updated on load (a saved, customised one is left alone)
+
+### v0.6.1 — 2026-11-26
+- **Changed:** Import / Export moved into a side menu (☰ top left → Records, collapsed by default),
+  each opening only its own half of the sheet; removed from the Present tab and the footer
+
+### v0.6.0 — 2026-11-26
+- **Changed:** several projections, each `projections/<id>.json` with its own name, starting lines
+  (all, or picked lines of the latest record), days ahead and items; the old single projection
+  becomes "Everything"
+- **Changed:** items are a compact list with an "+ Add" menu (Every month, One time, Average from
+  records, Extrapolate to month end), each edited in its own sheet; saved immediately
+- **Added:** record ranges (all / past N days / between dates) and Extrapolate to month end (with an
+  Outdated tag when the latest record is from an earlier month)
+- **Removed:** "Set it myself" (existing figures became monthly items)
+
+### v0.5.0 — 2026-11-26
+- **Added:** export to clipboard as one JSON document (500 KB cap) and import by pasting (clipboard
+  read, or a paste box when the browser refuses); zip export/import unchanged
+- **Added:** Export / Import buttons on the Present tab (and Import on the empty state); the footer
+  button is now "Export / Import"
 
 ### v0.4.0 — 2026-11-26
 - **Changed:** styling and themes now come from the Markdown Lab editor: five looks (Navy & Brass

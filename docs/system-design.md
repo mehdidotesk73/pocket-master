@@ -96,20 +96,21 @@ No network data. Everything lives in the Origin Private File System of the produ
 OPFS root
 ├── index.<seq>.json            manifest: schemaVersion + each file's current {id, ext, rev, size, updatedAt}
 ├── files/
-│   ├── records/<date>.<rev>.json   one BalanceRecord per date
-│   ├── projection.<rev>.json       ProjectionFile
+│   ├── records/<YYYY-MM-DDTHH-MM-SS>.<rev>.json   one BalanceRecord per moment
+│   ├── projections/<id>.<rev>.json one ProjectionFile per projection
 │   └── template.<rev>.json         TemplateFile
 └── tmp/                        scratch, emptied on start
 ```
 
-- **Stored data is exactly three kinds of file**, by store id: `records/<YYYY-MM-DD>`, `projection`,
-  `template`. Every '/' in an id is a real folder; each part is URL-encoded with '.' escaped (the dot
+- **Stored data is exactly three kinds of file**, by store id: `records/<YYYY-MM-DDTHH-MM-SS>`,
+  `projections/<id>`, `template`. Every '/' in an id is a real folder; each part is URL-encoded with '.' escaped (the dot
   separates name, revision and extension). Totals, averages and the projection are computed in the
-  app and never stored. The horizon is a per-device preference in localStorage.
+  app and never stored. Which projection is on screen is a per-device preference in localStorage.
 - **Store schema 2** (`STORE_SCHEMA`); `MIGRATIONS[1]` moves schema-1 flat names
   (`files/records%2F<date>.<rev>.json`) into folders, and is safe to re-run after a crash.
-- **App-data migration** (`useTracker.ts`): the old combined `settings` file is split into
-  `projection` + `template` on load and deleted; `normalizeProjection` / `normalizeTemplate` /
+- **App-data migration** (`useTracker.ts` `loadFrom`): the v0.2 combined `settings` file and the
+  v0.3–v0.5 single `projection` file each become `projections/everything` (+ `template`) and are
+  deleted; "set it myself" figures become monthly items; `normalizeProjection` / `normalizeTemplate` /
   `normalizeRecord` also accept the first version's shapes (kinds, `dir` in/out, `everyday`) and the
   prototype's (`covered`→`inRecord`, `variable`→ everyday item).
 - **Safe save** (`store.ts`): write the new revision → write `index.<seq+1>.json` → delete the old
@@ -121,29 +122,58 @@ OPFS root
   dependable path). If OPFS or the worker isn't available the app falls back to memory and shows an
   error banner saying nothing will be kept.
 - **Persistence:** `navigator.storage.persist()` on start; the footer shows installed / persistent /
-  usage, with a warning when not installed or not persistent.
-- **Export/import:** zip (fflate) of `index.json` + `<id>.<ext>` (so `records/<date>.json`,
-  `projection.json`, `template.json`); zips in the old `files/<flat id>.<ext>` layout still import. iOS → share sheet ("Save to
-  Files"); desktop Chromium → save dialog; else download. Import accepts that zip or a prototype JSON
-  `{ settings, records[] }`, then asks merge vs replace. Today nudges for a backup after 14 days.
+  **your data** (`storeState.data`: count and UTF-8 byte total of the index's current files, kept in
+  step on every index write), with a warning when not installed or not persistent. The Export sheet
+  also shows `estimate().quota` as "space allowed". `estimate().usage` is not shown: iOS Safari
+  reported ~100 MB for ~3 KB of data (offline caches, padding).
+- **Export/import** (`BackupModal` with `section: 'export' | 'import'`, opened from the side menu
+  ☰ → Records → Import / Export (`components/SideMenu.vue`), and Export from Present's backup nudge):
+  - *Zip file*: fflate zip of `index.json` + `<id>.<ext>` (`records/<date>.json`, `projection.json`,
+    `template.json`); zips in the old `files/<flat id>.<ext>` layout still import. iOS → share sheet
+    ("Save to Files"); desktop Chromium → save dialog; else download.
+  - *Clipboard*: `buildTransferJSON` → one JSON document `{ app: 'pocket-master', format: 1,
+    exportedAt, projections[], template, records[] }` (format 2; format 1 with a single
+    `projection` still imports) (records newest first). Refused above
+    `CLIPBOARD_LIMIT_BYTES` (500 KB) so a paste can't stall a phone; a few years of weekly records is
+    well under. `lib/clipboard.ts` falls back to `execCommand('copy')`.
+  - *Import*: a zip, a JSON file or a paste all become an `ImportBundle` (`readImport` /
+    `parseImportText`, which also accepts the prototype's `{ settings, records }`), validated and
+    normalized before the Merge / Replace choice. Paste uses `navigator.clipboard.readText()`
+    (iOS shows its Paste bubble) and falls back to a textarea when refused.
 - `localStorage` holds only UI prefs: selected tab, last export time, install-banner dismissal.
 
 ## §3b — Screens
 
 Three tabs, **Past · Present · Future** (default Present): `HistoryView`, `TodayView`,
-`ProjectionView`. Backup (export/import + storage health) is `BackupModal`, opened from the footer
+`FutureView`. **Naming in the UI:** a stored `ProjectionFile` is a *forecast*; its items are
+*projections*: Recurring or One-time.
+Future = forecast picker + **Edit** / **New** → `ForecastPanel`; `ForecastChart` (a one-day-wide stacked bar on
+each day any projection changes the total — day-over-day differences of `project().contributions` — with
+the forecast total, starting balance included, as a line, past records leading in); projections list + **Add** → `ProjectionPanel`
+(`LensCarousel` type selector; value / window / repeats sections). Both panels are `DockPanel`s (mid-height, bottom, page stays
+visible) editing drafts that drive the chart live; Save writes, Cancel discards. The header's ☰ (top left) opens `SideMenu`, a drawer from the left with collapsible
+sections (start collapsed); Records holds the Import / Export tag buttons. Future = projection picker (+ `ProjectionModal` for name / start lines / days ahead /
+duplicate / delete), chart, and a compact item list; "+ Add" menu → `ItemModal` per kind (built on
+`SheetModal`); summaries in `projectionText.ts`. Edits save immediately. Backup (export/import + storage health) is `BackupModal`, opened from the footer
 and from Present's backup nudge. The New record sheet (`RecordModal`) is a compact list: name · ±
-toggle · amount · ✕. The sign is a button because the iPhone decimal keypad has no minus key; typing a
+toggle · amount · ✕, with a drag grip on the left (pointer events; a row swaps with its neighbour
+once the gap it leaves exceeds the neighbour's still-visible height, i.e. past its midpoint). New
+records take the latest record's row order. Negative money displays as ($1.00) everywhere
+(`fmtMoney`, `fmtPlain`; fields show it only when not focused). The sign is a button because the iPhone decimal keypad has no minus key; typing a
 leading `-` on a keyboard also flips it.
 
 ## §4 — Calculations (`src/lib/finance.ts`)
 
 All sums in integer cents.
 
+- **Records** (schema 3) carry `at`, a local date-time `YYYY-MM-DDTHH:MM:SS`, plus its `date` part.
+  Several per day; ordered and identified by `at` (`byAt`, `upsertRecord`); all day-based math
+  uses `date`. Pre-v0.7 date-only records take their savedAt local time when it's the same day,
+  else noon, and their files are renamed on load (`loadFrom`). Charts place records at `atNum(at)`.
 - **Records** are lists of line items `{ id, name, amount }` with a **signed** amount: positive =
   asset, negative = liability. No line kinds. (Schema 1 had kinds and card share %; `normalizeRecord`
   converts those on load, cards at their share.)
-- **Sheet:** assets = Σ positive lines; liabilities = Σ |negative lines|; left = assets − liabilities.
+- **Sheet** (shown as Total owned / Total owed / Net equity): assets = Σ positive lines; liabilities = Σ |negative lines|; left = assets − liabilities.
 - **Template** (`template.json`): the rows every new record starts with, `{ id, name, negative,
   amount? }`. The New record sheet fills amounts from the latest record by row id; *Save as template*
   replaces it with the sheet's current rows. Rows can be added/removed per record; records keep their
@@ -151,16 +181,23 @@ All sums in integer cents.
 - **`scheduledCents(s0, s1)`**, window (s0, s1]: signed recurring items on their clamped day (day 31 →
   last day); `inRecord` items count once at the start of each month after s0's month; signed one-time
   items on their date.
-- **Averaged items** (`evaluateAveraged`): records in [from, to] (empty = all) that have the source
-  (left so far, or the sum of lines with that name, case-insensitive).
-  - `rate`: Σ consecutive changes ÷ span days × 30.44 → $/month. For left so far, scheduled flows
-    in each gap are subtracted first (everyday spending). Null when the span < 28 days.
-  - `amount`: mean value across those records → applied monthly on `day`.
-  - `manual` overrides the computed figure; null with no manual → 0, with a plain-language reason.
-- **Projection** (`project`): from (latest.date, latest.left), each day add recurring (skipping
-  `inRecord` items in the latest record's month), one-time items and amount-mode items on their day,
-  plus the summed rate-mode drift (monthly ÷ 30.44). Outputs series, end, minimum, and each averaged
-  item's result.
+- **Forecasts** (`ProjectionFile`, schema 3): `{ id, name, start, horizonDays, items[] }`. `start` is
+  `{ mode: 'all' }` (left so far) or `{ mode: 'lines', names }` — the starting total is the sum of
+  those lines in the latest record (`startValueCents`). Items (*projections*) are:
+  - `recurring`: `value` (`fixed` amount | `average` | `rate` of a `source` line — `LEFT_SOURCE` = the
+    starting total — over a `window`: all | last N days | last N records | between dates), `every`
+    `{ n, unit: day|week|month|year }` from `start` (`occursOn`: months/years use start's day,
+    clamped), and `inRecord` (fixed monthly only). Average = mean value per occurrence. Rate =
+    Σ changes ÷ span days (for the starting total, minus what fixed/one-time items explain via
+    `scheduledCents`) × `periodDays(every)` per occurrence. Null when the span < 28 days.
+  - `oneTime`: a signed amount on a date.
+  Older shapes (monthly `amount`/`day`, `averaged`, `extrapolate`, `dir`, `manual`) are converted in
+  `normalizeItem`; extrapolate-to-month-end is dropped.
+- **`project(proj, records, startIfEmpty = today)`** (never null): from (latest.date, starting total) —
+  or ($0, today) when there are no records — each day adds every projection that
+  occurs that day (`inRecord` ones skipped in the latest record's month) and tracks each one's running
+  contribution (for the stacked bars), for `horizonDays` (≤ 1830).
+
 
 ## §5 — Composables
 

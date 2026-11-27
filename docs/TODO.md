@@ -14,6 +14,19 @@ Track feature development, improvements, and known issues here. Move completed w
   amount over a date range, manual override) feeds `project`; `AveragedEditor`, `SignedMoneyInput`.
 - **v0.4.0 — editor looks** — `styles/themes.css`, `lib/themes.ts`, `lib/useTheme.ts` copied from
   markdown-editor; app tokens mapped in `styles/vars.css`; look switcher in the `App.vue` header.
+- **v0.5.0 — clipboard export/import** — `buildTransferJSON` / `parseImportText` in `useTracker.ts`,
+  `lib/clipboard.ts`, `BackupModal` Export (zip / clipboard) and Import (file / paste) sections.
+- **v0.6.0 — multiple projections** — `projections/<id>` files, `StartLines`, item union with
+  `RecordRange` and `extrapolate`; `FutureView`, `ItemModal`, `ProjectionModal`, `SheetModal`.
+- **v0.6.1 — side menu** — `components/SideMenu.vue` (☰ → Records → Import / Export).
+- **v0.6.2 — quieter ± and new default rows** — `defaultTemplate`, `isPreviousDefault` in `loadFrom`.
+- **v0.6.3 — drag reorder + (negatives)** — `RecordModal` grip/pointer drag, `fmtMoney`/`fmtPlain`/`parseMoney`.
+- **v0.9.0 — recurring rework** — `Recurring { value, every, start }`, `occursOn`, `evaluateRecurring`,
+  `recordsInWindow` (+ lastRecords), `normalizeItem` migration, `ProjectionPanel` sections.
+- **v0.8.0 — forecasts & projections UI** — `FutureView`, `ForecastChart`, `ForecastPanel`,
+  `ProjectionPanel`, `LensCarousel`, `DockPanel`; `project().contributions`.
+- **v0.7.0 — timestamped records** — `BalanceRecord.at`, `recordId(at)`, `normalizeRecord`/`loadFrom`
+  migration, `RecordModal` `editing` prop, Past rows open records.
 
 ## Next (Current Sprint)
 

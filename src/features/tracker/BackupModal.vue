@@ -1,14 +1,74 @@
 <script setup lang="ts">
-// Backup sheet: export everything, import a backup (or the prototype's JSON),
-// and the storage health details. Opened from the footer and the backup nudge.
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+// Export / Import sheet.
+//   Export: a zip file (share sheet / save dialog / download), or the whole data
+//           set as JSON on the clipboard (refused above CLIPBOARD_LIMIT_BYTES).
+//   Import: a zip or JSON file, or JSON pasted from the clipboard. Both end at
+//           the same Merge / Replace confirmation before anything is written.
+// Also shows storage health. Opened from Present, the footer and the backup nudge.
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { copyText, readClipboardText } from '../../lib/clipboard'
 import { fmtDate } from '../../lib/money'
-import { refreshHealth, storeState } from '../../lib/storage/store'
-import { exportAll, formatBytes } from '../../lib/storage/useStore'
-import { type ImportBundle, useTracker } from './useTracker'
+import { noteExported, refreshHealth, storeState } from '../../lib/storage/store'
+import { exportAll, formatBytes, useStore } from '../../lib/storage/useStore'
+import { CLIPBOARD_LIMIT_BYTES, type ImportBundle, parseImportText, useTracker } from './useTracker'
 
+/** Which half to show: the side menu opens one or the other. */
+const props = defineProps<{ section: 'export' | 'import' }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
-const { records, readImport, applyImport } = useTracker()
+const { records, projections, readImport, applyImport, exportText } = useTracker()
+
+// Size of the clipboard export, worked out when the sheet opens.
+const clipSize = ref(exportText().bytes)
+const clipTooBig = computed(() => clipSize.value > CLIPBOARD_LIMIT_BYTES)
+
+async function doCopy() {
+  msg.value = err.value = ''
+  const { text, bytes } = exportText()
+  clipSize.value = bytes
+  if (bytes > CLIPBOARD_LIMIT_BYTES) {
+    err.value = `Your data is ${formatBytes(bytes)}, too big to copy safely. Use the zip file instead.`
+    return
+  }
+  if (await copyText(text)) {
+    noteExported()
+    msg.value = `Copied ${formatBytes(bytes)} of JSON (${records.value.length} record${records.value.length === 1 ? '' : 's'}). Paste it into a note or message to keep it.`
+  } else {
+    err.value = 'This browser wouldn’t copy. Use the zip file instead.'
+  }
+}
+
+// ---- paste
+const pasteOpen = ref(false)
+const pasteText = ref('')
+const pasteBox = ref<HTMLTextAreaElement>()
+
+async function doPaste() {
+  msg.value = err.value = ''
+  pending.value = null
+  const text = await readClipboardText()
+  if (text && text.trim()) {
+    parsePasted(text)
+    return
+  }
+  // The browser wouldn't hand over the clipboard (or it was empty): paste by hand.
+  pasteOpen.value = true
+  pasteText.value = ''
+  await nextTick()
+  pasteBox.value?.focus()
+}
+
+function parsePasted(text: string) {
+  err.value = ''
+  try {
+    pending.value = parseImportText(text)
+    pasteOpen.value = false
+    pasteText.value = ''
+  } catch (e) {
+    err.value = (e as Error).message
+    pasteOpen.value = true
+    pasteText.value = text.length > 200_000 ? '' : text
+  }
+}
 
 const busy = ref(false)
 const msg = ref('')
@@ -40,6 +100,7 @@ async function onFile(e: Event) {
   input.value = ''
   if (!file) return
   msg.value = err.value = ''
+  pasteOpen.value = false
   try {
     pending.value = await readImport(file)
   } catch (e2) {
@@ -53,9 +114,13 @@ async function confirmImport(mode: 'merge' | 'replace') {
   try {
     await applyImport(pending.value, mode)
     msg.value = `Imported ${pending.value.recordCount} record${pending.value.recordCount === 1 ? '' : 's'}${
-      pending.value.files.some((f) => f.id === 'projection') ? ', your projection and your template' : ''
+      pending.value.projectionCount
+        ? `, ${pending.value.projectionCount} projection${pending.value.projectionCount === 1 ? '' : 's'}`
+        : ''
+    }${pending.value.files.some((f) => f.id === 'template') ? ' and your template' : ''
     }.`
     pending.value = null
+    clipSize.value = exportText().bytes
     await refreshHealth()
   } catch (e) {
     err.value = `Import failed: ${(e as Error).message}`
@@ -65,6 +130,7 @@ async function confirmImport(mode: 'merge' | 'replace') {
 }
 
 const h = computed(() => storeState.health)
+const { dataLabel } = useStore()
 
 function onKey(e: KeyboardEvent) {
   if (e.key === 'Escape') emit('close')
@@ -78,21 +144,43 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
 
 <template>
   <div class="backdrop" @click.self="emit('close')">
-    <div class="panel" role="dialog" aria-modal="true" aria-label="Backup">
+    <div class="panel" role="dialog" aria-modal="true" :aria-label="props.section === 'export' ? 'Export' : 'Import'">
       <header class="head">
-        <h2>Backup</h2>
+        <h2>{{ props.section === 'export' ? 'Export records' : 'Import records' }}</h2>
         <button class="x" aria-label="Close" @click="emit('close')">✕</button>
       </header>
 
       <div class="body">
+        <template v-if="props.section === 'export'">
         <p class="muted small">
           Everything is stored only on this device, inside this app. Deleting the app from your Home Screen
-          deletes the data too, so back up now and then.
+          deletes the data too, so export now and then.
         </p>
 
         <div class="data-actions">
-          <button class="btn primary" :disabled="busy" @click="doExport">Export all</button>
-          <button class="btn" :disabled="busy" @click="fileInput?.click()">Import…</button>
+          <button class="btn primary" :disabled="busy" @click="doExport">Zip file</button>
+          <button class="btn" :disabled="busy || clipTooBig" @click="doCopy">Copy to clipboard</button>
+        </div>
+        <p class="muted small hint">
+          <template v-if="clipTooBig">
+            Your data is {{ formatBytes(clipSize) }}, over the {{ formatBytes(CLIPBOARD_LIMIT_BYTES) }} clipboard
+            limit. Use the zip file.
+          </template>
+          <template v-else>
+            The clipboard copy is one JSON text ({{ formatBytes(clipSize) }}) with your projections, template and every
+            record. Paste it into a note or message to keep it.
+          </template>
+        </p>
+        </template>
+
+        <template v-else>
+        <p class="muted small">
+          Bring back records from a zip you exported, a JSON file, or text you copied. You'll choose whether to merge
+          or replace before anything changes.
+        </p>
+        <div class="data-actions">
+          <button class="btn" :disabled="busy" @click="fileInput?.click()">Zip or JSON file…</button>
+          <button class="btn" :disabled="busy" @click="doPaste">Paste from clipboard</button>
           <input
             ref="fileInput"
             type="file"
@@ -102,10 +190,32 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
           />
         </div>
 
+        <div v-if="pasteOpen" class="paste">
+          <label class="small" for="paste-box">Paste the exported text here:</label>
+          <textarea
+            id="paste-box"
+            ref="pasteBox"
+            v-model="pasteText"
+            class="paste-box"
+            rows="5"
+            spellcheck="false"
+            autocapitalize="off"
+            autocomplete="off"
+            placeholder='{ "app": "pocket-master", … }'
+          ></textarea>
+          <div class="data-actions">
+            <button class="btn primary" :disabled="!pasteText.trim()" @click="parsePasted(pasteText)">Read it</button>
+            <button class="btn ghost" @click="pasteOpen = false">Cancel</button>
+          </div>
+        </div>
+
         <div v-if="pending" class="confirm">
           <p>
-            This file has <b>{{ pending.recordCount }}</b> record{{ pending.recordCount === 1 ? '' : 's' }}
-            <template v-if="pending.files.some((f) => f.id === 'projection')"> plus a projection and a template</template>.
+            This {{ pending.kind === 'zip' ? 'file' : 'text' }} has <b>{{ pending.recordCount }}</b>
+            record{{ pending.recordCount === 1 ? '' : 's' }}
+            <template v-if="pending.projectionCount">
+              plus {{ pending.projectionCount }} projection{{ pending.projectionCount === 1 ? '' : 's' }}</template
+            ><template v-if="pending.files.some((f) => f.id === 'template')"> and a template</template>.
             How should it be added?
           </p>
           <div class="data-actions">
@@ -119,18 +229,22 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
           </p>
         </div>
 
-        <p v-if="msg" class="ok small">{{ msg }}</p>
-        <p v-if="err" class="err small">{{ err }}</p>
+        </template>
 
-        <dl class="health small">
-          <dt>Last backup</dt>
+        <p v-if="msg" class="ok small" role="status">{{ msg }}</p>
+        <p v-if="err" class="err small" role="alert">{{ err }}</p>
+
+        <dl v-if="props.section === 'export'" class="health small">
+          <dt>Last export</dt>
           <dd>{{ storeState.lastExport ? fmtDate(storeState.lastExport.slice(0, 10)) : 'never' }}</dd>
           <dt>Files</dt>
-          <dd>records/ ({{ records.length }} file{{ records.length === 1 ? '' : 's' }}) · projection.json · template.json</dd>
-          <dt>Storage</dt>
+          <dd>records/ ({{ records.length }}) · projections/ ({{ projections.length }}) · template.json</dd>
+          <dt>Your data</dt>
+          <dd>{{ dataLabel }} <span class="muted">(exact)</span></dd>
+          <dt>Space allowed</dt>
           <dd>
-            {{ storeState.backend === 'opfs' ? 'Files on this device' : 'Not available: nothing is kept' }} ·
-            {{ formatBytes(h.usageBytes) }} used
+            <template v-if="storeState.backend !== 'opfs'">Not available: nothing is kept</template>
+            <template v-else>about {{ formatBytes(h.quotaBytes) }}, set by the browser</template>
           </dd>
           <dt>Installed app</dt>
           <dd :class="{ warn: !h.installed }">{{ h.installed ? 'Yes' : 'No, opened in a browser tab' }}</dd>
@@ -200,6 +314,44 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
 
 .body {
   padding: 0 1rem 1rem;
+}
+
+h3 {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.8rem;
+  font-family: var(--font-text);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mute);
+}
+
+.hint {
+  margin: 0.4rem 0 0;
+}
+
+.paste {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.paste-box {
+  width: 100%;
+  min-height: 7rem;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--bg-input);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 16px; /* no iOS zoom */
+  resize: vertical;
+}
+
+.paste-box:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .data-actions {

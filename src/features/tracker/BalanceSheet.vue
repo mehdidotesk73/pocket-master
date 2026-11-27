@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { BalanceRecord } from '../../lib/finance'
-import { fmtDate, fmtMoney } from '../../lib/money'
+import { fmtDateTime, fmtMoney } from '../../lib/money'
 
 const props = defineProps<{ record: BalanceRecord }>()
 
@@ -13,32 +13,32 @@ const zeros = computed(() => props.record.lines.filter((l) => l.amount === 0))
 
 <template>
   <section class="card sheet">
-    <h2>Balance sheet <span class="muted small">· {{ fmtDate(record.date) }}</span></h2>
+    <h2>Balance sheet <span class="muted small">· {{ fmtDateTime(record.at) }}</span></h2>
 
-    <h3 class="group">Assets</h3>
+    <h3 class="group">Owned</h3>
     <div v-for="l in assets" :key="l.id" class="row">
       <span class="name">{{ l.name }}</span>
       <span class="money">{{ fmtMoney(l.amount) }}</span>
     </div>
     <div v-if="!assets.length" class="row muted small">None</div>
     <div class="row total">
-      <span>Total assets</span><span class="money">{{ fmtMoney(record.assets) }}</span>
+      <span>Total owned</span><span class="money">{{ fmtMoney(record.assets) }}</span>
     </div>
 
-    <h3 class="group">Liabilities</h3>
+    <h3 class="group">Owed</h3>
     <div v-for="l in liabilities" :key="l.id" class="row">
       <span class="name">{{ l.name }}</span>
-      <span class="money">{{ fmtMoney(-l.amount) }}</span>
+      <span class="money">{{ fmtMoney(l.amount) }}</span>
     </div>
     <div v-if="!liabilities.length" class="row muted small">None</div>
     <div class="row total">
-      <span>Total liabilities</span><span class="money">{{ fmtMoney(record.liabilities) }}</span>
+      <span>Total owed</span><span class="money">{{ fmtMoney(record.liabilities) }}</span>
     </div>
 
     <p v-if="zeros.length" class="zeros muted small">At $0: {{ zeros.map((z) => z.name).join(', ') }}</p>
 
     <div class="left-so-far">
-      <span>Left so far</span>
+      <span>Net equity</span>
       <span class="big money" :class="{ neg: record.left < 0 }">{{ fmtMoney(record.left) }}</span>
     </div>
   </section>

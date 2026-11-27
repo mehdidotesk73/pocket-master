@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MemoryBackend, Store } from './store'
+import { MemoryBackend, Store, storeState } from './store'
 
 describe('file store (memory backend)', () => {
   it('writes, reads, replaces and removes with one live revision each', async () => {
@@ -101,6 +101,17 @@ describe('file store (memory backend)', () => {
       'files/records%2F2026-01-02.json': strToU8('{"left":7}'),
     })
     expect(Store.readZip(legacy).files).toEqual([{ id: 'records/2026-01-02', ext: 'json', text: '{"left":7}' }])
+  })
+
+  it('tracks your data’s exact size and file count (UTF-8 bytes)', async () => {
+    const s = new Store(new MemoryBackend())
+    await s.load()
+    await s.write('a', '12345')
+    await s.write('b', 'é') // 2 bytes in UTF-8
+    expect(storeState.data).toEqual({ files: 2, bytes: 7 })
+    await s.write('a', '1')
+    await s.remove('b')
+    expect(storeState.data).toEqual({ files: 1, bytes: 1 })
   })
 
   it('rejects a zip from another app', () => {

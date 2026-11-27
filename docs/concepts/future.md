@@ -1,31 +1,41 @@
 # Future
 
-The projection starts from your **latest record** and walks forward one day at a time. Every item is a **+** (coming in) or **−** (going out) amount. Tap the sign to switch it.
+A **forecast** shows where some of your money is heading. It starts from your **latest record** and adds up its **projections**: the things you expect to come in or go out.
 
-- **Every month** items (paychecks, rent, subscriptions) apply on their day. Day 31 means the last day of the month.
-- **One-time** items apply on their date.
-- **From your records** items are worked out from your past records (below).
+## The chart
 
-The heading tells you the main finding. If left so far goes below zero, it says when.
+- **Bars** are drawn on each day something happens, one day wide, in each projection's colour: a weekly ($50) is a ($50) bar every week, a monthly +$100 a +$100 bar on its day. Projections only share a bar when they fall on the same day. Money in stacks above zero, money out below.
+- The **line** is the forecast: your starting balance plus everything so far, joined point to point through the days something happens. Between those days nothing actually changes, so for the exact figure on a given day, tap the chart.
+- On the left, the **green line** is your past records.
+- Tap or hover a bar to see that day's amounts and the forecast by then.
 
-## "In record"
+With no records yet, a forecast starts from $0 today, so you can set up projections before your first record.
 
-Some monthly items already appear as a line in your records until they're paid, like rent listed as a bill. Tick **in record** for those. The projection then skips them in your latest record's month, because that record already counts them, and applies them from the next month on. Paychecks usually stay unticked.
+The heading tells you the main finding. If the forecast goes below zero, it says when.
 
-## From your records
+## Forecasts
 
-Each item averages one value across a range of your records:
+Pick one from **Forecast** at the top. You can keep several, for example:
 
-- **Average**: either **left so far**, or any line that appears in your records (like Amex).
-- **From / To**: which records to use. Leave both empty to use all of them.
-- **Rate of change**: how fast the value moved per month, continued a little each day. For **left so far**, your monthly and one-time items are taken out first, so what remains is everyday spending (groceries, gas, eating out). Rates need records spanning four weeks or more.
-- **Average amount**: the line's typical value, applied once a month on the day you choose (for example a phone bill that varies).
-- **Set it myself**: use your own monthly figure instead of the computed one.
+- **Everything**: all lines of your latest record (net equity), with pay, rent and everyday spending.
+- **Checking**: just checking (and maybe your cards), to see how checking swings during the month.
 
-New projections start with one item, **Everyday spending**: the rate of change of left so far.
+**Edit** changes the forecast's name, which lines of your latest record it starts from, and how many days ahead it runs. **Duplicate** and **Delete** are there too. **New** makes a new forecast and opens it for editing. Both editors sit at the bottom of the screen, so you can watch the chart change as you go. Nothing is kept until you tap **Save** or **Create**.
 
-## Saving
+## Projections
 
-Edits are a draft. The chart updates as you go, and nothing is kept until you tap **Save changes**. **Discard** puts everything back.
+Tap **Add** to make one, or tap a projection to change it. Swipe or tap the type at the top of the panel:
 
-This is a guide, not a promise. It's only as good as the items you've entered.
+- **Recurring**: repeats **every N days, weeks, months or years**, starting on a date you pick. For months and years, the start date's day is used each time; days past a month's end land on its last day. Its **value** is one of:
+  - **Amount**: a number you type, e.g. +$1,800 every 2 weeks for pay, or ($2,000) every month for rent.
+  - **Average**: the average value of a line in your records, for a bill that varies.
+  - **Rate of change**: how fast a line has been changing, times the time between repeats. With **Net equity** (or the starting total), the forecast's fixed and one-time projections are taken out first, so what's left is your **everyday spending**. Use **every 1 day** for a smooth line. You need records spanning four weeks or more.
+
+  For Average and Rate of change, pick which **records** to use: **All**, the **past N days**, the **past N records**, or **Between** two dates.
+
+  For a monthly Amount, tick **Already in my records until paid** for things like rent that you list in each record until paid, so it isn't counted twice this month.
+- **One-time**: a fixed amount you type, on one date.
+
+Amounts are **+** (coming in) or **−** (going out): tap the sign to switch. Owed amounts show in parentheses.
+
+This is a guide, not a promise. It's only as good as the projections you've entered.

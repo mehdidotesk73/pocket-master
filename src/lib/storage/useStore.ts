@@ -11,19 +11,24 @@ export function useStore() {
   const needsInstallWarning = computed(
     () => storeState.ready && (!storeState.health.installed || storeState.health.persisted === false),
   )
-  const usageLabel = computed(() => formatBytes(storeState.health.usageBytes))
+  /** Your data's real size, e.g. "3.3 KB in 6 files" (measured from the files, not the browser). */
+  const dataLabel = computed(() => {
+    const d = storeState.data
+    return `${formatBytes(d.bytes)} in ${d.files} file${d.files === 1 ? '' : 's'}`
+  })
   const daysSinceExport = computed(() => {
     if (!storeState.lastExport) return null
     return Math.floor((Date.now() - Date.parse(storeState.lastExport)) / 86_400_000)
   })
-  return { state: storeState, saveState, needsInstallWarning, usageLabel, daysSinceExport, init, refreshHealth }
+  return { state: storeState, saveState, needsInstallWarning, dataLabel, daysSinceExport, init, refreshHealth }
 }
 
 export function formatBytes(n: number | null): string {
   if (n == null) return '—'
   if (n < 1024) return `${n} B`
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / 1024 / 1024).toFixed(1)} MB`
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`
+  return `${(n / 1024 / 1024 / 1024).toFixed(1)} GB`
 }
 
 /**
