@@ -2,9 +2,9 @@
 import { computed, ref } from 'vue'
 import { type LocalDateTime, atNum, fmtDate, fmtDateTime, fmtMoney, fmtTime } from '../../lib/money'
 import { type BalanceRecord, LEFT_SOURCE, type RecordWindow, lineNames } from '../../lib/finance'
-import { intervalRates, lineSeries, windowMix } from '../../lib/analysis'
+import { dailyCandles, lineSeries, windowMix } from '../../lib/analysis'
 import DonutChart, { type DonutSlice } from './DonutChart.vue'
-import RateChart from './RateChart.vue'
+import CandleChart from './CandleChart.vue'
 import WindowPicker from './WindowPicker.vue'
 import { colorFor } from './projectionText'
 import RecordModal from './RecordModal.vue'
@@ -49,9 +49,9 @@ const series = computed<ChartSeries[]>(() => {
 type View = 'totals' | 'lines' | 'mix' | 'rate'
 const VIEWS: { id: View; label: string }[] = [
   { id: 'totals', label: 'Totals' },
-  { id: 'lines', label: 'Each line' },
-  { id: 'mix', label: 'Mix' },
-  { id: 'rate', label: 'Rate' },
+  { id: 'lines', label: 'Timeseries' },
+  { id: 'mix', label: 'Averages' },
+  { id: 'rate', label: 'Rates' },
 ]
 const view = ref<View>('totals')
 
@@ -85,7 +85,7 @@ const mixNames = computed(() =>
 
 const rateLine = ref<string>(LEFT_SOURCE)
 const rateShow = ref<'both' | 'up' | 'down'>('both')
-const rates = computed(() => intervalRates(records.value, rateLine.value))
+const candles = computed(() => dailyCandles(records.value, rateLine.value))
 
 const newestFirst = computed(() => [...records.value].reverse())
 
@@ -167,13 +167,13 @@ const editing = ref<BalanceRecord | null>(null)
             </select>
             <div class="side" role="radiogroup" aria-label="Show">
               <button v-for="s in (['both', 'up', 'down'] as const)" :key="s" role="radio" class="chip" :aria-checked="rateShow === s" :class="{ on: rateShow === s }" @click="rateShow = s">
-                {{ s === 'both' ? 'Both' : s === 'up' ? 'Growing' : 'Shrinking' }}
+                {{ s === 'both' ? 'Both' : s === 'up' ? 'Rising' : 'Falling' }}
               </button>
             </div>
           </div>
-          <RateChart :rates="rates" :show="rateShow" />
+          <CandleChart :candles="candles" :show="rateShow" />
           <p class="muted small note">
-            How fast it changed per day between records: each bar spans the days from one record to the next. Records on the same day count as that day's last one. For a card, a bar below $0 means you owed more each day.
+            One candle per day, from the day's opening value to its closing value: green if it went up, red if it went down. Days between records (lighter) change at the even rate between those two records; record days show the actual jumps. Tap a candle to read it. For a card, going up means you owe less.
           </p>
         </template>
       </section>

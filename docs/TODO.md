@@ -68,7 +68,8 @@ Balance-sheet forecasts, in order (step 1, target lines, is done in v0.10.0):
 New direction (agreed 2026-11-27): analysis lives in Past, Future holds only amounts you type.
 
 - [x] **Past analysis charts** (v0.14.0) — `lib/analysis.ts` (`lineSeries`, `windowMix`,
-      `intervalRates`); Each line / Mix (donut) / Rate tabs; `DonutChart`, `RateChart`, `WindowPicker`.
+      `dailyCandles`); Timeseries / Averages (donut) / Rates (daily candles) tabs; `DonutChart`,
+      `CandleChart`, `WindowPicker`.
 - [ ] **Use as projection** from Past: a line's average or rate opens the projection editor
       pre-filled with a plain amount the user can change.
 - [ ] **Monthly in / spent / net change** in Past (from records).

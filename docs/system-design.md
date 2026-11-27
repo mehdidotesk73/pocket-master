@@ -174,15 +174,18 @@ leading `-` on a keyboard also flips it.
 
 ## §4a — History analysis (`src/lib/analysis.ts`)
 
-Pure functions over records for the Past tab's chart card (tests in `analysis.test.ts`). A line missing
+Pure functions over records for the Past tab's chart card (tabs: Totals, Timeseries, Averages, Rates) (tests in `analysis.test.ts`). A line missing
 from a record counts as $0 there.
-- `lineSeries(records)`: each line (by `lineNames`) valued at every record → *Each line* (`LineChart`,
+- `lineSeries(records)`: each line (by `lineNames`) valued at every record → *Timeseries* (`LineChart`,
   its own legend off; toggle chips instead).
-- `windowMix(records, window)`: each line's signed average over `recordsInWindow` → *Mix*
+- `windowMix(records, window)`: each line's signed average over `recordsInWindow` → *Averages*
   (`DonutChart`; Owned / Owed / Owned + owed as absolute sizes; `WindowPicker` for the window).
-- `intervalRates(records, line | LEFT_SOURCE)`: change per day between consecutive days, using each
-  day's last record → *Rate* (`RateChart`: a bar spanning each interval; Growing / Shrinking filter
-  hides bars without rescaling).
+- `dailyCandles(records, line | LEFT_SOURCE)`: one OHLC candle per day from the first record's day to
+  the last's. The value is linear between consecutive records (by `atNum`, so same-day before/after
+  pairs jump within the day); open/close = value at the day's start/end, high/low also include the
+  records that day; days with no record carry `between { from, to, perDay }` → *Rates*
+  (`CandleChart`; record-less days drawn lighter; Rising / Falling filter hides candles without
+  rescaling).
 Colours per line come from `colorFor(index in lineNames)`, the same in every view.
 
 ## §4 — Calculations (`src/lib/finance.ts`)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { LEFT_SOURCE, makeRecord } from './finance'
-import { intervalRates, lineSeries, windowMix } from './analysis'
+import { dailyCandles, lineSeries, windowMix } from './analysis'
 
 const rec = (at: string, lines: [string, number][]) =>
   makeRecord(at, lines.map(([name, amount]) => ({ id: name, name, amount })))
@@ -30,16 +30,21 @@ describe('history analysis', () => {
     expect(windowMix(records, { mode: 'lastRecords', count: 1 }).slices.map((s) => s.name).sort()).toEqual(['Checking', 'Saving'])
   })
 
-  it('rate per day between records, using each day’s last record', () => {
-    const r = intervalRates(records, 'Card')
-    expect(r).toEqual([
-      { from: '2026-10-01', to: '2026-10-11', days: 10, start: -300, end: -500, perDay: -20 },
-      { from: '2026-10-11', to: '2026-10-21', days: 10, start: -500, end: 0, perDay: 50 },
-    ])
-    expect(intervalRates(records, LEFT_SOURCE).map((x) => x.perDay)).toEqual([90, -80])
+  it('daily candles: an even rate between records, record-to-record jumps on record days', () => {
+    const c = dailyCandles(records, 'Card')
+    expect(c.map((x) => x.date)).toEqual(Array.from({ length: 21 }, (_, i) => `2026-10-${String(i + 1).padStart(2, '0')}`))
+    // Oct 2: no record, between Oct 1 8 AM (−300) and Oct 11 8 AM (−500) → −20 a day
+    expect(c[1]).toMatchObject({ open: -313.33, close: -333.33, records: [], between: { from: '2026-10-01', to: '2026-10-11', perDay: -20 } })
+    // Oct 21: card climbs to −800 by 8 AM, then is paid to 0 at 8 PM
+    const last = c[20]
+    expect(last.records.map((r) => r.value)).toEqual([-800, 0])
+    expect(last.low).toBe(-800)
+    expect(last.close).toBe(0)
+    expect(last.high).toBe(0)
   })
 
-  it('nothing to compare with one day of records', () => {
-    expect(intervalRates(records.slice(2), 'Card')).toEqual([])
+  it('net equity candles; nothing with fewer than two records', () => {
+    expect(dailyCandles(records, LEFT_SOURCE).length).toBe(21)
+    expect(dailyCandles(records.slice(0, 1), 'Card')).toEqual([])
   })
 })
