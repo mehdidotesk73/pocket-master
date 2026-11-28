@@ -10,7 +10,7 @@ import { copyText, readClipboardText } from '../../lib/clipboard'
 import { fmtDate } from '../../lib/money'
 import { noteExported, refreshHealth, storeState } from '../../lib/storage/store'
 import { exportAll, formatBytes, useStore } from '../../lib/storage/useStore'
-import { CLIPBOARD_LIMIT_BYTES, type ImportBundle, parseImportText, useTracker } from './useTracker'
+import { CLIPBOARD_LIMIT_BYTES, type ImportBundle, describeBundle, parseImportText, useTracker } from './useTracker'
 
 /** Which half to show: the side menu opens one or the other. */
 const props = defineProps<{ section: 'export' | 'import' }>()
@@ -113,12 +113,7 @@ async function confirmImport(mode: 'merge' | 'replace') {
   busy.value = true
   try {
     await applyImport(pending.value, mode)
-    msg.value = `Imported ${pending.value.recordCount} record${pending.value.recordCount === 1 ? '' : 's'}${
-      pending.value.projectionCount
-        ? `, ${pending.value.projectionCount} projection${pending.value.projectionCount === 1 ? '' : 's'}`
-        : ''
-    }${pending.value.files.some((f) => f.id === 'template') ? ' and your template' : ''
-    }.`
+    msg.value = `Imported ${describeBundle(pending.value)}.`
     pending.value = null
     clipSize.value = exportText().bytes
     await refreshHealth()
@@ -211,11 +206,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
 
         <div v-if="pending" class="confirm">
           <p>
-            This {{ pending.kind === 'zip' ? 'file' : 'text' }} has <b>{{ pending.recordCount }}</b>
-            record{{ pending.recordCount === 1 ? '' : 's' }}
-            <template v-if="pending.projectionCount">
-              plus {{ pending.projectionCount }} projection{{ pending.projectionCount === 1 ? '' : 's' }}</template
-            ><template v-if="pending.files.some((f) => f.id === 'template')"> and a template</template>.
+            This {{ pending.kind === 'zip' ? 'file' : 'text' }} has <b>{{ describeBundle(pending) }}</b>.
             How should it be added?
           </p>
           <div class="data-actions">

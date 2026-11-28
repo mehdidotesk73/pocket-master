@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defaultProjection, defaultTemplate, makeRecord } from '../../lib/finance'
-import { CLIPBOARD_LIMIT_BYTES, buildTransferJSON, parseImportText } from './useTracker'
+import { CLIPBOARD_LIMIT_BYTES, buildTransferJSON, describeBundle, parseImportText } from './useTracker'
 
 const records = [
   makeRecord('2026-10-01', [{ id: 'c', name: 'Checking', amount: 5000 }, { id: 'a', name: 'Amex', amount: -300 }]),
@@ -31,7 +31,9 @@ describe('clipboard export / paste import', () => {
     const b = parseImportText(text)
     expect(b.kind).toBe('json')
     expect(b.recordCount).toBe(2)
-    expect(b.projectionCount).toBe(2)
+    expect(b.forecastCount).toBe(2)
+    expect(b.projectionCount).toBe(1) // the paycheck; the checking forecast is empty
+    expect(describeBundle(b)).toBe('2 records, 2 forecasts with 1 projection and a template')
     const byId = Object.fromEntries(b.files.map((f) => [f.id, JSON.parse(f.text)]))
     expect(Object.keys(byId).sort()).toEqual([
       'projections/checking',
