@@ -395,6 +395,18 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.16.0 — 2026-11-28
+- **Added:** projections linked to Past. **Project this** under Past's Averages and Rates makes a
+  Recurring projection whose amount is a line's average, or its average daily change (every day,
+  rising or falling days), over a window of records, worked out again whenever records change. Its
+  card says what it's measured from; in the editor the amount (and type) are locked, while the
+  name, repeat and start can still change. To change the measure, remove it and make another.
+- **Defaults:** Daily change repeats every day, Average every month (until the repeat is changed);
+  from Rates the window is the past 90 days and the Rising / Falling filter carries over; from
+  Averages the window and the first line left in carry over. Weekly / monthly repeats of a rate
+  multiply it by 7 / 30.44 days.
+- **Docs:** Help (Past, Future), system-design §3b / §4 / §4a, TODO.
+
 ### v0.15.2 — 2026-11-28
 - **Docs only, no app change:** `CLAUDE.md` rewritten for the app as it is (Past · Present ·
   Future, typed-amount forecasts, current file map and tests); Help → About no longer mentions
