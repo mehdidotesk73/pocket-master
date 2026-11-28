@@ -77,7 +77,11 @@ function onDocClickTheme(e: MouseEvent) {
 onMounted(() => document.addEventListener('click', onDocClickTheme))
 onBeforeUnmount(() => document.removeEventListener('click', onDocClickTheme))
 const tab = ref<Tab>(initialTab())
+/** Where the selected pill sits (0–2), and which way the page content slides in. */
+const tabIndex = computed(() => TABS.findIndex((x) => x.id === tab.value))
+const tabDir = ref<'fwd' | 'back'>('fwd')
 function go(t: Tab) {
+  tabDir.value = TABS.findIndex((x) => x.id === t) >= tabIndex.value ? 'fwd' : 'back'
   tab.value = t
   try {
     localStorage.setItem('tab', t)
@@ -239,15 +243,20 @@ function openHelp() {
     </header>
 
     <nav class="tabs" aria-label="Sections">
-      <button
-        v-for="t in TABS"
-        :key="t.id"
-        :class="{ on: tab === t.id }"
-        :aria-current="tab === t.id ? 'page' : undefined"
-        @click="go(t.id)"
-      >
-        <component :is="t.icon" class="tab-ic" aria-hidden="true" />{{ t.label }}
-      </button>
+      <div class="seg" :style="{ '--i': tabIndex }">
+        <!-- the selected pill slides between tabs; a second, slower one trails it so it stretches as it moves -->
+        <span class="pill trail" aria-hidden="true"></span>
+        <span class="pill" aria-hidden="true"></span>
+        <button
+          v-for="t in TABS"
+          :key="t.id"
+          :class="{ on: tab === t.id }"
+          :aria-current="tab === t.id ? 'page' : undefined"
+          @click="go(t.id)"
+        >
+          <component :is="t.icon" class="tab-ic" aria-hidden="true" />{{ t.label }}
+        </button>
+      </div>
     </nav>
 
     <div class="content">
@@ -259,11 +268,11 @@ function openHelp() {
       <p v-if="loadError" class="store-error" role="alert">Couldn’t load your data: {{ loadError }}</p>
 
       <div v-if="!loaded" class="loading muted">Loading your data…</div>
-      <template v-else>
+      <Transition v-else :name="`page-${tabDir}`" mode="out-in">
         <HistoryView v-if="tab === 'past'" @open-future="go('future')" />
         <TodayView v-else-if="tab === 'present'" @backup="openTransfer('export')" />
         <FutureView v-else />
-      </template>
+      </Transition>
     </div>
 
     <footer class="debug">
@@ -350,49 +359,64 @@ function openHelp() {
   position: sticky;
   top: 0;
   z-index: 30;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.2rem;
-  padding: 0.45rem 0.35rem 0;
-  margin: 0 -0.25rem;
-  /* a rail a shade darker than the page, so the open tab (page colour) stands out of it */
-  background: color-mix(in srgb, var(--bg) 90%, #000);
-  border-bottom: 1px solid var(--line);
-  border-radius: 0.8rem 0.8rem 0 0;
+  padding: 0.4rem 0;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
-/* Lifted tabs: the open tab is a raised card whose border runs into the bar's
-   bottom line and whose face is the page colour, so it opens onto the page. */
-.tabs button {
+/* Segmented control: a neutral track with a card-coloured pill that slides to the open tab. */
+.seg {
+  --pad: 4px;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: var(--pad);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--bg) 88%, #000);
+}
+
+.pill {
+  position: absolute;
+  top: var(--pad);
+  bottom: var(--pad);
+  left: var(--pad);
+  width: calc((100% - 2 * var(--pad)) / 3);
+  transform: translateX(calc(var(--i) * 100%));
+  border-radius: 0.55rem;
+  background: var(--panel);
+  box-shadow:
+    0 1px 2px rgba(var(--shadow-rgb), 0.25),
+    0 0 0 1px var(--line);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* lags behind the lead pill, so together they stretch while moving and settle as one */
+.pill.trail {
+  transition: transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) 0.04s;
+}
+
+.seg button {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  min-height: var(--tap);
-  margin-bottom: -1px;
-  border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: 0.7rem 0.7rem 0 0;
-  background: transparent;
+  min-height: 40px;
+  border: none;
+  background: none;
   color: var(--mute);
   font-weight: 650;
   font-size: 0.92rem;
   padding: 0 0.25rem;
-  transition:
-    color 0.15s,
-    background 0.15s;
+  transition: color 0.2s;
 }
 
-.tabs button:not(.on):hover {
+.seg button.on,
+.seg button:hover {
   color: var(--ink);
-}
-
-.tabs button.on {
-  /* the page's own background (texture included), so the tab opens onto it */
-  background: var(--bg-image), var(--bg);
-  background-attachment: fixed;
-  color: var(--ink);
-  border-color: var(--line);
 }
 
 .tab-ic {
@@ -401,8 +425,42 @@ function openHelp() {
   stroke-width: 1.75;
 }
 
+/* page content: fades in, sliding a little from the side of travel */
+.page-fwd-enter-active,
+.page-back-enter-active {
+  transition:
+    opacity 0.22s ease-out,
+    transform 0.22s ease-out;
+}
+
+.page-fwd-leave-active,
+.page-back-leave-active {
+  transition: opacity 0.12s ease-in;
+}
+
+.page-fwd-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-back-enter-from {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.page-fwd-leave-to,
+.page-back-leave-to {
+  opacity: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .tabs button {
+  .pill,
+  .pill.trail,
+  .seg button,
+  .page-fwd-enter-active,
+  .page-back-enter-active,
+  .page-fwd-leave-active,
+  .page-back-leave-active {
     transition: none;
   }
 }
