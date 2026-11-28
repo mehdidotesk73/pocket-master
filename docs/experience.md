@@ -395,10 +395,17 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.16.3 — 2026-11-28
+- **Moved:** the Netlify site is now `ledgerful.netlify.app` and the repo `mehdidotesk73/ledgerful`
+  (both renamed from `pocket-master`; GitHub redirects the old repo URL). Data is per address, so
+  the installed app has to be re-added from the new address and a backup imported.
+- **Docs:** `CLAUDE.md` (addresses, linked projections no longer "planned"), README rewritten for
+  the current app.
+
 ### v0.16.2 — 2026-11-28
 - **Changed:** the app is now called **Ledgerful**: header, side menu, browser title, Home Screen
   name (manifest `name` / `short_name`), backup file name and share title, README and Help.
-- **Kept on purpose:** the site address (`pocket-master.netlify.app`, which owns the device data),
+- **Kept on purpose (at the time):** the site address (`pocket-master.netlify.app`; moved in v0.16.3),
   localStorage keys `pocket-master:*`, the store's `APP_ID`, the transfer format's
   `app: 'pocket-master'` and the package name, so existing data, settings and backups still work.
 - **To see the new name under the icon:** export, delete the Home Screen app, re-add it from

@@ -23,9 +23,10 @@ Never scaffold the new app into this repository.
 
 ## What this is
 
-**Ledgerful** (renamed from Pocket Master in v0.16.2; the repo, the Netlify site
-`pocket-master.netlify.app` and internal ids such as storage keys and the backup format's
-`app: 'pocket-master'` keep the old name on purpose, so existing data and backups still load).
+**Ledgerful** (renamed from Pocket Master in v0.16.2). The repo is `mehdidotesk73/ledgerful` and
+the site `ledgerful.netlify.app` (both renamed from `pocket-master`). Internal ids — storage keys
+`pocket-master:*`, the store's `APP_ID`, the backup format's `app: 'pocket-master'` — keep the old
+name on purpose, so existing backups still import.
 
 A Vue 3 + TypeScript + Vite single-page app (also a PWA) that **tracks a personal balance sheet**.
 Whenever the user likes, they save a **record**: a dated, timed list of signed lines (bank accounts,
@@ -49,8 +50,9 @@ Three tabs, **Past · Present · Future** (default Present):
   **projections**: **Recurring** (amount, start date, every N days/weeks/months/years) or
   **One-time** (amount, date), drag to reorder. Editors are `DockPanel` drafts that drive the
   chart live; nothing saves until Save. Projections are **typed amounts only** — nothing is
-  computed from records (old computed ones are frozen on load by `lib/legacy.ts`). Planned next: a
-  recurring projection whose amount is locked to a live measure from Past (see `docs/TODO.md`).
+  computed from records (old computed ones are frozen on load by `lib/legacy.ts`), except a
+  recurring projection **linked to Past** ("Project this" on Averages / Rates → `ProjectFromPast`),
+  whose amount is locked to a live measure (`measurePast` / `resolveLinks` in `lib/analysis.ts`).
 - **☰ menu** (`SideMenu`) → Records → **Export / Import** (`BackupModal`: zip or clipboard JSON,
   Merge or Replace).
 
@@ -121,8 +123,8 @@ whatever they're actually asking about.
 ## Deploys
 
 - **Netlify does both jobs** (`netlify.toml`): pushes to `main` build the **production** site at
-  `https://pocket-master.netlify.app`; every other branch/PR gets its own **Deploy Preview**
-  at `deploy-preview-<n>--pocket-master.netlify.app`. One host, one build pipeline — nothing
+  `https://ledgerful.netlify.app`; every other branch/PR gets its own **Deploy Preview**
+  at `deploy-preview-<n>--ledgerful.netlify.app`. One host, one build pipeline — nothing
   else to configure for hosting.
 - **The production origin owns the user's data.** OPFS is per-origin: changing the domain, or
   installing from a deploy-preview URL, means an empty store. Set up a custom domain before real use,
