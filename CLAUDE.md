@@ -170,6 +170,7 @@ src/
     InstallHint.vue        iOS "Add to Home Screen" instructions / Chromium Install button
     SideMenu.vue           ☰ drawer (Records → Import / Export)
     InfoTip.vue            ⓘ button that shows / hides an explanation (chart notes, linked amounts)
+    WelcomeScreen.vue      landing / welcome: what the app is + data privacy; first open, and ☰ → About
     ProjectFromPast        (in features/tracker) the Past → linked projection panel
 .claude/skills/
   finish-setup/SKILL.md    scaffold personalization + one-time hosting setup

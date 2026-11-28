@@ -15,6 +15,8 @@ Your latest record is your live position. Earlier records become your history, w
 
 ## Where is my data?
 
+**☰ → About Ledgerful** shows the welcome screen again: how your records are kept, in short.
+
 Only on this device, inside this app. Nothing is sent anywhere, and there are no accounts.
 
 - **Use the installed app.** On iPhone: open the site in Safari, tap **Share** (or **⋯** then Share), then **Add to Home Screen**. The installed app, a Safari tab and a Chrome tab each keep **separate** data that never mixes.

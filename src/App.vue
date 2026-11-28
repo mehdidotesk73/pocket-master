@@ -10,6 +10,7 @@ import { useStore } from './lib/storage/useStore'
 import { loadTracker, useTracker } from './features/tracker/useTracker'
 import { ChevronDown, CircleHelp, History, Menu, Moon, Sun, TrendingUp, Wallet } from '@lucide/vue'
 import SideMenu from './components/SideMenu.vue'
+import WelcomeScreen from './components/WelcomeScreen.vue'
 import { useTheme } from './lib/useTheme'
 import { THEMES } from './lib/themes'
 import TodayView from './features/tracker/TodayView.vue'
@@ -76,6 +77,29 @@ function onDocClickTheme(e: MouseEvent) {
 }
 onMounted(() => document.addEventListener('click', onDocClickTheme))
 onBeforeUnmount(() => document.removeEventListener('click', onDocClickTheme))
+// The welcome screen: once on first open, then from the side menu.
+const WELCOMED_KEY = 'pocket-master:welcomed'
+function seenWelcome(): boolean {
+  try {
+    return localStorage.getItem(WELCOMED_KEY) === '1'
+  } catch {
+    return true
+  }
+}
+const welcome = ref<{ first: boolean } | null>(seenWelcome() ? null : { first: true })
+function closeWelcome() {
+  welcome.value = null
+  try {
+    localStorage.setItem(WELCOMED_KEY, '1')
+  } catch {
+    /* private mode */
+  }
+}
+function openWelcome() {
+  showMenu.value = false
+  welcome.value = { first: false }
+}
+
 const tab = ref<Tab>(initialTab())
 /** Where the selected pill sits (0–2), and which way the page content slides in. */
 const tabIndex = computed(() => TABS.findIndex((x) => x.id === tab.value))
@@ -340,7 +364,8 @@ function openHelp() {
       </div>
     </footer>
 
-    <SideMenu :open="showMenu" @close="showMenu = false" @export="openTransfer('export')" @import="openTransfer('import')" />
+    <SideMenu :open="showMenu" @close="showMenu = false" @export="openTransfer('export')" @import="openTransfer('import')" @about="openWelcome" />
+    <WelcomeScreen v-if="welcome" :first="welcome.first" @close="closeWelcome" />
     <BackupModal v-if="transfer" :key="transfer" :section="transfer" @close="transfer = null" />
     <HelpModal :open="showHelp" :initial-doc="helpDoc" @close="showHelp = false" />
   </main>

@@ -3,10 +3,10 @@
 // Sections are collapsible and start collapsed; for now there's one, Records,
 // with Import and Export.
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ChevronRight, Download, Upload, X } from '@lucide/vue'
+import { ChevronRight, Download, ShieldCheck, Upload, X } from '@lucide/vue'
 
 const props = defineProps<{ open: boolean }>()
-const emit = defineEmits<{ (e: 'close'): void; (e: 'export'): void; (e: 'import'): void }>()
+const emit = defineEmits<{ (e: 'close'): void; (e: 'export'): void; (e: 'import'): void; (e: 'about'): void }>()
 
 const recordsOpen = ref(false)
 const panel = ref<HTMLElement>()
@@ -55,6 +55,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
           <button class="tag-btn" @click="emit('export')"><Download class="ic" aria-hidden="true" />Export</button>
         </div>
       </section>
+
+      <button class="about" @click="emit('about')"><ShieldCheck class="ic" aria-hidden="true" />About Ledgerful</button>
     </nav>
   </Transition>
 </template>
@@ -125,6 +127,21 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
   min-height: var(--tap);
   padding: 0 0.2rem;
   border: none;
+  background: none;
+  color: var(--ink);
+  font-weight: 650;
+  text-align: left;
+}
+
+.about {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: var(--tap);
+  margin-top: auto;
+  padding: 0 0.2rem;
+  border: none;
+  border-top: 1px solid var(--line);
   background: none;
   color: var(--ink);
   font-weight: 650;

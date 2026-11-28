@@ -381,6 +381,10 @@ const rows = computed(() =>
   min-width: 0;
 }
 
+.pick .select {
+  min-height: 36px;
+}
+
 .label {
   font-size: 0.72rem;
   font-weight: 700;
@@ -398,7 +402,8 @@ const rows = computed(() =>
 }
 
 .forecast-bar .small-btn {
-  min-height: var(--tap);
+  min-height: 36px;
+  padding: 0 0.6rem;
 }
 
 .ic {

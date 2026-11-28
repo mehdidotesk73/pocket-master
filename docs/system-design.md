@@ -159,7 +159,10 @@ Both / Rising / Falling. Layout: the forecast to add to, then the projection as 
 shows it — name · Linked, every · unit · starting, the locked amount box holding the fixed values
 and (Rates only) the window — and `readBack` worked out in that forecast; shows the
 amount now and how it's worked out; adds a linked Recurring item and offers *See it in Future*,
-which `HistoryView` emits as `open-future` to `App.vue`). Explanations (each Past chart's note, the linked-amount note) sit behind `components/InfoTip.vue`, an ⓘ
+which `HistoryView` emits as `open-future` to `App.vue`). The **welcome screen** (`components/WelcomeScreen.vue`) is a full-screen overlay shown once on first
+open (localStorage `pocket-master:welcomed`) and from ☰ → About Ledgerful. Its privacy claims must
+stay true: the app's only network request is its own `version.json` / service-worker update.
+Explanations (each Past chart's note, the linked-amount note) sit behind `components/InfoTip.vue`, an ⓘ
 button whose text takes its own line in a wrapping flex row. A linked item's type shows as a fixed
 "Recurring" tag; its amount label reads "Amount each time · linked to Past".
 Future's list marks linked items
