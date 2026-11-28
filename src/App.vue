@@ -243,9 +243,8 @@ function openHelp() {
     </header>
 
     <nav class="tabs" aria-label="Sections">
-      <div class="seg" :style="{ '--i': tabIndex }">
-        <!-- the selected pill slides between tabs; a second, slower one trails it so it stretches as it moves -->
-        <span class="pill trail" aria-hidden="true"></span>
+      <div class="seg" :class="tabDir" :style="{ '--i': tabIndex }">
+        <!-- one pill; its leading edge moves first and its back edge follows, so it stretches as it slides -->
         <span class="pill" aria-hidden="true"></span>
         <button
           v-for="t in TABS"
@@ -378,23 +377,33 @@ function openHelp() {
 }
 
 .pill {
+  /* width of one tab; the pill's left and right edges sit on tab boundaries */
+  --w: calc((100% - 2 * var(--pad)) / 3);
   position: absolute;
   top: var(--pad);
   bottom: var(--pad);
-  left: var(--pad);
-  width: calc((100% - 2 * var(--pad)) / 3);
-  transform: translateX(calc(var(--i) * 100%));
+  left: calc(var(--pad) + var(--i) * var(--w));
+  right: calc(var(--pad) + (2 - var(--i)) * var(--w));
   border-radius: 0.55rem;
   background: var(--panel);
   box-shadow:
     0 1px 2px rgba(var(--shadow-rgb), 0.25),
     0 0 0 1px var(--line);
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --lead: 0.32s cubic-bezier(0.3, 0, 0.2, 1);
+  --follow: 0.5s cubic-bezier(0.4, 0, 0.1, 1) 0.06s;
 }
 
-/* lags behind the lead pill, so together they stretch while moving and settle as one */
-.pill.trail {
-  transition: transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) 0.04s;
+/* moving right: the right edge leads; moving left: the left edge leads */
+.seg.fwd .pill {
+  transition:
+    right var(--lead),
+    left var(--follow);
+}
+
+.seg.back .pill {
+  transition:
+    left var(--lead),
+    right var(--follow);
 }
 
 .seg button {
@@ -457,8 +466,8 @@ function openHelp() {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pill,
-  .pill.trail,
+  .seg.fwd .pill,
+  .seg.back .pill,
   .seg button,
   .page-fwd-enter-active,
   .page-back-enter-active,

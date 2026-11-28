@@ -398,7 +398,8 @@ on focus, and reject more than two decimals instead of rounding them away.
 ### v0.16.1 — 2026-11-28
 - **Changed:** the Past · Present · Future tabs are a segmented control with icons (History, Wallet,
   TrendingUp), after ui-layouts' Animated Tabs: a neutral track with a card-coloured pill that slides
-  to the open tab (a second, slower pill trails it, so it stretches as it moves), the open tab's icon
+  to the open tab, stretching as it goes (its leading edge moves first and its back edge follows, so
+  there's one outline; a second trailing pill was tried first but showed two outlines), the open tab's icon
   and label in the accent colour; the page fades in
   from the side of travel. Replaces the underline accent. (Tried first and dropped: DaisyUI-style
   lifted tabs, which the user didn't like.)
