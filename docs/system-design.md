@@ -4,6 +4,9 @@ Developer-facing documentation of how the app is structured, how data flows, and
 
 ## §1 — System Overview
 
+The app is **Ledgerful** (formerly Pocket Master). Internal ids keep `pocket-master` on purpose:
+storage keys, the store's `APP_ID`, the transfer format's `app` field and the site address.
+
 This is a Vue 3 + TypeScript + Vite single-page app (SPA) that works as a progressive web app (PWA). It provides:
 
 - **Header/footer shell** — app title, Help modal, build/version info, reload affordance, debug panel

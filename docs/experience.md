@@ -395,6 +395,15 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.16.2 — 2026-11-28
+- **Changed:** the app is now called **Ledgerful**: header, side menu, browser title, Home Screen
+  name (manifest `name` / `short_name`), backup file name and share title, README and Help.
+- **Kept on purpose:** the site address (`pocket-master.netlify.app`, which owns the device data),
+  localStorage keys `pocket-master:*`, the store's `APP_ID`, the transfer format's
+  `app: 'pocket-master'` and the package name, so existing data, settings and backups still work.
+- **To see the new name under the icon:** export, delete the Home Screen app, re-add it from
+  Safari, import (deleting the app deletes its data).
+
 ### v0.16.1 — 2026-11-28
 - **Changed:** the Past · Present · Future tabs are a segmented control with icons (History, Wallet,
   TrendingUp), after ui-layouts' Animated Tabs: a neutral track with a card-coloured pill that slides

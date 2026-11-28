@@ -47,8 +47,8 @@ export default defineConfig({
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         id: '/',
-        name: 'Pocket Master',
-        short_name: 'Pocket Master',
+        name: 'Ledgerful',
+        short_name: 'Ledgerful',
         description: 'Personal balance-sheet tracker: record your balances, see your history, project ahead.',
         theme_color: '#080e1a',
         background_color: '#080e1a',

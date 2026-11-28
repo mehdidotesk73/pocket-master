@@ -36,7 +36,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
   <Transition name="slide">
     <nav v-if="open" ref="panel" class="drawer" aria-label="Menu">
       <div class="top">
-        <span class="title">Pocket Master</span>
+        <span class="title">Ledgerful</span>
         <button class="x" aria-label="Close menu" @click="emit('close')"><X class="ic" aria-hidden="true" /></button>
       </div>
 

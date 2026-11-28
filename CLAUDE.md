@@ -23,6 +23,10 @@ Never scaffold the new app into this repository.
 
 ## What this is
 
+**Ledgerful** (renamed from Pocket Master in v0.16.2; the repo, the Netlify site
+`pocket-master.netlify.app` and internal ids such as storage keys and the backup format's
+`app: 'pocket-master'` keep the old name on purpose, so existing data and backups still load).
+
 A Vue 3 + TypeScript + Vite single-page app (also a PWA) that **tracks a personal balance sheet**.
 Whenever the user likes, they save a **record**: a dated, timed list of signed lines (bank accounts,
 saving, credit cards at their share, bills due). Positive = owned, negative = owed; the sum is **net
