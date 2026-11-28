@@ -395,6 +395,10 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.16.1 — 2026-11-28
+- **Removed:** `LensCarousel.vue`, unused since the type and unit pickers became `WheelPicker`s.
+  No change in the app.
+
 ### v0.16.0 — 2026-11-28
 - **Added:** projections linked to Past. **Project this** under Past's Averages and Rates makes a
   Recurring projection whose amount is the Averages Total (the lines left in, added up), or a line's
