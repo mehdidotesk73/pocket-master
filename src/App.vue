@@ -414,9 +414,12 @@ function openHelp() {
   transition: color 0.2s;
 }
 
-.seg button.on,
 .seg button:hover {
   color: var(--ink);
+}
+
+.seg button.on {
+  color: var(--accent);
 }
 
 .tab-ic {
