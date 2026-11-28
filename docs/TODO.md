@@ -89,6 +89,8 @@ Forecasts (direction agreed 2026-11-27): analysis lives in Past; Future holds on
 
 (Documentation gaps, missing help content, outdated instructions)
 
+- [x] **Welcome screen** (v0.17.0) — `WelcomeScreen.vue`: what Ledgerful is + data privacy; first
+      open and ☰ → About. Future's Edit / New compact.
 - [x] **Renamed to Ledgerful** (v0.16.2) — visible name only; internal ids and the site address
       keep `pocket-master`.
 - [x] **Removed unused `LensCarousel`** (v0.16.1).

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import InfoTip from '../../components/InfoTip.vue'
 import { computed, ref } from 'vue'
 import { fmtDate, fmtDateTime, fmtMoney, fmtTime } from '../../lib/money'
 import { storeState } from '../../lib/storage/store'
@@ -80,16 +81,17 @@ const exportNudge = computed(() => {
     </template>
 
     <section v-else class="card empty">
-      <h2>Start with your first record</h2>
-      <p>
-        A record is a snapshot of your money on one day: a list of what you have (positive amounts, like
-        bank balances) and what you owe (negative amounts, like card balances and bills due). The app adds
-        them up: <b>total owned</b>, <b>total owed</b>, and the difference, your <b>net equity</b>.
-      </p>
-      <p class="muted">
-        Save a new record whenever you check your accounts. The latest one is your live position, the
-        earlier ones are your past, and Future looks ahead from the latest one.
-      </p>
+      <div class="head-row">
+        <h2>Start with your first record</h2>
+        <InfoTip label="What is a record?">
+          A record is a snapshot of your money on one day: a list of what you have (positive amounts, like
+          bank balances) and what you owe (negative amounts, like card balances and bills due). The app adds
+          them up: <b>total owned</b>, <b>total owed</b>, and the difference, your <b>net equity</b>.
+          <br /><br />
+          Save a new record whenever you check your accounts. The latest one is your live position, the
+          earlier ones are your past, and Future looks ahead from the latest one.
+        </InfoTip>
+      </div>
       <button class="btn primary" @click="openNew">+ New record</button>
       <p class="muted small hint">Have a backup? Open the menu (☰, top left) → Records → Import.</p>
     </section>
@@ -99,6 +101,23 @@ const exportNudge = computed(() => {
 </template>
 
 <style scoped>
+.head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 0.4rem;
+  margin-bottom: 0.8rem;
+}
+
+.head-row h2 {
+  margin: 0;
+}
+
+.head-row :deep(.info-text) {
+  padding: 0.4rem 0 0.2rem;
+}
+
 .hint {
   margin: 0.75rem 0 0;
 }
