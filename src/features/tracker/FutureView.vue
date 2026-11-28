@@ -6,8 +6,8 @@
 //   - Edit / New forecast  → ForecastPanel (name, starting lines, days ahead)
 //   - a projection row / + Add → ProjectionPanel (type carousel + fields)
 // New things are drafts until saved: Cancel leaves nothing behind.
-import { computed, nextTick, ref } from 'vue'
-import { Pencil, Plus } from '@lucide/vue'
+import { computed, nextTick, reactive, ref } from 'vue'
+import { GripVertical, Pencil, Plus } from '@lucide/vue'
 import { HORIZON_PRESETS, type ProjectionFile, type ProjectionItem, defaultProjection, newId, startValueCents } from '../../lib/finance'
 import { atNum, dayNum, fmtDate, fmtDateTime, fmtMoney, today } from '../../lib/money'
 import ForecastChart, { type Segment } from './ForecastChart.vue'
@@ -149,8 +149,84 @@ async function setHorizon(h: number) {
   else if (forecastEdit.value) forecastEdit.value.draft = { ...forecastEdit.value.draft, horizonDays: h }
 }
 
+// ---- drag to reorder (same feel as the record rows): the dragged row follows the
+// pointer and swaps with a neighbour once it's past the neighbour's midpoint. The new
+// order is saved when the drag ends. Arrow keys on the grip move a row by one.
+const drag = reactive({ id: '', pointerId: -1, startY: 0, dy: 0 })
+const dragOrder = ref<string[] | null>(null)
+const rowEls = new Map<string, HTMLElement>()
+function setRowEl(id: string, el: unknown) {
+  if (el instanceof HTMLElement) rowEls.set(id, el)
+  else rowEls.delete(id)
+}
+const heightOf = (id: string) => rowEls.get(id)?.getBoundingClientRect().height ?? 60
+const canReorder = computed(() => !forecastEdit.value && !itemEdit.value)
+
+async function saveOrder(ids: string[]) {
+  const f = selected.value
+  if (!f || ids.join() === f.items.map((i) => i.id).join()) return
+  const byId = new Map(f.items.map((i) => [i.id, i]))
+  await saveProjection({ ...f, items: ids.map((id) => byId.get(id)!).filter(Boolean) })
+}
+function onGripDown(e: PointerEvent, id: string) {
+  if (!canReorder.value || !selected.value) return
+  e.preventDefault()
+  ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+  dragOrder.value = selected.value.items.map((i) => i.id)
+  Object.assign(drag, { id, pointerId: e.pointerId, startY: e.clientY, dy: 0 })
+}
+function onGripMove(e: PointerEvent) {
+  const order = dragOrder.value
+  if (!drag.id || !order || e.pointerId !== drag.pointerId) return
+  drag.dy = e.clientY - drag.startY
+  let i = order.indexOf(drag.id)
+  while (drag.dy > 0 && i < order.length - 1) {
+    const h = heightOf(order[i + 1])
+    if (drag.dy <= h - drag.dy) break
+    order.splice(i + 1, 0, order.splice(i, 1)[0])
+    i++
+    drag.startY += h
+    drag.dy -= h
+  }
+  while (drag.dy < 0 && i > 0) {
+    const h = heightOf(order[i - 1])
+    if (-drag.dy <= h + drag.dy) break
+    order.splice(i - 1, 0, order.splice(i, 1)[0])
+    i--
+    drag.startY -= h
+    drag.dy += h
+  }
+}
+async function onGripUp(e: PointerEvent) {
+  if (e.pointerId !== drag.pointerId) return
+  const order = dragOrder.value
+  Object.assign(drag, { id: '', pointerId: -1, dy: 0 })
+  if (order) await saveOrder([...order])
+  dragOrder.value = null
+}
+async function onGripKey(e: KeyboardEvent, id: string) {
+  const f = selected.value
+  if (!f || !canReorder.value) return
+  const ids = f.items.map((i) => i.id)
+  const i = ids.indexOf(id)
+  const j = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : -1
+  if (j < 0 || j >= ids.length) return
+  e.preventDefault()
+  ids.splice(j, 0, ids.splice(i, 1)[0])
+  await saveOrder(ids)
+  nextTick(() => rowEls.get(id)?.querySelector<HTMLElement>('.grip')?.focus())
+}
+
+/** The list, in the order being dragged while a drag is on. */
+const ordered = computed(() => {
+  const items = shown.value?.items ?? []
+  const order = dragOrder.value
+  if (!order) return items
+  const byId = new Map(items.map((i) => [i.id, i]))
+  return order.map((id) => byId.get(id)).filter((i): i is ProjectionItem => !!i)
+})
 const rows = computed(() =>
-  (shown.value?.items ?? []).map((item) => ({
+  ordered.value.map((item) => ({
     item,
     s: summarize(item),
     type: UI_INFO[uiTypeOf(item)].label,
@@ -230,7 +306,26 @@ const rows = computed(() =>
         <button class="btn small-btn" :disabled="!!forecastEdit" @click="addProjection"><Plus class="ic" aria-hidden="true" />Add</button>
       </div>
       <ul v-if="rows.length" class="list">
-        <li v-for="r in rows" :key="r.item.id">
+        <li
+          v-for="r in rows"
+          :key="r.item.id"
+          :ref="(el) => setRowEl(r.item.id, el)"
+          class="item"
+          :class="{ dragging: drag.id === r.item.id }"
+          :style="drag.id === r.item.id ? { transform: `translateY(${drag.dy}px)` } : undefined"
+        >
+          <button
+            class="grip"
+            :disabled="!canReorder"
+            :aria-label="`Move ${r.item.name || 'projection'} (drag, or use the arrow keys)`"
+            @pointerdown="onGripDown($event, r.item.id)"
+            @pointermove="onGripMove"
+            @pointerup="onGripUp"
+            @pointercancel="onGripUp"
+            @keydown="onGripKey($event, r.item.id)"
+          >
+            <GripVertical class="grip-ic" aria-hidden="true" />
+          </button>
           <button class="row" :class="{ editing: r.editing }" :disabled="!!forecastEdit" @click="editProjection(r.item)">
             <span class="sw" :style="{ background: colorOf[r.item.id] }" aria-hidden="true"></span>
             <span class="kind">{{ r.type }}</span>
@@ -384,6 +479,57 @@ const rows = computed(() =>
   border-top: 1px solid var(--line);
 }
 
+.item {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  align-items: stretch;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.item.dragging {
+  position: relative;
+  z-index: 2;
+  border-radius: var(--btn-radius);
+  background: var(--panel-2);
+  box-shadow: var(--shadow);
+  outline: 1px solid var(--line);
+}
+
+.grip {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--mute);
+  opacity: 0.6;
+  cursor: grab;
+  touch-action: none; /* the drag, not the page scroll, gets the touch */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.grip:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.dragging .grip {
+  cursor: grabbing;
+  opacity: 1;
+}
+
+.grip:focus-visible {
+  outline: 2px solid var(--accent);
+  opacity: 1;
+}
+
+.grip-ic {
+  width: 1rem;
+  height: 1rem;
+}
+
 .row {
   width: 100%;
   display: grid;
@@ -395,7 +541,6 @@ const rows = computed(() =>
   gap: 0 0.6rem;
   padding: 0.5rem 0.1rem;
   border: none;
-  border-bottom: 1px solid var(--line);
   background: none;
   color: var(--ink);
   text-align: left;

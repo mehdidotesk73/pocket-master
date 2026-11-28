@@ -395,6 +395,10 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.15.1 — 2026-11-28
+- **Added:** projections can be reordered: drag by the grip, or arrow keys on the grip. The order
+  is saved; colours follow the order.
+
 ### v0.15.0 — 2026-11-28
 - **Changed:** projections are **plain amounts**. Recurring: name, amount, start date, every N
   days / weeks / months / years. One-time: name, amount, date.
