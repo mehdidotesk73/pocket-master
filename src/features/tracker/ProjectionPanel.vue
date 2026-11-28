@@ -1,18 +1,22 @@
 <script setup lang="ts">
 // Edit one projection: Recurring (an amount every N days / weeks / months /
-// years from a start date) or One-time (an amount on a date). Plain amounts
-// only: nothing here is worked out from records or tied to a line. Read the
-// Past tab, decide, type the number.
+// years from a start date) or One-time (an amount on a date). Amounts are typed,
+// except for a recurring projection linked to Past (made with "Project this"
+// on the Past tab): its amount is locked to that measure of your records, and
+// only its name, repeat and start can change here. To measure something else,
+// remove it and make a new one from Past.
 // Every change flows straight into the chart above (v-model); nothing is
 // stored until Save. Switching type and back keeps what was typed for each.
 import { computed, reactive, ref, watch } from 'vue'
 import type { EveryUnit, Projection, ProjectionItem, Recurring } from '../../lib/finance'
-import { addDays, isISODate, today } from '../../lib/money'
+import { addDays, fmtMoney, isISODate, today } from '../../lib/money'
 import DockPanel from './DockPanel.vue'
 import WheelPicker from './WheelPicker.vue'
-import { ChevronDown } from '@lucide/vue'
+import { ChevronDown, Link2 } from '@lucide/vue'
+import { linkedAmount, measurePast } from '../../lib/analysis'
+import { useTracker } from './useTracker'
 import SignedMoneyInput from './SignedMoneyInput.vue'
-import { UI_INFO, UI_TYPES, type UiType, readBack, uiTypeOf } from './projectionText'
+import { UI_INFO, UI_TYPES, type UiType, describeLink, describeMeasure, readBack, uiTypeOf } from './projectionText'
 
 const item = defineModel<ProjectionItem>({ required: true })
 /** `result` is the forecast worked out with this draft in it (drives the readback). */
@@ -53,8 +57,14 @@ function setEvery(p: Partial<{ n: number; unit: EveryUnit }>) {
 }
 const unitOptions = computed(() => UNITS.map((u) => ({ id: u.id, label: rec.value?.every.n === 1 ? u.one : u.many })))
 
+// ---- linked to Past: the amount is worked out from the records, not typed
+const { records } = useTracker()
+const link = computed(() => (item.value.kind === 'recurring' ? item.value.link : undefined))
+const locked = computed(() => (rec.value?.link ? linkedAmount(rec.value, records.value) : null))
+const how = computed(() => (rec.value?.link ? describeMeasure(rec.value.link, measurePast(records.value, rec.value.link), rec.value.every) : ''))
+
 // ---- readback: the projection as a sentence, plus what it adds up to
-const said = computed(() => (props.result ? readBack(item.value, props.result) : null))
+const said = computed(() => (props.result ? readBack(locked.value == null ? item.value : { ...item.value, amount: locked.value }, props.result) : null))
 const showMore = ref(false)
 
 // ---- save / remove
@@ -69,7 +79,7 @@ function save() {
   error.value = ''
   if (it.kind === 'oneTime' && !isISODate(it.date)) return void (error.value = 'Pick a date.')
   if (it.kind === 'recurring' && !isISODate(it.start)) return void (error.value = 'Pick a start date.')
-  if (!it.amount) return void (error.value = 'Enter an amount.')
+  if (!it.amount && !link.value) return void (error.value = 'Enter an amount.')
   if (!it.name.trim()) patch({ name: UI_INFO[type.value].label })
   emit('save')
 }
@@ -80,7 +90,8 @@ function save() {
     <!-- name · type -->
     <div class="top">
       <input class="input" :value="item.name" aria-label="Name" placeholder="Name, e.g. Paycheck" @input="patch({ name: ($event.target as HTMLInputElement).value })" />
-      <WheelPicker v-model="type" :options="typeOptions" label="Projection type" />
+      <span v-if="link" class="linked-type"><Link2 class="ic" aria-hidden="true" />Linked</span>
+      <WheelPicker v-else v-model="type" :options="typeOptions" label="Projection type" />
     </div>
 
     <!-- One-time: amount · date -->
@@ -111,7 +122,15 @@ function save() {
           <input class="input" type="date" :value="rec.start" @change="isISODate(($event.target as HTMLInputElement).value) && patch({ start: ($event.target as HTMLInputElement).value })" />
         </label>
       </div>
-      <label class="field">
+      <div v-if="rec.link" class="field">
+        <span>Amount each time · locked</span>
+        <div class="locked">
+          <b class="money" :class="{ neg: (locked ?? 0) < 0, pos: (locked ?? 0) > 0 }">{{ fmtMoney(locked ?? 0, { sign: true }) }}</b>
+          <span class="small">{{ describeLink(rec.link) }}</span>
+          <span class="small muted">{{ how }} Worked out again whenever your records change. To measure something else, remove this and use <b>Project this</b> on the Past tab.</span>
+        </div>
+      </div>
+      <label v-else class="field">
         <span>Amount each time</span>
         <SignedMoneyInput :model-value="rec.amount" aria-label="Amount each time" @update:model-value="(v: number) => patch({ amount: v })" />
       </label>
@@ -212,6 +231,37 @@ function save() {
 
 
 
+
+.linked-type {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--btn-radius);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--mute);
+}
+
+.linked-type .ic {
+  width: 15px;
+  height: 15px;
+}
+
+.locked {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--btn-radius);
+  background: var(--panel-2);
+}
+
+.locked .money {
+  font-size: 1.05rem;
+}
 
 /* readback: a one-line summary; tap to see the rest */
 .readback {

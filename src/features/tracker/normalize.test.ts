@@ -76,6 +76,24 @@ describe('projections (every old shape becomes plain amounts)', () => {
     }
     expect(normalizeProjection(cur, {}, [])).toEqual(cur)
   })
+
+  it('keeps a projection linked to Past (and drops a link it can’t read)', () => {
+    const link = { measure: 'rate', line: 'Amex', window: { mode: 'last', days: 90 }, direction: 'falling' }
+    const cur = {
+      schema: 4,
+      id: 'x',
+      name: 'X',
+      start: { mode: 'all' },
+      horizonDays: 30,
+      items: [
+        { kind: 'recurring', id: 'l', name: 'Amex spending', amount: -32.1, every: { n: 1, unit: 'day' }, start: '2026-12-01', link },
+        { kind: 'recurring', id: 'm', name: 'Odd', amount: 5, every: { n: 1, unit: 'day' }, start: '2026-12-01', link: { measure: 'median' } },
+      ],
+    }
+    const out = normalizeProjection(cur, {}, [])
+    expect(out.items[0]).toEqual(cur.items[0])
+    expect(out.items[1]).not.toHaveProperty('link')
+  })
 })
 
 describe('template.json', () => {

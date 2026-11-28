@@ -1,7 +1,8 @@
 // Plain-language text for projections (the amounts in a forecast): type labels,
 // one-line summaries for the list, the editor's readback, and a colour per
 // projection for the chart.
-import type { Every, Projection, ProjectionItem } from '../../lib/finance'
+import { type Every, LEFT_SOURCE, type PastLink, type Projection, type ProjectionItem, type RecordWindow, periodDays } from '../../lib/finance'
+import type { PastMeasure } from '../../lib/analysis'
 import { fmtDate, fmtMoney, parseDate } from '../../lib/money'
 
 export type UiType = 'recurring' | 'oneTime'
@@ -36,6 +37,45 @@ export function describeEvery(e: Every, start: string): string {
   }
 }
 
+/** "the past 90 days", "the last 6 records", "all records", "Oct 1 – Nov 30". */
+export function describeWindow(w: RecordWindow): string {
+  switch (w.mode) {
+    case 'all':
+      return 'all records'
+    case 'last':
+      return `the past ${w.days} day${w.days === 1 ? '' : 's'}`
+    case 'lastRecords':
+      return `the last ${w.count} record${w.count === 1 ? '' : 's'}`
+    case 'between':
+      if (w.from && w.to) return `${fmtDate(w.from, { short: true })} – ${fmtDate(w.to, { short: true })}`
+      if (w.from) return `records from ${fmtDate(w.from, { short: true })}`
+      if (w.to) return `records until ${fmtDate(w.to, { short: true })}`
+      return 'all records'
+  }
+}
+
+export const lineLabel = (line: string) => (line === LEFT_SOURCE ? 'Net equity' : line)
+
+/** "Amex's average daily change, falling days only, over the past 90 days". */
+export function describeLink(l: PastLink): string {
+  const what =
+    l.measure === 'average'
+      ? 'average'
+      : `average daily change${l.direction === 'falling' ? ', falling days only,' : l.direction === 'rising' ? ', rising days only,' : ''}`
+  return `${lineLabel(l.line)}’s ${what} over ${describeWindow(l.window)}`
+}
+
+/** How a linked amount was worked out: "From 12 records, Sep 1 – Nov 28: −$1.07 a day × 30.44 days." */
+export function describeMeasure(l: PastLink, m: PastMeasure, every: Every): string {
+  if (!m.count) return 'No records in that window yet, so it’s $0 for now.'
+  const span = m.from === m.to ? fmtDate(m.from!, { short: true }) : `${fmtDate(m.from!, { short: true })} – ${fmtDate(m.to!, { short: true })}`
+  const from = `From ${m.count} record${m.count === 1 ? '' : 's'}, ${span}`
+  if (l.measure === 'average') return `${from}: an average of ${fmtMoney(m.value)}.`
+  if (!m.days) return `${from}: a rate needs records on at least two dates, so it’s $0 for now.`
+  const days = periodDays(every)
+  return `${from}: ${fmtMoney(m.value, { sign: true })} a day${days === 1 ? '' : ` × ${days} days`}.`
+}
+
 export type Tone = 'pos' | 'neg' | 'warn' | ''
 const toneOf = (v: number): Tone => (v > 0 ? 'pos' : v < 0 ? 'neg' : '')
 
@@ -60,6 +100,8 @@ export function readBack(item: ProjectionItem, f: Projection): ReadBack {
   if (item.kind === 'oneTime') {
     sentence = `${amount} on ${fmtDate(item.date)}.`
     if (item.date <= f.start.date || item.date > f.end.date) warnings.push(`That date is outside this forecast (${fmtDate(f.start.date, { short: true })} – ${end}).`)
+  } else if (item.link) {
+    sentence = `${capital(describeEvery(item.every, item.start))}: ${describeLink(item.link)}, now ${amount}.`
   } else {
     sentence = `${capital(describeEvery(item.every, item.start))}: ${amount}.`
   }
@@ -68,11 +110,12 @@ export function readBack(item: ProjectionItem, f: Projection): ReadBack {
   return { sentence, total: totalText, warnings, tone: warnings.length ? 'warn' : toneOf(item.amount) }
 }
 
-/** One-line summary for the list: the amount, then when. */
-export function summarize(item: ProjectionItem): { amount: string; detail: string; tone: Tone } {
+/** One-line summary for the list: the amount, then when (and, for a linked one, what it's measured from). */
+export function summarize(item: ProjectionItem): { amount: string; detail: string; linked: string; tone: Tone } {
   return {
     amount: fmtMoney(item.amount, { sign: true }),
     detail: item.kind === 'oneTime' ? `on ${fmtDate(item.date)}` : describeEvery(item.every, item.start),
+    linked: item.kind === 'recurring' && item.link ? describeLink(item.link) : '',
     tone: toneOf(item.amount),
   }
 }

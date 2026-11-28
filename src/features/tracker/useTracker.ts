@@ -12,6 +12,8 @@ import {
   type BalanceRecord,
   type Every,
   type EveryUnit,
+  type PastLink,
+  type RateDirection,
   type RecordWindow,
   type ProjectionFile,
   type ProjectionItem,
@@ -32,6 +34,7 @@ import {
   project,
   upsertRecord,
 } from '../../lib/finance'
+import { resolveLinks } from '../../lib/analysis'
 import { type LegacyItem, type LegacyRecurring, type RateStart, type RecurringValue, everydayItem, freezeItems } from '../../lib/legacy'
 import { atKey, isISODate, isLocalDateTime, localFromISO, roundMoney, today } from '../../lib/money'
 import { Store, getStore, init } from '../../lib/storage/store'
@@ -153,6 +156,27 @@ function rateStart(v: Record<string, unknown>): { from?: RateStart } {
   return {}
 }
 
+const DIRECTIONS: RateDirection[] = ['both', 'rising', 'falling']
+/** A projection's link to Past, or nothing if it isn't a usable one. */
+function normalizeLink(v: unknown): { link?: PastLink } {
+  const l = v as Record<string, unknown> | undefined
+  if (!l || typeof l !== 'object' || typeof l.line !== 'string') return {}
+  const window = normalizeWindow(l.window)
+  if (l.measure === 'average') return { link: { measure: 'average', line: l.line, window } }
+  if (l.measure === 'rate') return { link: { measure: 'rate', line: l.line, window, direction: DIRECTIONS.includes(l.direction as RateDirection) ? (l.direction as RateDirection) : 'both' } }
+  return {}
+}
+
+/** One item of a current (schema 4) forecast: kept as it is, link included. */
+function normalizeCurrentItem(x: Record<string, unknown>): ProjectionItem[] {
+  const id = str(x.id) || newId()
+  const name = str(x.name)
+  const amount = roundMoney(num(x.amount))
+  if (x.kind === 'oneTime') return isISODate(x.date) ? [{ kind: 'oneTime', id, name, amount, date: x.date }] : []
+  if (x.kind !== 'recurring') return []
+  return [{ kind: 'recurring', id, name, amount, every: normalizeEvery(x.every), start: isISODate(x.start) ? x.start : monthlyStart(1), ...normalizeLink(x.link) }]
+}
+
 /**
  * Read one item of any stored shape into the old (legacy) form; normalizeProjection
  * then freezes it into a plain amount (freezeItems).
@@ -231,6 +255,10 @@ export function normalizeProjection(
   recs: BalanceRecord[] = records.value,
 ): ProjectionFile {
   const r = (raw ?? {}) as Record<string, unknown>
+  if (r.schema === 4 && Array.isArray(r.items)) {
+    const { items: _old, ...base } = readLegacyProjection({ ...r, items: [] }, fallback)
+    return { ...base, schema: 4, items: arr(r.items).flatMap(normalizeCurrentItem) }
+  }
   const p = readLegacyProjection(r, fallback)
   const { items, frozen } = freezeItems(p.items, recs, p.start)
   const dropped = new Set(frozen.filter((f) => f.amount === 0).map((f) => f.id))
@@ -450,7 +478,8 @@ async function deleteRecord(at: string) {
 
 /** Create or replace one projection file. */
 async function saveProjection(next: ProjectionFile) {
-  const p = normalizeProjection(next, { id: next.id })
+  // Linked projections are stored with their amount as it is now (it's worked out again on load).
+  const p = normalizeProjection(resolveLinks(next, records.value), { id: next.id })
   projections.value = [...projections.value.filter((x) => x.id !== p.id), p].sort((a, b) => a.name.localeCompare(b.name))
   await getStore().writeJSON(projectionId(p.id), p)
 }
@@ -635,8 +664,10 @@ const knownLines = computed(() => lineNames(records.value))
 const selected = computed(() => projections.value.find((p) => p.id === selectedId.value) ?? projections.value[0])
 
 function projectFor(p: ProjectionFile) {
-  return project(p, records.value)
+  return project(resolveLinks(p, records.value), records.value)
 }
+/** The forecast with its linked projections' amounts worked out from the records now. */
+const resolve = (p: ProjectionFile) => resolveLinks(p, records.value)
 const currentProjection = computed(() => (selected.value ? projectFor(selected.value) : null))
 
 export function useTracker() {
@@ -654,6 +685,7 @@ export function useTracker() {
     knownLines,
     currentProjection,
     projectFor,
+    resolve,
     saveRecord,
     deleteRecord,
     saveProjection,

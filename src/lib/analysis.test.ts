@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { LEFT_SOURCE, makeRecord } from './finance'
-import { dailyCandles, lineSeries, windowMix } from './analysis'
+import { LEFT_SOURCE, type ProjectionFile, defaultProjection, makeRecord } from './finance'
+import { dailyCandles, lineSeries, linkedAmount, measurePast, resolveLinks, windowMix } from './analysis'
 
 const rec = (at: string, lines: [string, number][]) =>
   makeRecord(at, lines.map(([name, amount]) => ({ id: name, name, amount })))
@@ -59,5 +59,39 @@ describe('history analysis', () => {
   it('net equity candles; nothing with fewer than two records', () => {
     expect(dailyCandles(records, LEFT_SOURCE).length).toBe(21)
     expect(dailyCandles(records.slice(0, 1), 'Card')).toEqual([])
+  })
+
+  describe('linked projections', () => {
+    const all = { mode: 'all' } as const
+    it('average of a line over the window', () => {
+      expect(measurePast(records, { measure: 'average', line: 'Card', window: all })).toMatchObject({ value: -400, count: 4, from: '2026-10-01', to: '2026-10-21' })
+    })
+
+    it('daily rate first record date to last; rising / falling count only those days', () => {
+      // Oct 1 → Oct 21 is 20 days; −300 → 0 is +300 in all
+      expect(measurePast(records, { measure: 'rate', line: 'Card', window: all, direction: 'both' })).toMatchObject({ value: 15, days: 20 })
+      // falling: −200 (Oct 2–11) and −270 (Oct 12–20); the payoff day is rising (+770)
+      expect(measurePast(records, { measure: 'rate', line: 'Card', window: all, direction: 'falling' }).value).toBe(-23.5)
+      expect(measurePast(records, { measure: 'rate', line: 'Card', window: all, direction: 'rising' }).value).toBe(38.5)
+      // past 10 days: Oct 11 → Oct 21, falling −270
+      expect(measurePast(records, { measure: 'rate', line: 'Card', window: { mode: 'last', days: 10 }, direction: 'falling' }).value).toBe(-27)
+      // one record date: no rate
+      expect(measurePast(records, { measure: 'rate', line: 'Card', window: { mode: 'lastRecords', count: 1 }, direction: 'both' }).value).toBe(0)
+    })
+
+    it('a rate is scaled to the time between occurrences; resolveLinks fills linked amounts only', () => {
+      const link = { measure: 'rate', line: 'Card', window: all, direction: 'falling' } as const
+      expect(linkedAmount({ every: { n: 1, unit: 'day' }, link }, records)).toBe(-23.5)
+      expect(linkedAmount({ every: { n: 1, unit: 'month' }, link }, records)).toBe(-715.34)
+      const f: ProjectionFile = {
+        ...defaultProjection(),
+        items: [
+          { kind: 'recurring', id: 'a', name: 'Card', amount: 0, every: { n: 1, unit: 'week' }, start: '2026-10-22', link },
+          { kind: 'recurring', id: 'b', name: 'Pay', amount: 100, every: { n: 1, unit: 'month' }, start: '2026-10-22' },
+        ],
+      }
+      expect(resolveLinks(f, records).items.map((i) => i.amount)).toEqual([-164.5, 100])
+      expect(resolveLinks(f, []).items[0].amount).toBe(0)
+    })
   })
 })

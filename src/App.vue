@@ -260,7 +260,7 @@ function openHelp() {
 
       <div v-if="!loaded" class="loading muted">Loading your data…</div>
       <template v-else>
-        <HistoryView v-if="tab === 'past'" />
+        <HistoryView v-if="tab === 'past'" @open-future="go('future')" />
         <TodayView v-else-if="tab === 'present'" @backup="openTransfer('export')" />
         <FutureView v-else />
       </template>

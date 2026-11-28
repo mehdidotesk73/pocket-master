@@ -6,6 +6,8 @@ import { dailyCandles, lineSeries, windowMix } from '../../lib/analysis'
 import DonutChart, { type DonutSlice } from './DonutChart.vue'
 import CandleChart from './CandleChart.vue'
 import WindowPicker from './WindowPicker.vue'
+import ProjectFromPast from './ProjectFromPast.vue'
+import { Link2 } from '@lucide/vue'
 import { colorFor } from './projectionText'
 import RecordModal from './RecordModal.vue'
 import FigureRow, { type Figure } from './FigureRow.vue'
@@ -97,6 +99,24 @@ async function onDelete(at: LocalDateTime) {
 }
 
 const editing = ref<BalanceRecord | null>(null)
+
+// ---- "Project this": a recurring projection locked to what this chart shows
+const emit = defineEmits<{ (e: 'open-future'): void }>()
+const projecting = ref<{ measure: 'average' | 'rate'; line: string; window: RecordWindow; direction?: 'both' | 'rising' | 'falling' } | null>(null)
+const added = ref('')
+function projectAverage() {
+  added.value = ''
+  const first = mixSlices.value.find((s) => !s.off)
+  projecting.value = { measure: 'average', line: first?.name ?? LEFT_SOURCE, window: { ...mixWindow.value } }
+}
+function projectRate() {
+  added.value = ''
+  projecting.value = { measure: 'rate', line: rateLine.value, window: { mode: 'last', days: 90 }, direction: rateShow.value === 'up' ? 'rising' : rateShow.value === 'down' ? 'falling' : 'both' }
+}
+function onAdded(forecast: string) {
+  projecting.value = null
+  added.value = forecast
+}
 </script>
 
 <template>
@@ -137,6 +157,7 @@ const editing = ref<BalanceRecord | null>(null)
           <WindowPicker v-model="mixWindow" />
           <DonutChart v-if="mixSlices.length" :slices="mixSlices" centre-label="Total" :centre-value="fmtMoney(mixTotal, { whole: true })" @toggle="toggleMix" />
           <p v-else class="muted small">No lines with a value in these records.</p>
+          <button class="btn small-btn project" @click="projectAverage"><Link2 class="ic" aria-hidden="true" />Project this</button>
           <p class="muted small note">
             Each line's average across {{ mix.count }} record{{ mix.count === 1 ? '' : 's' }}<template v-if="mix.from">
               ({{ fmtDate(mix.from, { short: true }) }} – {{ fmtDate(mix.to!, { short: true }) }})</template
@@ -158,10 +179,15 @@ const editing = ref<BalanceRecord | null>(null)
             </div>
           </div>
           <CandleChart :candles="candles" :show="rateShow" />
+          <button class="btn small-btn project" @click="projectRate"><Link2 class="ic" aria-hidden="true" />Project this</button>
           <p class="muted small note">
             One candle per day, from the previous day's close to this day's: green if it went up, red if it went down. A day with records closes at its last record, and its records show as the wick. Days between records (lighter) move at the even daily rate from one record day to the next. Tap a candle to read it. For a card, going up means you owe less.
           </p>
         </template>
+        <p v-if="added" class="added small" role="status">
+          Added to <b>{{ added }}</b>. Its amount follows your records.
+          <button class="btn small-btn" @click="emit('open-future')">See it in Future</button>
+        </p>
       </section>
 
       <section class="card table-card">
@@ -206,11 +232,41 @@ const editing = ref<BalanceRecord | null>(null)
       </section>
     </template>
 
+    <ProjectFromPast v-if="projecting" v-bind="projecting" @added="onAdded" @cancel="projecting = null" />
     <RecordModal v-if="editing" :editing="editing" @close="editing = null" />
   </div>
 </template>
 
 <style scoped>
+.small-btn {
+  min-height: 36px;
+  padding: 0 0.7rem;
+  font-size: 0.88rem;
+  gap: 0.3rem;
+}
+
+.ic {
+  width: 1rem;
+  height: 1rem;
+  stroke-width: 1.75;
+}
+
+.project {
+  justify-self: start;
+  margin-top: 0.5rem;
+}
+
+.added {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin: 0.6rem 0 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--btn-radius);
+  background: var(--panel-2);
+}
+
 .charts {
   display: grid;
   gap: 0.6rem;
