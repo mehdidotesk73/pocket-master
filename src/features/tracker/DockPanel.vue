@@ -3,8 +3,8 @@
 // sheet it leaves the page above visible (and scrollable), so the forecast
 // chart can be watched while editing. Esc or ✕ closes. While open it counts as
 // an unsaved draft, so an app update waits (see pwa.ts).
-// A strong top edge (accent line, firmer sides, deep shadow) sets it apart from
-// the page behind, which stays visible and usable.
+// A grab handle on top and a light dim over the page set it apart; the page
+// behind stays readable and usable (the dim doesn't take taps).
 import { onBeforeUnmount, onMounted } from 'vue'
 import { markUnsaved } from '../../lib/storage/store'
 
@@ -27,6 +27,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <div class="dim" aria-hidden="true"></div>
   <section class="dock" role="dialog" :aria-label="title">
     <header class="head">
       <h2>{{ title }}</h2>
@@ -50,13 +51,11 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   background: var(--panel);
-  border: 1.5px solid color-mix(in srgb, var(--accent) 55%, var(--line));
-  border-top: 3px solid var(--accent);
+  border: 1px solid var(--line);
   border-bottom: none;
   border-radius: var(--radius) var(--radius) 0 0;
   box-shadow:
-    0 0 0 1px rgba(var(--shadow-rgb), 0.35),
-    0 -20px 44px rgba(var(--shadow-rgb), 0.65);
+    0 -12px 32px rgba(var(--shadow-rgb), 0.35);
   animation: rise 0.18s ease-out;
 }
 
@@ -67,11 +66,43 @@ onBeforeUnmount(() => {
   }
 }
 
+.dock::before {
+  content: '';
+  display: block;
+  width: 38px;
+  height: 5px;
+  margin: 0.45rem auto 0;
+  border-radius: 999px;
+  background: var(--mute);
+  opacity: 0.45;
+}
+
+.dim {
+  position: fixed;
+  inset: 0;
+  z-index: 89;
+  background: rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+  animation: fade 0.18s ease-out;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dim {
+    animation: none;
+  }
+}
+
 .head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.35rem 0.4rem 0 1rem;
+  padding: 0 0.4rem 0 1rem;
 }
 
 .head h2 {
