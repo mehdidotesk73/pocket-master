@@ -97,7 +97,7 @@ async function add() {
 </script>
 
 <template>
-  <DockPanel title="Project this" draft-key="project-from-past" blur @close="emit('cancel')">
+  <DockPanel title="Project this" draft-key="project-from-past" @close="emit('cancel')">
     <!-- which forecast it goes into -->
     <label class="field forecast">
       <span>Add to forecast</span>

@@ -3,12 +3,12 @@
 // sheet it leaves the page above visible (and scrollable), so the forecast
 // chart can be watched while editing. Esc or ✕ closes. While open it counts as
 // an unsaved draft, so an app update waits (see pwa.ts).
-// `blur`: dim and blur the page behind (and stop it taking taps), for panels
-// where the page above isn't a live preview (e.g. Project this on Past).
+// A strong top edge (accent line, firmer sides, deep shadow) sets it apart from
+// the page behind, which stays visible and usable.
 import { onBeforeUnmount, onMounted } from 'vue'
 import { markUnsaved } from '../../lib/storage/store'
 
-const props = defineProps<{ title: string; draftKey: string; blur?: boolean }>()
+const props = defineProps<{ title: string; draftKey: string }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 
 function onKey(e: KeyboardEvent) {
@@ -27,7 +27,6 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="blur" class="scrim" aria-hidden="true"></div>
   <section class="dock" role="dialog" :aria-label="title">
     <header class="head">
       <h2>{{ title }}</h2>
@@ -51,10 +50,13 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1.5px solid color-mix(in srgb, var(--accent) 55%, var(--line));
+  border-top: 3px solid var(--accent);
   border-bottom: none;
   border-radius: var(--radius) var(--radius) 0 0;
-  box-shadow: 0 -12px 32px rgba(var(--shadow-rgb), 0.35);
+  box-shadow:
+    0 0 0 1px rgba(var(--shadow-rgb), 0.35),
+    0 -20px 44px rgba(var(--shadow-rgb), 0.65);
   animation: rise 0.18s ease-out;
 }
 
@@ -115,28 +117,6 @@ onBeforeUnmount(() => {
   min-height: 36px;
   padding: 0 0.85rem;
   font-size: 0.9rem;
-}
-
-.scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 89;
-  background: rgba(var(--shadow-rgb), 0.35);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  animation: fade 0.18s ease-out;
-}
-
-@keyframes fade {
-  from {
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .scrim {
-    animation: none;
-  }
 }
 </style>
 
