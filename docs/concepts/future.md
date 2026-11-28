@@ -24,7 +24,7 @@ Pick one from **Forecast** at the top. You can keep several, for example:
 
 ## Projections
 
-A projection is an amount you expect, typed in. Nothing is worked out from your records: look at the **Past** tab (Timeseries, Averages, Rates), decide what you expect, and enter it here.
+A projection is an amount you expect. Usually you type it in: look at the **Past** tab (Timeseries, Averages, Rates), decide what you expect, and enter it here. Or let Past work it out for you (see **Linked to Past** below).
 
 Tap **Add** to make one, or tap a projection to change it. To change the order, drag a projection by its grip (⋮⋮) on the left, or focus the grip and use the arrow keys. The order is saved, and the chart's colours follow it. Next to the name, pick the type:
 
@@ -36,5 +36,16 @@ Type and Unit are wheels: they look like a field until you touch one, then it op
 At the bottom of the editor, the projection is **read back as one sentence**, e.g. *Every month on the 1st: ($2,030.00).* Tap it to see what it adds up to by the end of the forecast. A one-time date outside the forecast shows an amber "to check" note.
 
 Amounts are **+** (coming in) or **−** (going out): tap the sign to switch. Owed amounts show in parentheses.
+
+## Linked to Past
+
+On the Past tab, **Project this** (under Averages and Rates) makes a Recurring projection whose amount comes from your records instead of being typed:
+
+- **Average** (from Averages): the Total of the lines you left in, averaged over the records you picked, e.g. your three cards' average balance over the past 90 days, every month.
+- **Daily change**: how much a line moves per day on average over the records you pick: every day, or only the **rising** or **falling** days. For a card, *falling days* is your spending with payments left out. Repeating every week or month multiplies it by the days in between (7, or 30.44).
+
+Its card says *Recurring · linked to Past* and, in one line, what it's measured from, e.g. *Amex's average daily change, falling days only, over the past 90 days*. The amount is **worked out again whenever your records change**, so it follows your latest spending.
+
+The amount is locked. You can still change the name, how often it repeats and when it starts. To measure something else, **Remove** it and make a new one from Past.
 
 This is a guide, not a promise. It's only as good as the projections you've entered.

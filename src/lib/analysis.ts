@@ -4,17 +4,31 @@
 //   lineSeries     each record line's value at every record (for "Timeseries")
 //   windowMix      each line's average value over a window (for "Averages")
 //   dailyCandles   a line's value as one candle per day, by date (record days + the even rate between them)
+//   measurePast    an average or daily rate over a window, for projections linked to Past
+//   resolveLinks   a forecast with its linked projections' amounts worked out
 //
 // A line missing from a record counts as $0 there: records keep their own rows,
 // and a row you removed is a balance you no longer hold.
 
-import { type BalanceRecord, LEFT_SOURCE, type RecordWindow, byAt, lineNames, recordsInWindow } from './finance'
+import {
+  type BalanceRecord,
+  LEFT_SOURCE,
+  type PastLink,
+  type ProjectionFile,
+  type RecordWindow,
+  type Recurring,
+  byAt,
+  lineNames,
+  periodDays,
+  recordsInWindow,
+} from './finance'
 import { type ISODate, atNum, dayNum, fromCents, fromDayNum, toCents } from './money'
 
 const norm = (s: string) => s.trim().toLowerCase()
 
-/** A line's value in a record (cents); several rows with the same name add up; missing = 0. */
-function valueCents(r: BalanceRecord, name: string): number {
+/** A line's value in a record (cents); several rows with the same name add up; missing = 0. Several lines: their sum. */
+function valueCents(r: BalanceRecord, name: string | string[]): number {
+  if (Array.isArray(name)) return name.reduce((s, n) => s + valueCents(r, n), 0)
   if (name === LEFT_SOURCE) return toCents(r.left)
   const k = norm(name)
   return r.lines.filter((l) => norm(l.name) === k).reduce((s, l) => s + toCents(l.amount), 0)
@@ -74,7 +88,7 @@ export interface DayCandle {
  *   small candle of that average daily change
  * The daily changes add up to the whole change from first record to last.
  */
-export function dailyCandles(records: BalanceRecord[], name: string): DayCandle[] {
+export function dailyCandles(records: BalanceRecord[], name: string | string[]): DayCandle[] {
   const sorted = [...records].sort(byAt)
   if (sorted.length < 2) return []
   // records grouped by date, in order
@@ -125,4 +139,60 @@ export function dailyCandles(records: BalanceRecord[], name: string): DayCandle[
     prevClose = close
   }
   return out
+}
+
+// ---------------------------------------------------------------- linked projections
+
+export interface PastMeasure {
+  /** average: dollars; rate: dollars per day. */
+  value: number
+  /** Records in the window, and the dates it spans. */
+  count: number
+  from?: ISODate
+  to?: ISODate
+  /** Days the rate is measured over (rate only). */
+  days?: number
+}
+
+/**
+ * A measure of past records, for a projection linked to them:
+ * - average: the line's average value across the window's records (missing = $0)
+ * - rate: the line's change per day from the window's first record date to its
+ *   last, from the daily candles (so record days and the even stretches between
+ *   them count as in the Rates chart). `rising` / `falling` add up only the days
+ *   that went that way, still divided by every day in the window: "Amex falls
+ *   $32 a day on average, payments left out".
+ */
+export function measurePast(records: BalanceRecord[], link: PastLink): PastMeasure {
+  const inWin = recordsInWindow(records, link.window)
+  if (!inWin.length) return { value: 0, count: 0 }
+  const from = inWin[0].date
+  const to = inWin[inWin.length - 1].date
+  if (link.measure === 'average') {
+    const cents = inWin.reduce((s, r) => s + valueCents(r, link.lines), 0) / inWin.length
+    return { value: fromCents(cents), count: inWin.length, from, to }
+  }
+  const days = dayNum(to) - dayNum(from)
+  if (days <= 0) return { value: 0, count: inWin.length, from, to, days: 0 }
+  let cents = 0
+  for (const c of dailyCandles(records, link.lines)) {
+    if (c.date <= from || c.date > to) continue
+    const ch = toCents(c.close) - toCents(c.open)
+    if (link.direction === 'both' || (link.direction === 'rising' ? ch > 0 : ch < 0)) cents += ch
+  }
+  return { value: cents / days / 100, count: inWin.length, from, to, days }
+}
+
+/** What a linked projection adds each time it occurs (a rate × the days between occurrences), in dollars. */
+export function linkedAmount(item: Pick<Recurring, 'every' | 'link'>, records: BalanceRecord[]): number {
+  if (!item.link) return 0
+  const m = measurePast(records, item.link)
+  const each = item.link.measure === 'rate' ? m.value * periodDays(item.every) : m.value
+  return fromCents(toCents(each))
+}
+
+/** The forecast with every linked projection's amount worked out from `records`. */
+export function resolveLinks(f: ProjectionFile, records: BalanceRecord[]): ProjectionFile {
+  if (!f.items.some((i) => i.kind === 'recurring' && i.link)) return f
+  return { ...f, items: f.items.map((i) => (i.kind === 'recurring' && i.link ? { ...i, amount: linkedAmount(i, records) } : i)) }
 }

@@ -7,7 +7,7 @@
 //   - a projection row / + Add → ProjectionPanel (type carousel + fields)
 // New things are drafts until saved: Cancel leaves nothing behind.
 import { computed, nextTick, reactive, ref } from 'vue'
-import { GripVertical, Pencil, Plus } from '@lucide/vue'
+import { GripVertical, Link2, Pencil, Plus } from '@lucide/vue'
 import { HORIZON_PRESETS, type ProjectionFile, type ProjectionItem, defaultProjection, newId, startValueCents } from '../../lib/finance'
 import { atNum, dayNum, fmtDate, fmtDateTime, fmtMoney, today } from '../../lib/money'
 import ForecastChart, { type Segment } from './ForecastChart.vue'
@@ -16,7 +16,7 @@ import ProjectionPanel from './ProjectionPanel.vue'
 import { UI_INFO, colorFor, summarize, uiTypeOf } from './projectionText'
 import { useTracker } from './useTracker'
 
-const { projections, selected, selectedId, records, latest, projectFor, saveProjection, createProjection, deleteProjection, selectProjection } =
+const { projections, selected, selectedId, records, latest, projectFor, resolve, saveProjection, createProjection, deleteProjection, selectProjection } =
   useTracker()
 
 /** How far back the chart shows past records. */
@@ -27,7 +27,7 @@ const forecastEdit = ref<{ draft: ProjectionFile; isNew: boolean } | null>(null)
 const itemEdit = ref<{ draft: ProjectionItem; isNew: boolean } | null>(null)
 
 /** What's on screen: the saved forecast, or the one being edited (with any item draft applied). */
-const shown = computed<ProjectionFile | null>(() => {
+const raw = computed<ProjectionFile | null>(() => {
   if (forecastEdit.value) return forecastEdit.value.draft
   const f = selected.value
   if (!f) return null
@@ -36,6 +36,8 @@ const shown = computed<ProjectionFile | null>(() => {
   const exists = f.items.some((i) => i.id === e.draft.id)
   return { ...f, items: exists ? f.items.map((i) => (i.id === e.draft.id ? e.draft : i)) : [...f.items, e.draft] }
 })
+/** Linked projections show (and chart) their amount as worked out from the records now. */
+const shown = computed<ProjectionFile | null>(() => (raw.value ? resolve(raw.value) : null))
 const future = computed(() => (shown.value ? projectFor(shown.value) : null))
 
 // ---- heading
@@ -229,7 +231,7 @@ const rows = computed(() =>
   ordered.value.map((item) => ({
     item,
     s: summarize(item),
-    type: UI_INFO[uiTypeOf(item)].label,
+    type: UI_INFO[uiTypeOf(item)].label + (item.kind === 'recurring' && item.link ? ' · linked to Past' : ''),
     editing: itemEdit.value?.draft.id === item.id,
   })),
 )
@@ -332,6 +334,7 @@ const rows = computed(() =>
             <span class="name">{{ r.item.name || 'New projection' }}</span>
             <span class="amount money" :class="r.s.tone">{{ r.s.amount }}</span>
             <span class="detail muted small">{{ r.s.detail }}</span>
+            <span v-if="r.s.linked" class="linked muted small"><Link2 class="link-ic" aria-label="Linked to Past" />{{ r.s.linked }}</span>
           </button>
         </li>
       </ul>
@@ -537,7 +540,8 @@ const rows = computed(() =>
   grid-template-areas:
     'sw kind kind'
     'sw name amount'
-    'sw detail detail';
+    'sw detail detail'
+    'sw linked linked';
   gap: 0 0.6rem;
   padding: 0.5rem 0.1rem;
   border: none;
@@ -589,6 +593,20 @@ const rows = computed(() =>
 
 .detail {
   grid-area: detail;
+}
+
+.linked {
+  grid-area: linked;
+  display: flex;
+  gap: 0.3rem;
+  align-items: flex-start;
+}
+
+.link-ic {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  margin-top: 0.15em;
 }
 
 .tag {

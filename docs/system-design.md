@@ -147,6 +147,17 @@ OPFS root
 Three tabs, **Past · Present · Future** (default Present): `HistoryView`, `TodayView`,
 `FutureView`. **Naming in the UI:** a stored `ProjectionFile` is a *forecast*; its items are
 *projections*: Recurring or One-time.
+Past's Averages and Rates views have **Project this** → `ProjectFromPast` (a `DockPanel`. Fixed, from
+the chart: Averages → the lines left in (the donut's Total) and its window; Rates → the line and
+Both / Rising / Falling. Layout: the forecast to add to, then the projection as `ProjectionPanel`
+shows it — name · Linked, every · unit · starting, the locked amount box holding the fixed values
+and (Rates only) the window — and `readBack` worked out in that forecast; shows the
+amount now and how it's worked out; adds a linked Recurring item and offers *See it in Future*,
+which `HistoryView` emits as `open-future` to `App.vue`). Explanations (each Past chart's note, the linked-amount note) sit behind `components/InfoTip.vue`, an ⓘ
+button whose text takes its own line in a wrapping flex row. A linked item's type shows as a fixed
+"Recurring" tag; its amount label reads "Amount each time · linked to Past".
+Future's list marks linked items
+"Recurring · linked to Past" with a `describeLink` line; `ProjectionPanel` shows their amount locked.
 Future = forecast picker + **Edit** / **New** → `ForecastPanel`; `ForecastChart` (a one-day-wide stacked bar on
 each day any projection changes the total — day-over-day differences of `project().contributions` — with
 the forecast total, starting balance included, as a step line — flat between event days, vertical on
@@ -159,7 +170,8 @@ and a pinned, collapsed readback (one line plus a "N to check" pill; tap for the
 `readBack()` in `projectionText.ts`: the projection as one sentence, what it adds up to by the
 forecast's end, and a warning for a one-time date outside the forecast); `FutureView` passes the
 draft's `project()` result in as `result`. Both panels are `DockPanel`s (mid-height, bottom, page stays
-visible) editing drafts that drive the chart live; Save writes, Cancel discards. The header's ☰ (top left) opens `SideMenu`, a drawer from the left with collapsible
+visible; set apart by a grab handle and a light dim over the page that doesn't take taps;
+compact 36px footer buttons) editing drafts that drive the chart live; Save writes, Cancel discards. The header's ☰ (top left) opens `SideMenu`, a drawer from the left with collapsible
 sections (start collapsed); Records holds the Import / Export tag buttons. Backup (export/import + storage health) is `BackupModal`, opened from the side menu
 and from Present's backup nudge. The New record sheet (`RecordModal`) is a compact list: name · ±
 toggle · amount · ✕, with a drag grip on the left (pointer events; a row swaps with its neighbour
@@ -184,6 +196,13 @@ from a record counts as $0 there.
   `between { from, to, perDay }`. Daily changes sum to the whole change. → *Rates*
   (`CandleChart`; record-less days drawn lighter; Rising / Falling filter hides candles without
   rescaling).
+- `measurePast(records, link)`: the measure a linked projection is locked to, over `recordsInWindow`,
+  of the sum of `link.lines` (`valueCents` and `dailyCandles` take a list): `average` = mean value; `rate` = Σ daily-candle changes (`close − open`) for dates in
+  (first window record date, last], counting all, only rising or only falling days, ÷ the days in
+  between (0 with records on one date only). `linkedAmount(item, records)` = average, or rate ×
+  `periodDays(every)`, in cents. `resolveLinks(forecast, records)` returns the forecast with every
+  linked amount filled in; `useTracker.projectFor`/`resolve` and `saveProjection` use it, so the
+  chart, list and readback always show the current value and the stored `amount` is the last one.
 Colours per line come from `colorFor(index in lineNames)`, the same in every view.
 
 ## §4 — Calculations (`src/lib/finance.ts`)
@@ -211,7 +230,13 @@ All sums in integer cents.
   - `recurring`: `{ name, amount, every { n, unit: day|week|month|year }, start }`
     (`occursOn`: months/years use start's day, clamped to month end);
   - `oneTime`: `{ name, amount, date }`.
-  Nothing is worked out from records and nothing targets a line: the user reads Past and types.
+  A recurring item may carry `link?: PastLink` (`{ measure: 'average', lines, window }` or
+  `{ measure: 'rate', lines, window, direction: both|rising|falling }`; `lines` are added up, '' = net
+  equity; a single `line` from the first preview is read as `[line]`): its
+  amount is then locked to `measurePast` and worked out again on every records change (see §4a).
+  It's made once from Past ("Project this", `ProjectFromPast.vue`); the editor locks the amount and
+  the type, leaving name / every / start. Nothing targets a line. Schema-4 files load through
+  `normalizeCurrentItem` (keeps `link`; an unreadable link is dropped), not the legacy freeze path.
 - **`project(proj, records, startIfEmpty = today)`** (never null): from (latest.date, starting total),
   or ($0, today) with no records, each day adds every projection that falls on it and tracks each
   one's running `contributions` (for the stacked bars), for `horizonDays` (≤ 1830).

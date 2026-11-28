@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { type ProjectionFile, type ProjectionItem, type Recurring, makeRecord, project } from '../../lib/finance'
-import { readBack, summarize } from './projectionText'
+import { type PastLink, type ProjectionFile, type ProjectionItem, type Recurring, makeRecord, project } from '../../lib/finance'
+import { describeLink, describeMeasure, readBack, summarize } from './projectionText'
 
 const records = [makeRecord('2026-11-26T22:57:00', [{ id: 'c', name: 'Checking', amount: 6000 }])]
 const forecast = (items: ProjectionItem[], horizonDays = 365): ProjectionFile => ({ schema: 4, id: 'f', name: 'F', start: { mode: 'all' }, horizonDays, items })
@@ -31,6 +31,19 @@ describe('projection readback', () => {
   })
 
   it('list summary: the amount, then when', () => {
-    expect(summarize(rent)).toEqual({ amount: '($2,030.00)', detail: 'every month on the 1st', tone: 'neg' })
+    expect(summarize(rent)).toEqual({ amount: '($2,030.00)', detail: 'every month on the 1st', linked: '', tone: 'neg' })
+  })
+
+  it('a linked projection says what it is measured from', () => {
+    const link: PastLink = { measure: 'rate', lines: ['Amex'], window: { mode: 'last', days: 90 }, direction: 'falling' }
+    const amex: Recurring = { kind: 'recurring', id: 'a', name: 'Amex', amount: -20.51, every: { n: 1, unit: 'day' }, start: '2026-11-28', link }
+    expect(summarize(amex).linked).toBe('Amex’s average daily change, falling days only, over the past 90 days')
+    expect(say(amex, 30).sentence).toBe('Every day from Nov 28: Amex’s average daily change, falling days only, over the past 90 days, now ($20.51).')
+    expect(describeLink({ measure: 'average', lines: [''], window: { mode: 'lastRecords', count: 6 } })).toBe('Net equity’s average over the last 6 records')
+    expect(describeLink({ measure: 'average', lines: ['Amex', 'Discover', 'Capital One'], window: { mode: 'all' } })).toBe('Amex + Discover + Capital One’s average over all records')
+    expect(describeLink({ measure: 'average', lines: ['A', 'B', 'C', 'D', 'E'], window: { mode: 'all' } })).toBe('A, B and 3 more lines’ average over all records')
+    const m = { value: -20.51, count: 22, from: '2026-08-20', to: '2026-11-17', days: 89 }
+    expect(describeMeasure(link, m, { n: 1, unit: 'week' })).toBe('From 22 records, Aug 20 – Nov 17: ($20.51) a day × 7 days.')
+    expect(describeMeasure(link, { value: 0, count: 0 }, { n: 1, unit: 'day' })).toBe('No records in that window yet, so it’s $0 for now.')
   })
 })

@@ -84,15 +84,33 @@ export interface Every {
   unit: EveryUnit
 }
 
+/** Which days a rate counts: every day's change, or only the days a line went up / down. */
+export type RateDirection = 'both' | 'rising' | 'falling'
+
+/**
+ * A measure of past records that a projection's amount is locked to (worked
+ * out in lib/analysis.ts, measurePast). `lines` are record line names, added
+ * up (LEFT_SOURCE = net equity).
+ * - average: their total's average value over the window's records
+ * - rate:    its average change per day over the window (by date, as the Rates
+ *            candles), optionally counting only rising or falling days;
+ *            × the days between occurrences
+ */
+export type PastLink =
+  | { measure: 'average'; lines: string[]; window: RecordWindow }
+  | { measure: 'rate'; lines: string[]; window: RecordWindow; direction: RateDirection }
+
 /** Repeats every `every` from `start` (its day of month / month of year set the rhythm). */
 export interface Recurring {
   kind: 'recurring'
   id: string
   name: string
-  /** signed: + coming in, − going out */
+  /** signed: + coming in, − going out. For a linked projection, the last worked-out value. */
   amount: number
   every: Every
   start: ISODate
+  /** Set: the amount is locked to this measure of past records and worked out again whenever they change. */
+  link?: PastLink
 }
 
 /** A single amount on a date. */

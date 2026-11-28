@@ -6,6 +6,9 @@ import { dailyCandles, lineSeries, windowMix } from '../../lib/analysis'
 import DonutChart, { type DonutSlice } from './DonutChart.vue'
 import CandleChart from './CandleChart.vue'
 import WindowPicker from './WindowPicker.vue'
+import ProjectFromPast from './ProjectFromPast.vue'
+import { Link2 } from '@lucide/vue'
+import InfoTip from '../../components/InfoTip.vue'
 import { colorFor } from './projectionText'
 import RecordModal from './RecordModal.vue'
 import FigureRow, { type Figure } from './FigureRow.vue'
@@ -97,6 +100,27 @@ async function onDelete(at: LocalDateTime) {
 }
 
 const editing = ref<BalanceRecord | null>(null)
+
+// ---- "Project this": a recurring projection locked to what this chart shows
+const emit = defineEmits<{ (e: 'open-future'): void }>()
+const projecting = ref<{ measure: 'average' | 'rate'; lines: string[]; window: RecordWindow; direction?: 'both' | 'rising' | 'falling' } | null>(null)
+const added = ref('')
+/** Averages: the Total in the middle, i.e. the lines left in, over the window picked above. */
+function projectAverage() {
+  added.value = ''
+  const lines = mixSlices.value.filter((s) => !s.off).map((s) => s.name)
+  if (!lines.length) return
+  projecting.value = { measure: 'average', lines, window: { ...mixWindow.value } }
+}
+/** Rates: the line and Rising / Falling picked above; the window is picked in the panel. */
+function projectRate() {
+  added.value = ''
+  projecting.value = { measure: 'rate', lines: [rateLine.value], window: { mode: 'last', days: 90 }, direction: rateShow.value === 'up' ? 'rising' : rateShow.value === 'down' ? 'falling' : 'both' }
+}
+function onAdded(forecast: string) {
+  projecting.value = null
+  added.value = forecast
+}
 </script>
 
 <template>
@@ -129,7 +153,9 @@ const editing = ref<BalanceRecord | null>(null)
             </button>
           </div>
           <LineChart :series="lineChart" include-zero :legend="false" />
-          <p class="muted small note">Each line's value at every record. Tap a name to hide or show it.</p>
+          <div class="foot end">
+            <InfoTip label="About Timeseries">Each line's value at every record. Tap a name to hide or show it.</InfoTip>
+          </div>
         </template>
 
         <!-- average mix over a window -->
@@ -137,11 +163,15 @@ const editing = ref<BalanceRecord | null>(null)
           <WindowPicker v-model="mixWindow" />
           <DonutChart v-if="mixSlices.length" :slices="mixSlices" centre-label="Total" :centre-value="fmtMoney(mixTotal, { whole: true })" @toggle="toggleMix" />
           <p v-else class="muted small">No lines with a value in these records.</p>
-          <p class="muted small note">
-            Each line's average across {{ mix.count }} record{{ mix.count === 1 ? '' : 's' }}<template v-if="mix.from">
-              ({{ fmtDate(mix.from, { short: true }) }} – {{ fmtDate(mix.to!, { short: true }) }})</template
-            >. Tap a line to leave it out. The middle adds up the lines left in, and each slice is that line's share of their size.
-          </p>
+          <div class="foot">
+            <button class="btn small-btn" :disabled="!mixSlices.some((s) => !s.off)" @click="projectAverage"><Link2 class="ic" aria-hidden="true" />Project this</button>
+            <InfoTip label="About Averages">
+              Each line's average across {{ mix.count }} record{{ mix.count === 1 ? '' : 's' }}<template v-if="mix.from">
+                ({{ fmtDate(mix.from, { short: true }) }} – {{ fmtDate(mix.to!, { short: true }) }})</template
+              >. Tap a line to leave it out. The middle adds up the lines left in, and each slice is that line's share of their size.
+              <b>Project this</b> makes a forecast projection from the Total.
+            </InfoTip>
+          </div>
         </template>
 
         <!-- rate of change between records -->
@@ -158,10 +188,18 @@ const editing = ref<BalanceRecord | null>(null)
             </div>
           </div>
           <CandleChart :candles="candles" :show="rateShow" />
-          <p class="muted small note">
+          <div class="foot">
+            <button class="btn small-btn" @click="projectRate"><Link2 class="ic" aria-hidden="true" />Project this</button>
+            <InfoTip label="About Rates">
             One candle per day, from the previous day's close to this day's: green if it went up, red if it went down. A day with records closes at its last record, and its records show as the wick. Days between records (lighter) move at the even daily rate from one record day to the next. Tap a candle to read it. For a card, going up means you owe less.
-          </p>
+              <b>Project this</b> makes a forecast projection from this line's daily change.
+            </InfoTip>
+          </div>
         </template>
+        <p v-if="added" class="added small" role="status">
+          Added to <b>{{ added }}</b>. Its amount follows your records.
+          <button class="btn small-btn" @click="emit('open-future')">See it in Future</button>
+        </p>
       </section>
 
       <section class="card table-card">
@@ -206,11 +244,49 @@ const editing = ref<BalanceRecord | null>(null)
       </section>
     </template>
 
+    <ProjectFromPast v-if="projecting" v-bind="projecting" @added="onAdded" @cancel="projecting = null" />
     <RecordModal v-if="editing" :editing="editing" @close="editing = null" />
   </div>
 </template>
 
 <style scoped>
+.small-btn {
+  min-height: 36px;
+  padding: 0 0.7rem;
+  font-size: 0.88rem;
+  gap: 0.3rem;
+}
+
+.ic {
+  width: 1rem;
+  height: 1rem;
+  stroke-width: 1.75;
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.foot.end {
+  justify-content: flex-end;
+}
+
+.added {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin: 0.6rem 0 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--btn-radius);
+  background: var(--panel-2);
+}
+
 .charts {
   display: grid;
   gap: 0.6rem;

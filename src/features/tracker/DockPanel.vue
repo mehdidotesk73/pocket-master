@@ -3,6 +3,8 @@
 // sheet it leaves the page above visible (and scrollable), so the forecast
 // chart can be watched while editing. Esc or ✕ closes. While open it counts as
 // an unsaved draft, so an app update waits (see pwa.ts).
+// A grab handle on top and a light dim over the page set it apart; the page
+// behind stays readable and usable (the dim doesn't take taps).
 import { onBeforeUnmount, onMounted } from 'vue'
 import { markUnsaved } from '../../lib/storage/store'
 
@@ -25,6 +27,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <div class="dim" aria-hidden="true"></div>
   <section class="dock" role="dialog" :aria-label="title">
     <header class="head">
       <h2>{{ title }}</h2>
@@ -51,7 +54,8 @@ onBeforeUnmount(() => {
   border: 1px solid var(--line);
   border-bottom: none;
   border-radius: var(--radius) var(--radius) 0 0;
-  box-shadow: 0 -12px 32px rgba(var(--shadow-rgb), 0.35);
+  box-shadow:
+    0 -12px 32px rgba(var(--shadow-rgb), 0.35);
   animation: rise 0.18s ease-out;
 }
 
@@ -62,11 +66,43 @@ onBeforeUnmount(() => {
   }
 }
 
+.dock::before {
+  content: '';
+  display: block;
+  width: 38px;
+  height: 5px;
+  margin: 0.45rem auto 0;
+  border-radius: 999px;
+  background: var(--mute);
+  opacity: 0.45;
+}
+
+.dim {
+  position: fixed;
+  inset: 0;
+  z-index: 89;
+  background: rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+  animation: fade 0.18s ease-out;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dim {
+    animation: none;
+  }
+}
+
 .head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.35rem 0.4rem 0 1rem;
+  padding: 0 0.4rem 0 1rem;
 }
 
 .head h2 {
@@ -100,11 +136,18 @@ onBeforeUnmount(() => {
 
 .foot {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.45rem;
   justify-content: flex-end;
-  padding: 0.5rem 1rem max(0.6rem, env(safe-area-inset-bottom));
+  padding: 0.4rem 1rem max(0.45rem, env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
   background: var(--panel-2);
+}
+
+/* compact action buttons (Save, Cancel, Remove, …) */
+.foot :slotted(.btn) {
+  min-height: 36px;
+  padding: 0 0.85rem;
+  font-size: 0.9rem;
 }
 </style>
 
