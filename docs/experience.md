@@ -383,6 +383,20 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.14.0 — 2026-11-27
+- **Added:** Past has a chart card with four views: Totals, **Timeseries** (each line over time,
+  hide/show chips), **Averages** (each line's average over a window as a donut; tap a line in its
+  list to leave it out, the centre adds up the rest; an Owned / Owed switch was tried and dropped
+  as confusing), and **Rates** (one candle per day: the even rate between records on days without
+  one, the actual record-to-record jumps on record days; Rising / Falling). A first version drew
+  one bar per record interval; replaced with daily candles after looking at it on the phone. The
+  candles first ran on time of day, so a day whose 8 AM and 8 PM records matched still showed a
+  change (the hours before and after them came from the neighbouring stretches); they now run by
+  date: a record day closes at its last record, and the even rate runs between record days.
+- **Direction:** projections computed from records (Average, Rate of change, start points) were
+  hard to reason about on the phone. Analysis moves to Past; Future will hold only amounts typed in,
+  with a way to carry a number from Past into a projection.
+
 ### v0.12.2 — 2026-11-27
 - **Changed:** the projection editor is compact: name with the type beside it, then Every · Unit ·
   Starting, then Changes · Value · Line (or Amount); type, Value and Unit are drum wheels (one row at

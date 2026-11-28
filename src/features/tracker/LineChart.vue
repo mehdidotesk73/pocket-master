@@ -28,8 +28,10 @@ const props = withDefaults(
     markers?: ChartMarker[]
     height?: number
     includeZero?: boolean
+    /** false when the page shows its own legend (e.g. toggle chips) */
+    legend?: boolean
   }>(),
-  { markers: () => [], height: 230, includeZero: false },
+  { markers: () => [], height: 230, includeZero: false, legend: true },
 )
 
 const wrap = ref<HTMLElement>()
@@ -212,7 +214,7 @@ const readout = computed(() => {
       </div>
     </div>
 
-    <div class="legend small">
+    <div v-if="legend" class="legend small">
       <span v-for="s in series" :key="s.label">
         <span v-if="s.line === false" class="dot-sw" :style="{ background: s.color }"></span>
         <span v-else class="sw" :class="{ dashed: s.dashed }" :style="{ borderColor: s.color }"></span>{{ s.label }}

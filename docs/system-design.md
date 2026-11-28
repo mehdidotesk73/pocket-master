@@ -172,6 +172,24 @@ records take the latest record's row order. Negative money displays as ($1.00) e
 (`fmtMoney`, `fmtPlain`; fields show it only when not focused). The sign is a button because the iPhone decimal keypad has no minus key; typing a
 leading `-` on a keyboard also flips it.
 
+## §4a — History analysis (`src/lib/analysis.ts`)
+
+Pure functions over records for the Past tab's chart card (tabs: Totals, Timeseries, Averages, Rates) (tests in `analysis.test.ts`). A line missing
+from a record counts as $0 there.
+- `lineSeries(records)`: each line (by `lineNames`) valued at every record → *Timeseries* (`LineChart`,
+  its own legend off; toggle chips instead).
+- `windowMix(records, window)`: each line's signed average over `recordsInWindow` → *Averages*
+  (`DonutChart`: slices sized by |average|; its legend rows toggle lines out; the centre is the
+  signed sum of the lines left in; `WindowPicker` for the window).
+- `dailyCandles(records, line | LEFT_SOURCE)`: one OHLC candle per day, **by date**, from the first
+  record's day to the last's. A record day closes at its last record (open = previous day's close,
+  high/low include that day's records). Between record days the value moves evenly from the earlier
+  day's last record to the later day's first record, so days with no record carry
+  `between { from, to, perDay }`. Daily changes sum to the whole change. → *Rates*
+  (`CandleChart`; record-less days drawn lighter; Rising / Falling filter hides candles without
+  rescaling).
+Colours per line come from `colorFor(index in lineNames)`, the same in every view.
+
 ## §4 — Calculations (`src/lib/finance.ts`)
 
 All sums in integer cents.
