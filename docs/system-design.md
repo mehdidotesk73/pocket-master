@@ -149,7 +149,9 @@ Three tabs, **Past · Present · Future** (default Present): `HistoryView`, `Tod
 *projections*: Recurring or One-time.
 Past's Averages and Rates views have **Project this** → `ProjectFromPast` (a `DockPanel`. Fixed, from
 the chart: Averages → the lines left in (the donut's Total) and its window; Rates → the line and
-Both / Rising / Falling. Then: the window (Rates only), every · unit · starting, name, forecast; shows the
+Both / Rising / Falling. Layout: the forecast to add to, then the projection as `ProjectionPanel`
+shows it — name · Linked, every · unit · starting, the locked amount box holding the fixed values
+and (Rates only) the window — and `readBack` worked out in that forecast; shows the
 amount now and how it's worked out; adds a linked Recurring item and offers *See it in Future*,
 which `HistoryView` emits as `open-future` to `App.vue`). Future's list marks linked items
 "Recurring · linked to Past" with a `describeLink` line; `ProjectionPanel` shows their amount locked.

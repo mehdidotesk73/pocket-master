@@ -4,22 +4,26 @@
 // change. What was picked on the chart is shown fixed here:
 //   Averages → the lines left in (their Total) and the records window
 //   Rates    → the line and which days count; the window is picked here
-// Then the repeat, start, name and forecast. In Future only the name, repeat
-// and start can change; to measure something else, remove it and make another.
+// Laid out as: the forecast to add to, then the projection as Edit projection
+// shows it (name · Linked, every · unit · starting, the locked amount with what
+// it's measured from and the Rates window, and the one-line readback).
+// In Future only the name, repeat and start can change; to measure something
+// else, remove it and make another.
 import { computed, ref } from 'vue'
+import { ChevronDown, Link2 } from '@lucide/vue'
 import { type EveryUnit, type PastLink, type RateDirection, type RecordWindow, type Recurring, newId } from '../../lib/finance'
 import { linkedAmount, measurePast } from '../../lib/analysis'
 import { fmtMoney, isISODate, today } from '../../lib/money'
 import DockPanel from './DockPanel.vue'
 import WheelPicker from './WheelPicker.vue'
 import WindowPicker from './WindowPicker.vue'
-import { describeMeasure, describeWindow, linesLabel } from './projectionText'
+import { describeMeasure, describeWindow, linesLabel, readBack } from './projectionText'
 import { useTracker } from './useTracker'
 
 const props = defineProps<{ measure: PastLink['measure']; lines: string[]; window: RecordWindow; direction?: RateDirection }>()
 const emit = defineEmits<{ (e: 'added', forecast: string): void; (e: 'cancel'): void }>()
 
-const { records, projections, selected, saveProjection, selectProjection } = useTracker()
+const { records, projections, selected, projectFor, saveProjection, selectProjection } = useTracker()
 
 // Fixed from the chart.
 const measure = props.measure
@@ -58,21 +62,33 @@ const autoName = (() => {
 const name = ref('')
 const nameTouched = ref(false)
 
+/** The projection as it would be added. */
+const draft = computed<Recurring>(() => ({
+  kind: 'recurring',
+  id: 'project-this',
+  name: (nameTouched.value ? name.value.trim() : '') || autoName,
+  amount: amount.value,
+  every: { ...every.value },
+  start: start.value,
+  link: link.value,
+}))
+const target = computed(() => projections.value.find((p) => p.id === forecastId.value) ?? null)
+
+// ---- readback, as in Edit projection: worked out in the forecast it goes into
+const said = computed(() => {
+  const f = target.value
+  if (!f || !isISODate(start.value)) return null
+  return readBack(draft.value, projectFor({ ...f, items: [...f.items, draft.value] }))
+})
+const showMore = ref(false)
+
 const error = ref('')
 async function add() {
   error.value = ''
-  const f = projections.value.find((p) => p.id === forecastId.value)
+  const f = target.value
   if (!f) return void (error.value = 'Pick a forecast.')
   if (!isISODate(start.value)) return void (error.value = 'Pick a start date.')
-  const item: Recurring = {
-    kind: 'recurring',
-    id: newId(),
-    name: (nameTouched.value ? name.value.trim() : '') || autoName,
-    amount: amount.value,
-    every: { ...every.value },
-    start: start.value,
-    link: JSON.parse(JSON.stringify(link.value)),
-  }
+  const item: Recurring = { ...JSON.parse(JSON.stringify(draft.value)), id: newId() }
   await saveProjection({ ...f, items: [...f.items, item] })
   selectProjection(f.id)
   emit('added', f.name)
@@ -81,58 +97,70 @@ async function add() {
 
 <template>
   <DockPanel title="Project this" draft-key="project-from-past" @close="emit('cancel')">
-    <!-- what the chart showed: fixed -->
-    <dl class="fixed">
-      <dt>{{ lines.length > 1 ? 'Lines (their total)' : 'Line' }}</dt>
-      <dd>{{ linesLabel(lines) }}</dd>
-      <dt>Measure</dt>
-      <dd>{{ what }}</dd>
-      <template v-if="measure === 'average'">
-        <dt>Records</dt>
-        <dd>{{ describeWindow(win) }}</dd>
-      </template>
-    </dl>
+    <!-- which forecast it goes into -->
+    <label class="field forecast">
+      <span>Add to forecast</span>
+      <select v-model="forecastId" class="select">
+        <option v-for="p in projections" :key="p.id" :value="p.id">{{ p.name }}</option>
+      </select>
+    </label>
 
-    <div v-if="measure === 'rate'" class="field">
-      <span>Measured over</span>
-      <WindowPicker v-model="win" />
-    </div>
-
-    <div class="row3">
-      <label class="field">
-        <span>Every</span>
-        <input class="input num" type="number" inputmode="numeric" min="1" :value="every.n" aria-label="How many" @change="setEvery({ n: int(($event.target as HTMLInputElement).value, 1) })" />
-      </label>
-      <div class="field">
-        <span>Unit</span>
-        <WheelPicker :model-value="every.unit" :options="unitOptions" label="Unit" @update:model-value="(u: EveryUnit) => setEvery({ unit: u })" />
+    <!-- the projection, as Edit projection shows it -->
+    <div class="projection">
+      <div class="top">
+        <input class="input" :value="nameTouched ? name : autoName" aria-label="Name" @input="((nameTouched = true), (name = ($event.target as HTMLInputElement).value))" />
+        <span class="linked-type"><Link2 class="ic" aria-hidden="true" />Linked</span>
       </div>
-      <label class="field">
-        <span>Starting</span>
-        <input class="input" type="date" :value="start" @change="start = ($event.target as HTMLInputElement).value" />
-      </label>
-    </div>
 
-    <div class="row2">
-      <label class="field">
-        <span>Name</span>
-        <input class="input" :value="nameTouched ? name : autoName" @input="((nameTouched = true), (name = ($event.target as HTMLInputElement).value))" />
-      </label>
-      <label class="field">
-        <span>Add to</span>
-        <select v-model="forecastId" class="select">
-          <option v-for="p in projections" :key="p.id" :value="p.id">{{ p.name }}</option>
-        </select>
-      </label>
+      <div class="row3">
+        <label class="field">
+          <span>Every</span>
+          <input class="input num" type="number" inputmode="numeric" min="1" :value="every.n" aria-label="How many" @change="setEvery({ n: int(($event.target as HTMLInputElement).value, 1) })" />
+        </label>
+        <div class="field">
+          <span>Unit</span>
+          <WheelPicker :model-value="every.unit" :options="unitOptions" label="Unit" @update:model-value="(u: EveryUnit) => setEvery({ unit: u })" />
+        </div>
+        <label class="field">
+          <span>Starting</span>
+          <input class="input" type="date" :value="start" @change="start = ($event.target as HTMLInputElement).value" />
+        </label>
+      </div>
+
+      <div class="field">
+        <span>Amount each time · locked</span>
+        <div class="locked">
+          <b class="money amt" :class="{ neg: amount < 0, pos: amount > 0 }">{{ fmtMoney(amount, { sign: true }) }}</b>
+          <dl class="fixed">
+            <dt>{{ lines.length > 1 ? 'Lines (total)' : 'Line' }}</dt>
+            <dd>{{ linesLabel(lines) }}</dd>
+            <dt>Measure</dt>
+            <dd>{{ what }}</dd>
+            <template v-if="measure === 'average'">
+              <dt>Records</dt>
+              <dd>{{ describeWindow(win) }}</dd>
+            </template>
+          </dl>
+          <div v-if="measure === 'rate'" class="over">
+            <span>Measured over</span>
+            <WindowPicker v-model="win" />
+          </div>
+          <span class="small muted">{{ how }} Worked out again whenever your records change.</span>
+        </div>
+      </div>
     </div>
 
     <p v-if="error" class="err small" role="alert">{{ error }}</p>
 
-    <template #summary>
-      <div class="now">
-        <span class="small">Each time: <b class="money" :class="{ neg: amount < 0, pos: amount > 0 }">{{ fmtMoney(amount, { sign: true }) }}</b></span>
-        <span class="small muted">{{ how }} It's worked out again whenever your records change.</span>
-      </div>
+    <!-- The readback: one sentence, tap for the rest. -->
+    <template v-if="said" #summary>
+      <button type="button" class="readback" :class="[said.tone, { open: showMore }]" :aria-expanded="showMore" @click="showMore = !showMore">
+        <span class="sentence">{{ said.sentence }}</span>
+        <span class="more"><ChevronDown class="chev" aria-hidden="true" /></span>
+        <span v-if="showMore" class="details">
+          <span class="small">{{ said.total }}</span>
+        </span>
+      </button>
     </template>
 
     <template #footer>
@@ -162,15 +190,74 @@ async function add() {
   color: var(--mute);
 }
 
+.forecast {
+  padding-bottom: 0.7rem;
+  margin-bottom: 0.7rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7.2rem;
+  gap: 0.45rem;
+  margin-bottom: 0.55rem;
+}
+
+.linked-type {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--btn-radius);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--mute);
+}
+
+.linked-type .ic {
+  width: 15px;
+  height: 15px;
+}
+
+.row3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  align-items: start;
+}
+
+.row3 .field {
+  margin-bottom: 0.45rem;
+}
+
+.row3 :deep(.input),
+.row3 :deep(.select) {
+  width: 100%;
+  min-width: 0;
+  padding-left: 0.45rem;
+  padding-right: 0.45rem;
+}
+
+.locked {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--btn-radius);
+  background: var(--panel-2);
+}
+
+.locked .amt {
+  font-size: 1.05rem;
+}
+
 .fixed {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.3rem 0.8rem;
-  margin: 0 0 0.7rem;
-  padding: 0.5rem 0.7rem;
-  border: 1px solid var(--line);
-  border-radius: var(--btn-radius);
-  background: var(--panel-2);
+  gap: 0.2rem 0.8rem;
+  margin: 0;
   font-size: 0.9rem;
 }
 
@@ -187,38 +274,98 @@ async function add() {
   overflow-wrap: anywhere;
 }
 
-.row2,
-.row3 {
+.over {
   display: grid;
-  gap: 0.45rem;
-  align-items: start;
+  gap: 0.25rem;
 }
 
-.row2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.over > span {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--mute);
 }
 
-.row3 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.row2 :deep(.input),
-.row2 :deep(.select),
-.row3 :deep(.input),
-.row3 :deep(.select) {
+/* readback: a one-line summary; tap to see the rest */
+.readback {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.2rem 0.5rem;
   width: 100%;
-  min-width: 0;
-}
-
-.row3 :deep(.input) {
-  padding-left: 0.45rem;
-  padding-right: 0.45rem;
-}
-
-.now {
-  display: grid;
-  gap: 0.15rem;
-  padding-left: 0.6rem;
+  padding: 0.1rem 0 0.1rem 0.6rem;
+  border: none;
   border-left: 3px solid var(--line);
+  background: none;
+  color: var(--ink);
+  text-align: left;
+  font: inherit;
+}
+
+.readback .sentence {
+  font-size: 0.88rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.readback.open .sentence {
+  white-space: normal;
+}
+
+.readback .more {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.readback .chev {
+  width: 16px;
+  height: 16px;
+  color: var(--mute);
+  transition: transform 0.15s;
+}
+
+.readback.open .chev {
+  transform: rotate(180deg);
+}
+
+.readback .details {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.warn-pill {
+  font-size: 0.72rem;
+  font-weight: 650;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  color: var(--projection);
+  border: 1px solid var(--projection);
+  white-space: nowrap;
+}
+
+.readback.pos {
+  border-left-color: var(--pos);
+}
+.readback.neg {
+  border-left-color: var(--negative);
+}
+.readback.warn {
+  border-left-color: var(--projection);
+}
+
+.warn-line {
+  color: var(--projection);
+}
+
+.err {
+  color: var(--negative);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .readback .chev {
+    transition: none;
+  }
 }
 </style>
