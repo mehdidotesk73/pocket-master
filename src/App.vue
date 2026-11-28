@@ -8,7 +8,7 @@ import { useVersionCheck } from './lib/useVersionCheck'
 import { refreshHealth } from './lib/storage/store'
 import { useStore } from './lib/storage/useStore'
 import { loadTracker, useTracker } from './features/tracker/useTracker'
-import { ChevronDown, CircleHelp, Menu, Moon, Sun } from '@lucide/vue'
+import { ChevronDown, CircleHelp, History, Menu, Moon, Sun, TrendingUp, Wallet } from '@lucide/vue'
 import SideMenu from './components/SideMenu.vue'
 import { useTheme } from './lib/useTheme'
 import { THEMES } from './lib/themes'
@@ -37,10 +37,10 @@ const { loaded, records, loadError } = useTracker()
 onMounted(() => loadTracker())
 
 type Tab = 'past' | 'present' | 'future'
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'past', label: 'Past' },
-  { id: 'present', label: 'Present' },
-  { id: 'future', label: 'Future' },
+const TABS: { id: Tab; label: string; icon: typeof History }[] = [
+  { id: 'past', label: 'Past', icon: History },
+  { id: 'present', label: 'Present', icon: Wallet },
+  { id: 'future', label: 'Future', icon: TrendingUp },
 ]
 function initialTab(): Tab {
   try {
@@ -246,7 +246,7 @@ function openHelp() {
         :aria-current="tab === t.id ? 'page' : undefined"
         @click="go(t.id)"
       >
-        {{ t.label }}
+        <component :is="t.icon" class="tab-ic" aria-hidden="true" />{{ t.label }}
       </button>
     </nav>
 
@@ -352,30 +352,59 @@ function openHelp() {
   z-index: 30;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.25rem;
-  padding: 0.35rem;
+  gap: 0.2rem;
+  padding: 0.45rem 0.35rem 0;
   margin: 0 -0.25rem;
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  /* a rail a shade darker than the page, so the open tab (page colour) stands out of it */
+  background: color-mix(in srgb, var(--bg) 90%, #000);
   border-bottom: 1px solid var(--line);
+  border-radius: 0.8rem 0.8rem 0 0;
 }
 
+/* Lifted tabs: the open tab is a raised card whose border runs into the bar's
+   bottom line and whose face is the page colour, so it opens onto the page. */
 .tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
   min-height: var(--tap);
-  border: none;
-  border-radius: 0.5rem;
+  margin-bottom: -1px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 0.7rem 0.7rem 0 0;
   background: transparent;
   color: var(--mute);
-  font-weight: 700;
+  font-weight: 650;
   font-size: 0.92rem;
   padding: 0 0.25rem;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.tabs button:not(.on):hover {
+  color: var(--ink);
 }
 
 .tabs button.on {
-  background: var(--panel-2);
+  /* the page's own background (texture included), so the tab opens onto it */
+  background: var(--bg-image), var(--bg);
+  background-attachment: fixed;
   color: var(--ink);
-  box-shadow: inset 0 -2px 0 var(--accent);
+  border-color: var(--line);
+}
+
+.tab-ic {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.75;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabs button {
+    transition: none;
+  }
 }
 
 .store-error {

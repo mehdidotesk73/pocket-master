@@ -396,6 +396,9 @@ on focus, and reject more than two decimals instead of rounding them away.
 ## Version History
 
 ### v0.16.1 — 2026-11-28
+- **Changed:** the Past · Present · Future tabs are lifted tabs with icons (History, Wallet,
+  TrendingUp): the open tab is a raised card in the page's own background whose border joins the
+  bar's bottom line; the others sit in a slightly darker rail. Replaces the underline accent.
 - **Removed:** `LensCarousel.vue`, unused since the type and unit pickers became `WheelPicker`s.
   No change in the app.
 
