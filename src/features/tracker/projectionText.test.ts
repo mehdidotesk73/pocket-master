@@ -1,70 +1,36 @@
 import { describe, expect, it } from 'vitest'
-import { type ProjectionFile, type ProjectionItem, type Recurring, everydayItem, makeRecord, project } from '../../lib/finance'
+import { type ProjectionFile, type ProjectionItem, type Recurring, makeRecord, project } from '../../lib/finance'
 import { readBack, summarize } from './projectionText'
 
-// The two records from the on-device test: net equity 5,950 → 5,350 over 56 days.
-const records = [
-  makeRecord('2026-10-01T22:56:00', [
-    { id: 'c', name: 'Checking', amount: 6000 },
-    { id: 'd', name: 'Discover', amount: -50 },
-    { id: 'o', name: 'Capital One', amount: -1000 },
-    { id: 'a', name: 'Amex', amount: -1000 },
-    { id: 's', name: 'Saving', amount: 2000 },
-  ]),
-  makeRecord('2026-11-26T22:57:00', [
-    { id: 'c', name: 'Checking', amount: 6000 },
-    { id: 'd', name: 'Discover', amount: -50 },
-    { id: 'o', name: 'Capital One', amount: -1500 },
-    { id: 'a', name: 'Amex', amount: -1200 },
-    { id: 's', name: 'Saving', amount: 2100 },
-  ]),
-]
-const forecast = (items: ProjectionItem[], horizonDays = 365): ProjectionFile => ({ schema: 3, id: 'f', name: 'F', start: { mode: 'all' }, horizonDays, items })
-const say = (item: ProjectionItem, others: ProjectionItem[] = [], horizonDays = 365) => {
-  const p = forecast([...others, item], horizonDays)
-  return readBack(item, project(p, records), p)
-}
+const records = [makeRecord('2026-11-26T22:57:00', [{ id: 'c', name: 'Checking', amount: 6000 }])]
+const forecast = (items: ProjectionItem[], horizonDays = 365): ProjectionFile => ({ schema: 4, id: 'f', name: 'F', start: { mode: 'all' }, horizonDays, items })
+const say = (item: ProjectionItem, horizonDays = 365) => readBack(item, project(forecast([item], horizonDays), records))
+const rent: Recurring = { kind: 'recurring', id: 'r', name: 'Rent', amount: -2030, every: { n: 1, unit: 'month' }, start: '2026-11-01' }
 
 describe('projection readback', () => {
-  it('reads the on-device example back: average of one card added to another, accumulating', () => {
-    const item: Recurring = {
-      kind: 'recurring',
-      id: 'x',
-      name: 'x',
-      target: 'Discover',
-      value: { mode: 'average', source: 'Capital One', window: { mode: 'all' } },
-      every: { n: 30, unit: 'day' },
-      start: '2027-09-01',
-      inRecord: false,
-    }
-    const r = say(item)
-    expect(r.sentence).toBe('Every 30 days from Sep 1, add Capital One’s average of ($1,250.00) to Discover.')
-    expect(r.total).toMatch(/^It keeps adding: \(\$3,750\.00\) over 3 times by Nov 26, 2027\.$/)
-    expect(r.line).toMatch(/^Discover: \(\$50\.00\) → \(\$3,800\.00\)/)
-    expect(r.warnings).toContain('Measured on Capital One but changes Discover.')
+  it('reads a recurring amount back, with what it adds up to', () => {
+    const r = say(rent, 90)
+    expect(r.sentence).toBe('Every month on the 1st: ($2,030.00).')
+    expect(r.total).toBe('3 times, ($6,090.00) in all by Feb 24, 2027.')
+    expect(r.warnings).toEqual([])
+    expect(r.tone).toBe('neg')
+  })
+
+  it('every 2 weeks from a date; a one-time amount', () => {
+    expect(say({ ...rent, amount: 1600, every: { n: 2, unit: 'week' }, start: '2026-12-04' }, 30).sentence).toBe('Every 2 weeks from Dec 4: +$1,600.00.')
+    const once = say({ kind: 'oneTime', id: 'o', name: 'Trip', amount: -800, date: '2027-03-03' })
+    expect(once.sentence).toBe('($800.00) on Mar 3, 2027.')
+    expect(once.total).toBe('($800.00) by Nov 26, 2027.')
+  })
+
+  it('says when a one-time date is outside the forecast', () => {
+    const r = say({ kind: 'oneTime', id: 'o', name: 'o', amount: 0, date: '2030-01-01' }, 30)
+    expect(r.total).toBe('Nothing by Dec 26, 2026.')
+    expect(r.warnings).toEqual(['That date is outside this forecast (Nov 26 – Dec 26, 2026).'])
     expect(r.tone).toBe('warn')
   })
 
-  it('warns when an average repeats more often than monthly', () => {
-    const item: Recurring = { ...everydayItem(), id: 'y', value: { mode: 'average', source: 'Amex', window: { mode: 'all' } } }
-    expect(say(item).warnings.some((w) => w.startsWith('An average is a typical amount'))).toBe(true)
-    expect(say({ ...item, every: { n: 1, unit: 'month' } }).warnings).toEqual([])
-  })
-
-  it('calls the default net-equity rate income and spending combined until pay is listed', () => {
-    const d = everydayItem()
-    expect(say(d, [], 30).sentence).toBe('Every day, add net equity’s change of ($10.71) a day to net equity only.')
-    expect(say(d, [], 30).warnings[0]).toMatch(/income and spending combined/)
-    const pay: Recurring = { kind: 'recurring', id: 'pay', name: 'Pay', value: { mode: 'fixed', amount: 3000 }, every: { n: 1, unit: 'month' }, start: '2026-01-15', inRecord: false }
-    expect(say(d, [pay], 30).warnings).toEqual([])
-    const p = forecast([d])
-    expect(summarize(d, project(p, records).results[d.id], p).detail).toMatch(/income and spending combined/)
-  })
-
-  it('says when nothing happens in range, and a one-time date outside it', () => {
-    const r = say({ kind: 'oneTime', id: 'o', name: 'o', amount: 100, date: '2030-01-01' }, [], 30)
-    expect(r.total).toBe('Nothing happens by Dec 26, 2026.')
-    expect(r.warnings[0]).toMatch(/outside this forecast/)
-    expect(r.line).toBe('Moves the total only, not any particular line.')
+  it('list summary: the amount, then when', () => {
+    expect(summarize(rent)).toEqual({ amount: '($2,030.00)', detail: 'every month on the 1st', tone: 'neg' })
   })
 })

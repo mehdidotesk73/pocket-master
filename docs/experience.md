@@ -194,6 +194,18 @@ another mode as the editor opened, which reset its line and repeat ("Every month
 Checking…" on a Discover pace). Now a settled scroll changes the value only within 1.5 s of the
 user's own touch, pointer or wheel; otherwise it re-centres on the current value.
 
+### Computed projections were too hard to reason about
+v0.8–v0.12 let a projection be the average or rate of change of a record line, over a window, from
+an optional start point, aimed at a line, with a readback and warnings to explain it. On the phone
+each new option needed another explanation, and real mistakes kept slipping through (a rate across
+whole card cycles flipping a card positive; an average added daily). What worked: show history
+plainly in Past (timeseries, averages, daily rate candles) and let the user type the amounts they
+expect. The old maths lives on in `legacy.ts` only to convert old files at the same values.
+PR #9, "Balance sheet on [date]" (each line's forecast on a chosen day, End of month by default),
+was closed unmerged for the same reason: it needed every projection tied to a line, and its
+month-end card balances kept building with no payoff, so they didn't match how the user reads a
+month. With plain amounts, the forecast total on any day is on the Future chart.
+
 ## Patterns Worth Reusing
 
 ### Two-Party Link Apps: the URL Fragment as Credential, and the Join Race
@@ -383,6 +395,15 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.15.0 — 2026-11-28
+- **Changed:** projections are **plain amounts**. Recurring: name, amount, start date, every N
+  days / weeks / months / years. One-time: name, amount, date.
+- **Removed:** Average and Rate of change of a line, record windows, start points, the line a
+  projection changes, "already in my records until paid", and the readback warnings about them.
+- **Data:** forecasts move to schema 4. Old projections are converted once: fixed amounts keep
+  their amount; computed ones become a fixed amount at the value they had (logged), and ones that
+  came to $0 are dropped. New forecasts start empty.
+
 ### v0.14.0 — 2026-11-27
 - **Added:** Past has a chart card with four views: Totals, **Timeseries** (each line over time,
   hide/show chips), **Averages** (each line's average over a window as a donut; tap a line in its
@@ -394,8 +415,8 @@ on focus, and reject more than two decimals instead of rounding them away.
   change (the hours before and after them came from the neighbouring stretches); they now run by
   date: a record day closes at its last record, and the even rate runs between record days.
 - **Direction:** projections computed from records (Average, Rate of change, start points) were
-  hard to reason about on the phone. Analysis moves to Past; Future will hold only amounts typed in,
-  with a way to carry a number from Past into a projection.
+  hard to reason about on the phone. Analysis moves to Past; Future holds only amounts typed in
+  (v0.15.0).
 
 ### v0.12.2 — 2026-11-27
 - **Changed:** the projection editor is compact: name with the type beside it, then Every · Unit ·
