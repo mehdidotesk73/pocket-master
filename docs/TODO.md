@@ -56,15 +56,18 @@ One-time setup — tick these off as they're done:
 
 Forecasts (direction agreed 2026-11-27): analysis lives in Past; Future holds only amounts typed in.
 
+- [x] **Past analysis charts** (v0.14.0) — `lib/analysis.ts` (`lineSeries`, `windowMix`,
+      `dailyCandles`); Timeseries / Averages (donut) / Rates (daily candles) tabs; `DonutChart`,
+      `CandleChart`, `WindowPicker`.
 - [x] **Plain-amount projections** (v0.15.0) — recurring `{ name, amount, every, start }` and
       one-time `{ name, amount, date }`, schema 4; computed / target-line / in-record projections
       frozen once into amounts (`lib/legacy.ts` `freezeItems`).
-- [ ] **Past analysis charts** — Timeseries / Averages / Rates (PR #10).
 - [ ] **Monthly in / spent / net change** in Past (from records).
 - [ ] Mock-data page: the default forecasts it exports are off for now; set them up once the user
       has decided how projections should look in practice.
 - Dropped: "Use as projection" (no link from Past to projections, by design); card payoff as a
-  transfer and the per-line balance sheet on a date (PR #9) — both needed projections tied to lines.
+  transfer and the per-line balance sheet on a date (PR #9, closed) — both needed projections tied
+  to lines.
 
 ## Docs
 

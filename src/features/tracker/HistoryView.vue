@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { type LocalDateTime, atNum, fmtDate, fmtDateTime, fmtMoney, fmtTime } from '../../lib/money'
-import type { BalanceRecord } from '../../lib/finance'
+import { type BalanceRecord, LEFT_SOURCE, type RecordWindow, lineNames } from '../../lib/finance'
+import { dailyCandles, lineSeries, windowMix } from '../../lib/analysis'
+import DonutChart, { type DonutSlice } from './DonutChart.vue'
+import CandleChart from './CandleChart.vue'
+import WindowPicker from './WindowPicker.vue'
+import { colorFor } from './projectionText'
 import RecordModal from './RecordModal.vue'
 import FigureRow, { type Figure } from './FigureRow.vue'
 import LineChart, { type ChartSeries } from './LineChart.vue'
@@ -40,6 +45,44 @@ const series = computed<ChartSeries[]>(() => {
   ]
 })
 
+// ---- analysis charts (one card, a tab per chart)
+type View = 'totals' | 'lines' | 'mix' | 'rate'
+const VIEWS: { id: View; label: string }[] = [
+  { id: 'totals', label: 'Totals' },
+  { id: 'lines', label: 'Timeseries' },
+  { id: 'mix', label: 'Averages' },
+  { id: 'rate', label: 'Rates' },
+]
+const view = ref<View>('totals')
+
+/** One colour per line, the same in every chart. */
+const names = computed(() => lineNames(records.value))
+const colorOf = computed(() => Object.fromEntries(names.value.map((n, i) => [n, colorFor(i)])))
+const hidden = ref<string[]>([])
+const toggle = (n: string) => (hidden.value = hidden.value.includes(n) ? hidden.value.filter((x) => x !== n) : [...hidden.value, n])
+
+const lineChart = computed<ChartSeries[]>(() =>
+  lineSeries(records.value)
+    .filter((s) => !hidden.value.includes(s.name))
+    .map((s) => ({ label: s.name, color: colorOf.value[s.name], dots: true, width: 1.75, points: s.points })),
+)
+
+const mixWindow = ref<RecordWindow>({ mode: 'all' })
+const mix = computed(() => windowMix(records.value, mixWindow.value))
+/** Lines left out of Averages (separate from Timeseries' hidden lines). */
+const mixOff = ref<string[]>([])
+const toggleMix = (n: string) => (mixOff.value = mixOff.value.includes(n) ? mixOff.value.filter((x) => x !== n) : [...mixOff.value, n])
+/** Every line with an average; the ones tapped off stay listed but aren't drawn or counted. */
+const mixSlices = computed<DonutSlice[]>(() =>
+  mix.value.slices.map((s) => ({ name: s.name, amount: s.average, color: colorOf.value[s.name], off: mixOff.value.includes(s.name) })),
+)
+/** The included lines added up, signed: all lines = average net equity; just the cards = average owed. */
+const mixTotal = computed(() => mixSlices.value.filter((s) => !s.off).reduce((t, s) => t + s.amount, 0))
+
+const rateLine = ref<string>(LEFT_SOURCE)
+const rateShow = ref<'both' | 'up' | 'down'>('both')
+const candles = computed(() => dailyCandles(records.value, rateLine.value))
+
 const newestFirst = computed(() => [...records.value].reverse())
 
 const confirming = ref<LocalDateTime | null>(null)
@@ -66,9 +109,59 @@ const editing = ref<BalanceRecord | null>(null)
     <template v-else>
       <FigureRow :figures="figures" />
 
-      <section class="card">
-        <h2>Over time</h2>
-        <LineChart :series="series" include-zero />
+      <section class="card charts">
+        <div class="tabs-row" role="tablist" aria-label="Chart">
+          <button v-for="v in VIEWS" :key="v.id" role="tab" class="chip" :aria-selected="view === v.id" :class="{ on: view === v.id }" @click="view = v.id">
+            {{ v.label }}
+          </button>
+        </div>
+
+        <!-- totals: net equity line, owned and owed dots -->
+        <template v-if="view === 'totals'">
+          <LineChart :series="series" include-zero />
+        </template>
+
+        <!-- each line over time -->
+        <template v-else-if="view === 'lines'">
+          <div class="toggles" role="group" aria-label="Lines to show">
+            <button v-for="n in names" :key="n" class="tog" :class="{ off: hidden.includes(n) }" :aria-pressed="!hidden.includes(n)" @click="toggle(n)">
+              <span class="sw" :style="{ background: colorOf[n] }"></span>{{ n }}
+            </button>
+          </div>
+          <LineChart :series="lineChart" include-zero :legend="false" />
+          <p class="muted small note">Each line's value at every record. Tap a name to hide or show it.</p>
+        </template>
+
+        <!-- average mix over a window -->
+        <template v-else-if="view === 'mix'">
+          <WindowPicker v-model="mixWindow" />
+          <DonutChart v-if="mixSlices.length" :slices="mixSlices" centre-label="Total" :centre-value="fmtMoney(mixTotal, { whole: true })" @toggle="toggleMix" />
+          <p v-else class="muted small">No lines with a value in these records.</p>
+          <p class="muted small note">
+            Each line's average across {{ mix.count }} record{{ mix.count === 1 ? '' : 's' }}<template v-if="mix.from">
+              ({{ fmtDate(mix.from, { short: true }) }} – {{ fmtDate(mix.to!, { short: true }) }})</template
+            >. Tap a line to leave it out. The middle adds up the lines left in, and each slice is that line's share of their size.
+          </p>
+        </template>
+
+        <!-- rate of change between records -->
+        <template v-else>
+          <div class="rate-controls">
+            <select v-model="rateLine" class="select" aria-label="Line">
+              <option :value="LEFT_SOURCE">Net equity</option>
+              <option v-for="n in names" :key="n" :value="n">{{ n }}</option>
+            </select>
+            <div class="side" role="radiogroup" aria-label="Show">
+              <button v-for="s in (['both', 'up', 'down'] as const)" :key="s" role="radio" class="chip" :aria-checked="rateShow === s" :class="{ on: rateShow === s }" @click="rateShow = s">
+                {{ s === 'both' ? 'Both' : s === 'up' ? 'Rising' : 'Falling' }}
+              </button>
+            </div>
+          </div>
+          <CandleChart :candles="candles" :show="rateShow" />
+          <p class="muted small note">
+            One candle per day, from the previous day's close to this day's: green if it went up, red if it went down. A day with records closes at its last record, and its records show as the wick. Days between records (lighter) move at the even daily rate from one record day to the next. Tap a candle to read it. For a card, going up means you owe less.
+          </p>
+        </template>
       </section>
 
       <section class="card table-card">
@@ -118,6 +211,68 @@ const editing = ref<BalanceRecord | null>(null)
 </template>
 
 <style scoped>
+.charts {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.tabs-row,
+.side,
+.toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.chip,
+.tog {
+  min-height: 32px;
+  padding: 0 0.7rem;
+  border: 1px solid var(--btn-border);
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  border-radius: var(--btn-radius);
+  font-weight: 550;
+  font-size: 0.8rem;
+}
+
+.chip.on {
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+}
+
+.tog {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.tog.off {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.tog .sw {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.rate-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.rate-controls .select {
+  min-height: 38px;
+}
+
+.note {
+  margin: 0;
+}
 .history > .card + .card {
   margin-top: 1rem;
 }
