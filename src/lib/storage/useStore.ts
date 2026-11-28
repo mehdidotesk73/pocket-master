@@ -39,7 +39,7 @@ export function formatBytes(n: number | null): string {
 export async function exportAll(): Promise<'shared' | 'saved' | 'downloaded' | 'cancelled'> {
   const store: Store = getStore()
   const bytes = await store.exportZip()
-  const name = `pocket-master-backup-${today()}.zip`
+  const name = `ledgerful-backup-${today()}.zip`
   const blob = new Blob([bytes as BlobPart], { type: 'application/zip' })
   const file = new File([blob], name, { type: 'application/zip' })
 
@@ -47,7 +47,7 @@ export async function exportAll(): Promise<'shared' | 'saved' | 'downloaded' | '
   const touch = matchMedia?.('(pointer: coarse)').matches
   if (touch && nav.canShare?.({ files: [file] })) {
     try {
-      await nav.share({ files: [file], title: 'Pocket Master backup' })
+      await nav.share({ files: [file], title: 'Ledgerful backup' })
       noteExported()
       return 'shared'
     } catch (e) {

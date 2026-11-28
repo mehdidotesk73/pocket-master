@@ -1,4 +1,4 @@
-# About Pocket Master
+# About Ledgerful
 
 ## What is this app?
 

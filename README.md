@@ -1,4 +1,4 @@
-# Pocket Master
+# Ledgerful
 
 A personal balance-sheet tracker. On any day you save a **record** of your bank balances, credit
 cards (your share), bills due, and money going out or coming in. The app adds them into one number,

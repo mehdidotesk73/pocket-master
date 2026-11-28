@@ -194,7 +194,7 @@ function openHelp() {
           </div>
         </div>
         </div>
-        <h1 class="app-title">Pocket Master</h1>
+        <h1 class="app-title">Ledgerful</h1>
         <div class="head-right">
           <div ref="themeGroup" class="split-group" @keydown.esc="showThemeMenu = false">
             <button
