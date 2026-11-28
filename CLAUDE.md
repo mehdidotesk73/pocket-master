@@ -23,24 +23,35 @@ Never scaffold the new app into this repository.
 
 ## What this is
 
-A Vue 3 + TypeScript + Vite single-page app (also a PWA) that **tracks a personal balance sheet**:
-on any day the user saves a **record** (bank accounts, credit cards at their share, bills due, money
-going out or coming in). The latest record is the live position; earlier ones are history; the app
-projects the position forward from recurring, one-time and everyday spending. Single user,
-device-local (OPFS files), no accounts, no network calls for data. UI structure — four tabs:
+A Vue 3 + TypeScript + Vite single-page app (also a PWA) that **tracks a personal balance sheet**.
+Whenever the user likes, they save a **record**: a dated, timed list of signed lines (bank accounts,
+saving, credit cards at their share, bills due). Positive = owned, negative = owed; the sum is **net
+equity**. Several records a day are fine (e.g. before and after paying a card). The latest record
+is the live position, earlier ones are history, and **forecasts** project forward from plain amounts
+the user types. Single user, device-local (OPFS files), no accounts, no network calls for data.
 
-- **Today** — figure row (left so far, bank, cards my share, projected in N days), the latest
-  balance sheet, and **+ New record** (full-screen sheet on phones, prefilled from the latest record,
-  one record per date: same date = "Update record").
-- **Projection** — heading states the finding (dips below zero / reaches $X), horizon toggle
-  30/90/180/365, SVG chart (records solid, projection dashed, low point circled), everyday-spending
-  card (auto average vs manual), recurring editor (with the `inRecord` flag), one-time editor. Edits
-  are a draft with a Save/Discard bar.
-- **History** — figures, chart (left so far + assets + liabilities), table newest-first with delete.
-- **Setup** — record-lines editor (draft) and the data section: export/import, storage health.
+Three tabs, **Past · Present · Future** (default Present):
+
+- **Present** (`TodayView`) — figure row, the latest balance sheet, **+ New record** / **Edit
+  latest** (`RecordModal`: rows prefilled from the latest record, ± toggle, drag to reorder, date +
+  time, "Save as template"), and a backup nudge after two weeks without an export.
+- **Past** (`HistoryView`) — one chart card with four views: **Totals** (net equity line, owned /
+  owed dots), **Timeseries** (every line, tap to hide), **Averages** (donut of each line's average
+  over a `WindowPicker` window, tap a line to leave it out), **Rates** (one candle per day, by date,
+  from `dailyCandles`). Then the records table; tap a record to edit or delete it.
+- **Future** (`FutureView`) — pick a **forecast** (a stored `ProjectionFile`: name, which lines of
+  the latest record it starts from, days ahead), see its chart (`ForecastChart`: a bar on each day
+  something happens, the running total as a step line, past records leading in), and its
+  **projections**: **Recurring** (amount, start date, every N days/weeks/months/years) or
+  **One-time** (amount, date), drag to reorder. Editors are `DockPanel` drafts that drive the
+  chart live; nothing saves until Save. Projections are **typed amounts only** — nothing is
+  computed from records (old computed ones are frozen on load by `lib/legacy.ts`). Planned next: a
+  recurring projection whose amount is locked to a live measure from Past (see `docs/TODO.md`).
+- **☰ menu** (`SideMenu`) → Records → **Export / Import** (`BackupModal`: zip or clipboard JSON,
+  Merge or Replace).
 
 How the calculations, storage and update flow work is written up in `docs/system-design.md`
-(§3 storage, §4 calculations, §8 updates). Read it before changing behaviour.
+(§3 storage, §3b screens, §4 / §4a calculations, §8 updates). Read it before changing behaviour.
 
 The entire app is wrapped inside a header and footer. The header provides the app title, a Help button that opens the conceptual-docs modal, and an "Update available" affordance that surfaces when a newer PWA build is live. The footer provides the current build id/timestamp, version-check status against the live origin, a "Reload latest" button to force-refresh a stale cache, and a collapsible debug log with copy-to-clipboard support. See `docs/system-design.md` §2 for the full wrapper template and implementation details.
 
@@ -93,9 +104,11 @@ whatever they're actually asking about.
   `.github/workflows/ci.yml`, never a separate job. The ruleset requires a check named `build`; a
   second job called `test` would fail without blocking anything, since the ruleset isn't watching
   it.
-- **Tests:** `npm test` (Vitest). `src/lib/finance.test.ts` covers every calculation in spec §4.5;
-  `src/lib/storage/store.test.ts` covers safe-save, crash recovery and export/import on the memory
-  backend. CI runs them inside the `build` job. Any change to `finance.ts` or the store needs a test.
+- **Tests:** `npm test` (Vitest). `src/lib/*.test.ts` cover the calculations (records, schedules,
+  forecast, Past analysis, legacy freezing); `src/lib/storage/store.test.ts` covers safe-save, crash
+  recovery and export/import on the memory backend; `src/features/tracker/*.test.ts` cover loading
+  old data and import bundles. CI runs them inside the `build` job. Any change to `finance.ts`,
+  `analysis.ts` or the store needs a test.
 - **No external data** — the app is self-contained. You can run it here (`npm run build && npx vite
   preview`) and drive it with Playwright; OPFS works in headless Chromium on localhost. What you
   can't reproduce is iOS Safari's storage behaviour (eviction, install containers) — lean on the
@@ -120,27 +133,36 @@ whatever they're actually asking about.
 
 ```
 src/
-  App.vue                  header/footer shell (see docs/system-design.md §2) + tab/page content
-  main.ts, pwa.ts          bootstrap; service-worker auto-update + reload
+  App.vue                  header/footer shell (see docs/system-design.md §2) + the three tabs
+  main.ts, pwa.ts          bootstrap; service-worker update (prompt) + reload fallback
   debug.ts                 on-screen log: auto-captures errors + logDebug() (mobile has no console)
   env.d.ts                 ambient types: vite/client, PWA virtual module, __BUILD_ID__/__BUILD_TIME__
+  styles/                  vars.css, themes.css
   lib/
-    money.ts               cents helpers, currency formatting, day-number date helpers
-    finance.ts             spec §4 calculations: sheet, scheduled(), auto everyday, projection
-    finance.test.ts        spec §4.5 unit tests
+    money.ts               cents helpers, currency formatting, day-number + local datetime helpers
+    finance.ts             records (sheet, upsert), schedules (every N unit), windows, project()
+    analysis.ts            Past charts: lineSeries, windowMix, dailyCandles
+    legacy.ts              pre-v0.15 computed projections, only to freeze old files to amounts
+    clipboard.ts           copy/paste with phone fallbacks
+    themes.ts, useTheme.ts, useVersionCheck.ts
+    *.test.ts              finance, analysis, legacy, money
     storage/
       worker.ts            OPFS file ops in a Web Worker (createSyncAccessHandle writes)
       store.ts             safe-save file store: revisions + index, queue, migrations, zip export/import
       useStore.ts          Vue side: health, export (share sheet / save dialog / download)
       store.test.ts        crash-recovery + export/import tests (memory backend)
   features/tracker/
-    useTracker.ts          settings + records state, normalize/migrate, import (zip or prototype JSON)
-    TodayView, RecordModal, BalanceSheet, FigureRow
-    ProjectionView, EverydayCard, RecurringEditor, OneTimeEditor, MoneyInput
-    HistoryView, SetupView, LineChart (hand-rolled SVG)
+    useTracker.ts          records / forecasts / template state, normalize + migrate, import bundles
+    projectionText.ts      projection sentences, summaries, colours
+    TodayView, RecordModal, BalanceSheet, FigureRow                    Present
+    HistoryView, LineChart, DonutChart, CandleChart, WindowPicker      Past (hand-rolled SVG)
+    FutureView, ForecastChart, ForecastPanel, ProjectionPanel, DockPanel   Future
+    BackupModal, MoneyInput, SignedMoneyInput, WheelPicker, LensCarousel (unused)
+    *.test.ts              normalize/migration, projection text, export/import
   components/
     HelpModal.vue          renders docs/concepts/*.md into the Help modal (one tab per file)
     InstallHint.vue        iOS "Add to Home Screen" instructions / Chromium Install button
+    SideMenu.vue           ☰ drawer (Records → Import / Export)
 .claude/skills/
   finish-setup/SKILL.md    scaffold personalization + one-time hosting setup
   ship-feature/SKILL.md    the change loop: branch → build → PR → links → doc gate
@@ -155,7 +177,7 @@ docs/
   system-design.md         developer/system docs (§2 has wrapper template)
   concepts/*.md            per-page user docs (rendered into the Help modal)
 public/
-  favicon.svg, logo-192.png, logo-512.png   placeholder icons — replace with real branding
+  favicon.svg, logo-192.png, logo-512.png   app icons
 .github/workflows/ci.yml       build check on every PR (required by the branch ruleset)
 netlify.toml                   preview-deploy config (Netlify)
 package-lock.json              committed — CI runs `npm ci` and needs it
@@ -163,13 +185,14 @@ package-lock.json              committed — CI runs `npm ci` and needs it
 
 ## Conventions & gotchas
 
-- **Charts are hand-rolled SVG** (`LineChart.vue`), x = day number, y = dollars. No chart library.
+- **Charts are hand-rolled SVG** (`LineChart`, `ForecastChart`, `DonutChart`, `CandleChart`), x = day
+  number (or `atNum` for timed records), y = dollars. No chart library.
 - **Pure logic lives in `src/lib/`** — keep new computation there and keep components thin.
 - **Money is summed in integer cents** (`toCents`/`fromCents`); stored values are dollars rounded to
-  cents. **Dates are local `YYYY-MM-DD` strings**; do day arithmetic with `dayNum()`, never `Date`
-  objects, so time zones/DST can't shift a date.
+  cents. **Dates are local `YYYY-MM-DD` strings** (a record's `at` is a local datetime); do day
+  arithmetic with `dayNum()` / `atNum()`, never `Date` objects, so time zones/DST can't shift a date.
 - **Every write goes through the store** (`getStore().write/writeJSON/remove`), never OPFS directly.
-  Shape change → bump `schema` and add a step in `normalizeSettings`/`normalizeRecord` (app data) or
+  Shape change → bump `schema` and add a step in `normalizeProjection`/`normalizeRecord`/`normalizeTemplate` (app data) or
   `MIGRATIONS` in `store.ts` (on-disk layout). New builds must open old data.
 - **Drafts register themselves** with `markUnsaved(key, on)`; `pwa.ts` won't apply an update while
   any draft is open or a write is pending. New editors must do the same.

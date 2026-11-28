@@ -4,13 +4,13 @@
 
 A personal balance-sheet tracker. Every so often you save a **record**: a list of what you have (positive amounts) and what you owe (negative amounts). The app adds it up into one number, **net equity**.
 
-Your latest record is your live position. Earlier records become your history, and the app uses them to work out how much you spend day to day so it can project your position forward.
+Your latest record is your live position. Earlier records become your history, which the Past tab charts so you can see how things move. You use what you see there to set up a forecast in Future.
 
 ## How do I use it?
 
 - **Past**: how net equity, assets and liabilities have moved across all your records.
 - **Present**: your latest balance sheet, and the button to save a new record.
-- **Future**: forecasts of where your money is heading, built from projections: recurring (an amount, an average, or a rate of change) and one-time. Forecast everything, or just the lines you pick, like checking and cards.
+- **Future**: forecasts of where your money is heading, built from projections you type in: recurring amounts (every N days, weeks, months or years) and one-time amounts. Forecast everything, or just the lines you pick, like checking and cards.
 - **Menu** (☰, top left) → **Records** → **Export** / **Import**: back up as a zip file or copy everything to the clipboard; restore from either.
 
 ## Where is my data?
