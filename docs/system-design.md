@@ -144,7 +144,10 @@ OPFS root
 
 ## §3b — Screens
 
-Three tabs, **Past · Present · Future** (default Present): `HistoryView`, `TodayView`,
+Three tabs, **Past · Present · Future** (default Present), a segmented control with Lucide icons in
+`App.vue` (one pill whose `left` / `right` are set from `--i`; the edge on the side of travel
+transitions faster than the back edge, so it stretches and catches up; the page
+content enters through a `page-fwd` / `page-back` `<Transition>`): `HistoryView`, `TodayView`,
 `FutureView`. **Naming in the UI:** a stored `ProjectionFile` is a *forecast*; its items are
 *projections*: Recurring or One-time.
 Past's Averages and Rates views have **Project this** → `ProjectFromPast` (a `DockPanel`. Fixed, from

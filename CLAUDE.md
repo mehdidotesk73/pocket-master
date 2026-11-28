@@ -157,7 +157,7 @@ src/
     TodayView, RecordModal, BalanceSheet, FigureRow                    Present
     HistoryView, LineChart, DonutChart, CandleChart, WindowPicker      Past (hand-rolled SVG)
     FutureView, ForecastChart, ForecastPanel, ProjectionPanel, DockPanel   Future
-    BackupModal, MoneyInput, SignedMoneyInput, WheelPicker, LensCarousel (unused)
+    BackupModal, MoneyInput, SignedMoneyInput, WheelPicker
     *.test.ts              normalize/migration, projection text, export/import
   components/
     HelpModal.vue          renders docs/concepts/*.md into the Help modal (one tab per file)

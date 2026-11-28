@@ -89,6 +89,7 @@ Forecasts (direction agreed 2026-11-27): analysis lives in Past; Future holds on
 
 (Documentation gaps, missing help content, outdated instructions)
 
+- [x] **Removed unused `LensCarousel`** (v0.16.1).
 - [x] **CLAUDE.md refresh** (v0.15.2) — describes the three tabs, plain-amount forecasts and the
       current file map; Help → About and system-design §3b stale projection text fixed.
 

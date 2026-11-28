@@ -395,6 +395,17 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.16.1 — 2026-11-28
+- **Changed:** the Past · Present · Future tabs are a segmented control with icons (History, Wallet,
+  TrendingUp), after ui-layouts' Animated Tabs: a neutral track with a card-coloured pill that slides
+  to the open tab, stretching as it goes (its leading edge moves first and its back edge follows, so
+  there's one outline; a second trailing pill was tried first but showed two outlines), the open tab's icon
+  and label in the accent colour; the page fades in
+  from the side of travel. Replaces the underline accent. (Tried first and dropped: DaisyUI-style
+  lifted tabs, which the user didn't like.)
+- **Removed:** `LensCarousel.vue`, unused since the type and unit pickers became `WheelPicker`s.
+  No change in the app.
+
 ### v0.16.0 — 2026-11-28
 - **Added:** projections linked to Past. **Project this** under Past's Averages and Rates makes a
   Recurring projection whose amount is the Averages Total (the lines left in, added up), or a line's
