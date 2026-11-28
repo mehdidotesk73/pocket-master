@@ -2,7 +2,7 @@
 
 Every record you've saved, oldest to newest.
 
-- The **chart card** has four views:
+- The **chart card** has four views. Tap **ⓘ** under a chart for how to read it.
   - **Totals**: **net equity** as a white line with a dot for each record. **Total owned** (blue) and **total owed** (red) are a dot per record, without lines. Net equity is owned minus owed, so it sits below each blue dot by the height of the red one. Tap a record to read all three.
   - **Timeseries**: every line of your records (checking, saving, each card) over time. Tap a name to hide or show it.
   - **Averages**: each line's **average** over the records you pick (all, the past N days, the past N records, or between two dates), as a donut. Tap a line in the list to leave it out or bring it back. The middle adds up the lines left in: with every line in, that's your average net equity; with just the cards, your average owed. Each slice is that line's share of their size.

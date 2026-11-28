@@ -13,6 +13,7 @@ import { addDays, fmtMoney, isISODate, today } from '../../lib/money'
 import DockPanel from './DockPanel.vue'
 import WheelPicker from './WheelPicker.vue'
 import { ChevronDown, Link2 } from '@lucide/vue'
+import InfoTip from '../../components/InfoTip.vue'
 import { linkedAmount, measurePast } from '../../lib/analysis'
 import { useTracker } from './useTracker'
 import SignedMoneyInput from './SignedMoneyInput.vue'
@@ -90,7 +91,7 @@ function save() {
     <!-- name · type -->
     <div class="top">
       <input class="input" :value="item.name" aria-label="Name" placeholder="Name, e.g. Paycheck" @input="patch({ name: ($event.target as HTMLInputElement).value })" />
-      <span v-if="link" class="linked-type"><Link2 class="ic" aria-hidden="true" />Linked</span>
+      <span v-if="link" class="linked-type">Recurring</span>
       <WheelPicker v-else v-model="type" :options="typeOptions" label="Projection type" />
     </div>
 
@@ -123,11 +124,16 @@ function save() {
         </label>
       </div>
       <div v-if="rec.link" class="field">
-        <span>Amount each time · locked</span>
+        <span class="label-row">
+          <span class="linked-label"><Link2 class="ic" aria-hidden="true" />Amount each time · linked to Past</span>
+          <InfoTip label="About linked amounts">
+            Worked out from your records again whenever they change, so you can't type it. To measure something else, remove this and use <b>Project this</b> on the Past tab.
+          </InfoTip>
+        </span>
         <div class="locked">
           <b class="money" :class="{ neg: (locked ?? 0) < 0, pos: (locked ?? 0) > 0 }">{{ fmtMoney(locked ?? 0, { sign: true }) }}</b>
           <span class="small">{{ describeLink(rec.link) }}</span>
-          <span class="small muted">{{ how }} Worked out again whenever your records change. To measure something else, remove this and use <b>Project this</b> on the Past tab.</span>
+          <span class="small muted">{{ how }}</span>
         </div>
       </div>
       <label v-else class="field">
@@ -231,6 +237,32 @@ function save() {
 
 
 
+
+.label-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 0.2rem;
+  margin: -4px 0;
+}
+
+.linked-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--mute);
+}
+
+.linked-label .ic {
+  width: 14px;
+  height: 14px;
+}
+
+.label-row :deep(.info-text) {
+  padding-bottom: 0.3rem;
+}
 
 .linked-type {
   display: inline-flex;

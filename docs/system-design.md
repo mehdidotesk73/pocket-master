@@ -153,7 +153,10 @@ Both / Rising / Falling. Layout: the forecast to add to, then the projection as 
 shows it — name · Linked, every · unit · starting, the locked amount box holding the fixed values
 and (Rates only) the window — and `readBack` worked out in that forecast; shows the
 amount now and how it's worked out; adds a linked Recurring item and offers *See it in Future*,
-which `HistoryView` emits as `open-future` to `App.vue`). Future's list marks linked items
+which `HistoryView` emits as `open-future` to `App.vue`). Explanations (each Past chart's note, the linked-amount note) sit behind `components/InfoTip.vue`, an ⓘ
+button whose text takes its own line in a wrapping flex row. A linked item's type shows as a fixed
+"Recurring" tag; its amount label reads "Amount each time · linked to Past".
+Future's list marks linked items
 "Recurring · linked to Past" with a `describeLink` line; `ProjectionPanel` shows their amount locked.
 Future = forecast picker + **Edit** / **New** → `ForecastPanel`; `ForecastChart` (a one-day-wide stacked bar on
 each day any projection changes the total — day-over-day differences of `project().contributions` — with

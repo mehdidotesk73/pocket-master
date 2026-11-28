@@ -11,6 +11,7 @@
 // else, remove it and make another.
 import { computed, ref } from 'vue'
 import { ChevronDown, Link2 } from '@lucide/vue'
+import InfoTip from '../../components/InfoTip.vue'
 import { type EveryUnit, type PastLink, type RateDirection, type RecordWindow, type Recurring, newId } from '../../lib/finance'
 import { linkedAmount, measurePast } from '../../lib/analysis'
 import { fmtMoney, isISODate, today } from '../../lib/money'
@@ -109,7 +110,7 @@ async function add() {
     <div class="projection">
       <div class="top">
         <input class="input" :value="nameTouched ? name : autoName" aria-label="Name" @input="((nameTouched = true), (name = ($event.target as HTMLInputElement).value))" />
-        <span class="linked-type"><Link2 class="ic" aria-hidden="true" />Linked</span>
+        <span class="linked-type">Recurring</span>
       </div>
 
       <div class="row3">
@@ -128,7 +129,12 @@ async function add() {
       </div>
 
       <div class="field">
-        <span>Amount each time · locked</span>
+        <span class="label-row">
+          <span class="linked-label"><Link2 class="ic" aria-hidden="true" />Amount each time · linked to Past</span>
+          <InfoTip label="About linked amounts">
+            Worked out from your records again whenever they change, so you can't type it. In Future you can still change its name, repeat and start; to measure something else, remove it and make a new one here.
+          </InfoTip>
+        </span>
         <div class="locked">
           <b class="money amt" :class="{ neg: amount < 0, pos: amount > 0 }">{{ fmtMoney(amount, { sign: true }) }}</b>
           <dl class="fixed">
@@ -145,7 +151,7 @@ async function add() {
             <span>Measured over</span>
             <WindowPicker v-model="win" />
           </div>
-          <span class="small muted">{{ how }} Worked out again whenever your records change.</span>
+          <span class="small muted">{{ how }}</span>
         </div>
       </div>
     </div>
@@ -201,6 +207,32 @@ async function add() {
   grid-template-columns: minmax(0, 1fr) 7.2rem;
   gap: 0.45rem;
   margin-bottom: 0.55rem;
+}
+
+.label-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 0.2rem;
+  margin: -4px 0;
+}
+
+.linked-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--mute);
+}
+
+.linked-label .ic {
+  width: 14px;
+  height: 14px;
+}
+
+.label-row :deep(.info-text) {
+  padding-bottom: 0.3rem;
 }
 
 .linked-type {

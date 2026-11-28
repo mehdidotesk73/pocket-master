@@ -163,6 +163,8 @@ src/
     HelpModal.vue          renders docs/concepts/*.md into the Help modal (one tab per file)
     InstallHint.vue        iOS "Add to Home Screen" instructions / Chromium Install button
     SideMenu.vue           ☰ drawer (Records → Import / Export)
+    InfoTip.vue            ⓘ button that shows / hides an explanation (chart notes, linked amounts)
+    ProjectFromPast        (in features/tracker) the Past → linked projection panel
 .claude/skills/
   finish-setup/SKILL.md    scaffold personalization + one-time hosting setup
   ship-feature/SKILL.md    the change loop: branch → build → PR → links → doc gate

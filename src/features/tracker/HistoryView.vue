@@ -8,6 +8,7 @@ import CandleChart from './CandleChart.vue'
 import WindowPicker from './WindowPicker.vue'
 import ProjectFromPast from './ProjectFromPast.vue'
 import { Link2 } from '@lucide/vue'
+import InfoTip from '../../components/InfoTip.vue'
 import { colorFor } from './projectionText'
 import RecordModal from './RecordModal.vue'
 import FigureRow, { type Figure } from './FigureRow.vue'
@@ -152,7 +153,9 @@ function onAdded(forecast: string) {
             </button>
           </div>
           <LineChart :series="lineChart" include-zero :legend="false" />
-          <p class="muted small note">Each line's value at every record. Tap a name to hide or show it.</p>
+          <div class="foot end">
+            <InfoTip label="About Timeseries">Each line's value at every record. Tap a name to hide or show it.</InfoTip>
+          </div>
         </template>
 
         <!-- average mix over a window -->
@@ -160,12 +163,15 @@ function onAdded(forecast: string) {
           <WindowPicker v-model="mixWindow" />
           <DonutChart v-if="mixSlices.length" :slices="mixSlices" centre-label="Total" :centre-value="fmtMoney(mixTotal, { whole: true })" @toggle="toggleMix" />
           <p v-else class="muted small">No lines with a value in these records.</p>
-          <button class="btn small-btn project" :disabled="!mixSlices.some((s) => !s.off)" @click="projectAverage"><Link2 class="ic" aria-hidden="true" />Project this</button>
-          <p class="muted small note">
-            Each line's average across {{ mix.count }} record{{ mix.count === 1 ? '' : 's' }}<template v-if="mix.from">
-              ({{ fmtDate(mix.from, { short: true }) }} – {{ fmtDate(mix.to!, { short: true }) }})</template
-            >. Tap a line to leave it out. The middle adds up the lines left in, and each slice is that line's share of their size.
-          </p>
+          <div class="foot">
+            <button class="btn small-btn" :disabled="!mixSlices.some((s) => !s.off)" @click="projectAverage"><Link2 class="ic" aria-hidden="true" />Project this</button>
+            <InfoTip label="About Averages">
+              Each line's average across {{ mix.count }} record{{ mix.count === 1 ? '' : 's' }}<template v-if="mix.from">
+                ({{ fmtDate(mix.from, { short: true }) }} – {{ fmtDate(mix.to!, { short: true }) }})</template
+              >. Tap a line to leave it out. The middle adds up the lines left in, and each slice is that line's share of their size.
+              <b>Project this</b> makes a forecast projection from the Total.
+            </InfoTip>
+          </div>
         </template>
 
         <!-- rate of change between records -->
@@ -182,10 +188,13 @@ function onAdded(forecast: string) {
             </div>
           </div>
           <CandleChart :candles="candles" :show="rateShow" />
-          <button class="btn small-btn project" @click="projectRate"><Link2 class="ic" aria-hidden="true" />Project this</button>
-          <p class="muted small note">
+          <div class="foot">
+            <button class="btn small-btn" @click="projectRate"><Link2 class="ic" aria-hidden="true" />Project this</button>
+            <InfoTip label="About Rates">
             One candle per day, from the previous day's close to this day's: green if it went up, red if it went down. A day with records closes at its last record, and its records show as the wick. Days between records (lighter) move at the even daily rate from one record day to the next. Tap a candle to read it. For a card, going up means you owe less.
-          </p>
+              <b>Project this</b> makes a forecast projection from this line's daily change.
+            </InfoTip>
+          </div>
         </template>
         <p v-if="added" class="added small" role="status">
           Added to <b>{{ added }}</b>. Its amount follows your records.
@@ -254,9 +263,17 @@ function onAdded(forecast: string) {
   stroke-width: 1.75;
 }
 
-.project {
-  justify-self: start;
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 0.6rem;
   margin-top: 0.5rem;
+}
+
+.foot.end {
+  justify-content: flex-end;
 }
 
 .added {
