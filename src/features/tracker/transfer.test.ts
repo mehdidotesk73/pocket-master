@@ -13,10 +13,9 @@ const projection = {
       kind: 'recurring' as const,
       id: 'p',
       name: 'Paycheck',
-      value: { mode: 'fixed' as const, amount: 3000 },
+      amount: 3000,
       every: { n: 1, unit: 'month' as const },
       start: '2026-01-15',
-      inRecord: false,
     },
   ],
 }

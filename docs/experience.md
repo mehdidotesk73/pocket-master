@@ -194,6 +194,14 @@ another mode as the editor opened, which reset its line and repeat ("Every month
 Checking…" on a Discover pace). Now a settled scroll changes the value only within 1.5 s of the
 user's own touch, pointer or wheel; otherwise it re-centres on the current value.
 
+### Computed projections were too hard to reason about
+v0.8–v0.12 let a projection be the average or rate of change of a record line, over a window, from
+an optional start point, aimed at a line, with a readback and warnings to explain it. On the phone
+each new option needed another explanation, and real mistakes kept slipping through (a rate across
+whole card cycles flipping a card positive; an average added daily). What worked: show history
+plainly in Past (timeseries, averages, daily rate candles) and let the user type the amounts they
+expect. The old maths lives on in `legacy.ts` only to convert old files at the same values.
+
 ## Patterns Worth Reusing
 
 ### Two-Party Link Apps: the URL Fragment as Credential, and the Join Race
@@ -382,6 +390,15 @@ text, so typing appends ("300.00650") and rounding hides it as 300.01. Select th
 on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
+
+### v0.15.0 — 2026-11-28
+- **Changed:** projections are **plain amounts**. Recurring: name, amount, start date, every N
+  days / weeks / months / years. One-time: name, amount, date.
+- **Removed:** Average and Rate of change of a line, record windows, start points, the line a
+  projection changes, "already in my records until paid", and the readback warnings about them.
+- **Data:** forecasts move to schema 4. Old projections are converted once: fixed amounts keep
+  their amount; computed ones become a fixed amount at the value they had (logged), and ones that
+  came to $0 are dropped. New forecasts start empty.
 
 ### v0.12.2 — 2026-11-27
 - **Changed:** the projection editor is compact: name with the type beside it, then Every · Unit ·

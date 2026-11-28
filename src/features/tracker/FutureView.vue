@@ -16,7 +16,7 @@ import ProjectionPanel from './ProjectionPanel.vue'
 import { UI_INFO, colorFor, summarize, uiTypeOf } from './projectionText'
 import { useTracker } from './useTracker'
 
-const { projections, selected, selectedId, records, latest, projectFor, resultsFor, saveProjection, createProjection, deleteProjection, selectProjection } =
+const { projections, selected, selectedId, records, latest, projectFor, saveProjection, createProjection, deleteProjection, selectProjection } =
   useTracker()
 
 /** How far back the chart shows past records. */
@@ -37,7 +37,6 @@ const shown = computed<ProjectionFile | null>(() => {
   return { ...f, items: exists ? f.items.map((i) => (i.id === e.draft.id ? e.draft : i)) : [...f.items, e.draft] }
 })
 const future = computed(() => (shown.value ? projectFor(shown.value) : null))
-const results = computed(() => (shown.value ? resultsFor(shown.value) : {}))
 
 // ---- heading
 const subject = computed(() => (shown.value?.start.mode === 'all' ? 'Net equity' : (shown.value?.name ?? '')))
@@ -118,7 +117,7 @@ async function deleteForecast() {
 function addProjection() {
   forecastEdit.value = null
   itemEdit.value = {
-    draft: { kind: 'recurring', id: newId(), name: '', value: { mode: 'fixed', amount: 0 }, every: { n: 1, unit: 'month' }, start: today(), inRecord: false },
+    draft: { kind: 'recurring', id: newId(), name: '', amount: 0, every: { n: 1, unit: 'month' }, start: today() },
     isNew: true,
   }
   showChart()
@@ -153,7 +152,7 @@ async function setHorizon(h: number) {
 const rows = computed(() =>
   (shown.value?.items ?? []).map((item) => ({
     item,
-    s: summarize(item, results.value[item.id], shown.value!),
+    s: summarize(item),
     type: UI_INFO[uiTypeOf(item)].label,
     editing: itemEdit.value?.draft.id === item.id,
   })),
@@ -241,7 +240,7 @@ const rows = computed(() =>
           </button>
         </li>
       </ul>
-      <p v-else class="muted small">No projections yet. Tap <b>Add</b> for pay, rent, everyday spending and the like.</p>
+      <p v-else class="muted small">No projections yet. Tap <b>Add</b> for pay, rent, card spending and the like. The Past tab shows what past months looked like.</p>
     </section>
 
     <ForecastPanel
@@ -257,7 +256,6 @@ const rows = computed(() =>
     <ProjectionPanel
       v-if="itemEdit && selected"
       v-model="itemEdit.draft"
-      :forecast="shown!"
       :result="future"
       :is-new="itemEdit.isNew"
       @save="saveItem"

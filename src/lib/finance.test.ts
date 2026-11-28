@@ -3,15 +3,9 @@ import {
   type BalanceRecord,
   type OneTime,
   type ProjectionFile,
-  type RateStart,
   type Recurring,
   type RecordLine,
-  LEFT_SOURCE,
-  NET_ONLY,
-  evaluateRecurring,
-  forecastLineNames,
-  forecastSheetOn,
-  everydayItem,
+  defaultProjection,
   lineNames,
   makeRecord,
   monthlyStart,
@@ -19,12 +13,9 @@ import {
   occursOn,
   periodDays,
   project,
-  rateStartDate,
   recordsInWindow,
-  scheduled,
   sheet,
   startValueCents,
-  targetOf,
   upsertRecord,
 } from './finance'
 import { addDays, clampedDate, monthIndex } from './money'
@@ -41,7 +32,7 @@ const rec = (date: string, left: number, lines: RecordLine[] = []): BalanceRecor
 })
 const line = (name: string, amount: number): RecordLine => ({ id: name, name, amount })
 const proj = (p: Partial<ProjectionFile> = {}): ProjectionFile => ({
-  schema: 3,
+  schema: 4,
   id: 'p',
   name: 'P',
   start: { mode: 'all' },
@@ -49,27 +40,17 @@ const proj = (p: Partial<ProjectionFile> = {}): ProjectionFile => ({
   items: [],
   ...p,
 })
-/** A fixed monthly amount on `day` (like the old "every month" items). */
+/** A monthly amount on `day`. */
 const monthly = (amount: number, day: number, extra: Partial<Recurring> = {}): Recurring => ({
   kind: 'recurring',
   id: `m${day}${amount}`,
   name: 'm',
-  value: { mode: 'fixed', amount },
+  amount,
   every: { n: 1, unit: 'month' },
   start: monthlyStart(day),
-  inRecord: false,
   ...extra,
 })
-const fromRecords = (mode: 'average' | 'rate', source: string, extra: Partial<Recurring> = {}): Recurring => ({
-  kind: 'recurring',
-  id: 'r',
-  name: 'r',
-  value: { mode, source, window: { mode: 'all' } },
-  every: { n: 1, unit: 'month' },
-  start: monthlyStart(1),
-  inRecord: false,
-  ...extra,
-})
+const daily = (amount: number, start: string): Recurring => ({ kind: 'recurring', id: `d${amount}`, name: 'd', amount, every: { n: 1, unit: 'day' }, start })
 const once = (amount: number, date: string): OneTime => ({ kind: 'oneTime', id: `o${date}`, name: 'o', amount, date })
 const at = (p: ReturnType<typeof project>, d: string) => p!.series.find((x) => x.date === d)!.value
 
@@ -157,27 +138,6 @@ describe('schedules', () => {
   })
 })
 
-describe('scheduled() (what fixed and one-time projections explain)', () => {
-  const rent = monthly(-2000, 1, { inRecord: true })
-  const pay = monthly(1500, 15)
-
-  it('counts an inRecord item once, at the new month, across a boundary', () => {
-    expect(scheduled('2026-10-20', '2026-11-05', [rent])).toBe(-2000)
-    expect(scheduled('2026-10-20', '2026-11-20', [rent])).toBe(-2000)
-    expect(scheduled('2026-11-02', '2026-11-28', [rent])).toBe(0)
-  })
-
-  it('counts a normal item only when it occurs in (s0, s1]', () => {
-    expect(scheduled('2026-11-01', '2026-11-14', [pay])).toBe(0)
-    expect(scheduled('2026-11-01', '2026-11-15', [pay])).toBe(1500)
-    expect(scheduled('2026-11-14', '2027-01-15', [pay])).toBe(4500)
-  })
-
-  it('includes one-time items; ignores projections worked out from records', () => {
-    expect(scheduled('2026-11-09', '2026-11-10', [once(-99.99, '2026-11-10'), fromRecords('average', 'X')])).toBe(-99.99)
-  })
-})
-
 describe('record windows', () => {
   const recs = [rec('2026-01-01', 1), rec('2026-03-01', 2), rec('2026-05-01', 3), rec('2026-06-01', 4)]
   it('all, past N days, past N records, between dates', () => {
@@ -188,74 +148,26 @@ describe('record windows', () => {
   })
 })
 
-describe('recurring values', () => {
-  it('average of a line over the window', () => {
-    const records = [rec('2026-01-05', 0, [line('Phone', -1900)]), rec('2026-02-05', 0, [line('Phone', -2000)]), rec('2026-03-05', 0, [line('Phone', -2100.01)])]
-    expect(evaluateRecurring(fromRecords('average', 'phone'), records, proj()).value).toBe(-2000)
-    const last2 = fromRecords('average', 'Phone', { value: { mode: 'average', source: 'Phone', window: { mode: 'lastRecords', count: 2 } } })
-    expect(evaluateRecurring(last2, records, proj()).value).toBe(-2050) // (−2000 − 2100.01) ÷ 2 = −2050.005 → cents
-  })
-
-  it('rate of change × the time between occurrences', () => {
-    const records = [rec('2026-01-01', 0, [line('Amex', -100)]), rec('2026-01-31', 0, [line('Amex', -400)])] // −10/day
-    const monthlyRate = fromRecords('rate', 'Amex')
-    const daily = fromRecords('rate', 'Amex', { every: { n: 1, unit: 'day' } })
-    const weekly = fromRecords('rate', 'Amex', { every: { n: 2, unit: 'week' } })
-    expect(evaluateRecurring(monthlyRate, records, proj()).value).toBeCloseTo(-304.4, 2)
-    expect(evaluateRecurring(daily, records, proj()).value).toBe(-10)
-    expect(evaluateRecurring(weekly, records, proj()).value).toBe(-140)
-    expect(evaluateRecurring(daily, records, proj()).perDay).toBe(-10)
-  })
-
-  it('rate of the starting total takes out the forecast’s fixed and one-time projections (everyday spending)', () => {
-    const pay = monthly(1000, 15)
-    const ev = everydayItem()
-    // Gained 700 over 30 days, but 1000 pay was scheduled → −300 unexplained → −10/day
-    const r = evaluateRecurring(ev, [rec('2026-01-01', 1000), rec('2026-01-31', 1700)], proj({ items: [pay, ev] }))
-    expect(r.value).toBe(-10)
-  })
-
-  it('rate needs records spanning 28+ days', () => {
-    const r = evaluateRecurring(everydayItem(), [rec('2026-11-01', 1000), rec('2026-11-28', 700)], proj())
-    expect(r.value).toBeNull()
-    expect(r.used).toBe(0)
-    expect(r.reason).toMatch(/27 days/)
-  })
-
-  it('reports a missing line by name', () => {
-    expect(evaluateRecurring(fromRecords('average', 'Nope'), [rec('2026-01-01', 1)], proj()).reason).toMatch(/Nope/)
-  })
-
-  it('starting total follows the forecast’s selected lines', () => {
+describe('starting total', () => {
+  it('follows the forecast’s selected lines', () => {
     const r = rec('2026-11-26', 6988.12, [line('Checking', 7718.6), line('Amex', -730.48)])
     expect(startValueCents(r, { mode: 'all' })).toBe(698812)
     expect(startValueCents(r, { mode: 'lines', names: ['checking'] })).toBe(771860)
   })
 })
 
-describe('forecast', () => {
-  const rent = monthly(-2000, 1, { inRecord: true })
-
-  it('skips an inRecord item in the latest record’s month and applies it later', () => {
-    const p = project(proj({ items: [rent, monthly(-50, 28, { inRecord: true })] }), [rec('2026-11-10', 5000)])
-    expect(at(p, '2026-11-28')).toBe(5000)
-    expect(at(p, '2026-12-01')).toBe(3000)
-    expect(at(p, '2026-12-28')).toBe(2950)
-  })
-
-  it('keeps the right months across a year boundary', () => {
-    const p = project(proj({ items: [monthly(1000, 15), rent] }), [rec('2026-12-20', 0)])
+describe('forecast (plain amounts)', () => {
+  it('monthly amounts land on their day, across a year boundary', () => {
+    const p = project(proj({ items: [monthly(1000, 15), monthly(-2000, 1)] }), [rec('2026-12-20', 0)])
     expect(at(p, '2027-01-01')).toBe(-2000)
     expect(at(p, '2027-01-15')).toBe(-1000)
-    expect(p!.min).toEqual({ date: '2027-02-01', value: -3000 })
+    expect(p.min).toEqual({ date: '2027-02-01', value: -3000 })
   })
 
-  it('a daily rate (everyday spending) drifts every day; one-time items land on their date', () => {
-    const records = [rec('2025-12-01', 1310), rec('2026-01-01', 1000)] // −310 over 31 days = −10/day
-    const p = project(proj({ horizonDays: 10, items: [everydayItem(), once(200, '2026-01-05')] }), records)!
+  it('a daily amount moves every day; one-time amounts land on their date', () => {
+    const p = project(proj({ horizonDays: 10, items: [daily(-10, '2026-01-01'), once(200, '2026-01-05')] }), [rec('2026-01-01', 1000)])
     expect(at(p, '2026-01-04')).toBe(970)
     expect(at(p, '2026-01-05')).toBe(1160)
-    expect(p.results.everyday.value).toBe(-10)
   })
 
   it('every 2 weeks from a start date', () => {
@@ -270,7 +182,7 @@ describe('forecast', () => {
   it('tracks each projection’s cumulative share, adding up to the total', () => {
     const pay = monthly(1000, 5)
     const trip = once(-300, '2026-12-03')
-    const p = project(proj({ horizonDays: 10, items: [pay, trip] }), [rec('2026-11-28', 50)])!
+    const p = project(proj({ horizonDays: 10, items: [pay, trip] }), [rec('2026-11-28', 50)])
     const i = p.series.findIndex((x) => x.date === '2026-12-05')
     expect(p.contributions[pay.id][i]).toBe(1000)
     expect(p.contributions[trip.id][i]).toBe(-300)
@@ -282,121 +194,23 @@ describe('forecast', () => {
     expect(p.start.value).toBe(500)
   })
 
-  it('with no records it starts at zero on the given day; record-based values count as 0', () => {
-    const items = [monthly(100, 26), { ...monthly(-50, 1), every: { n: 1, unit: 'week' as const }, start: '2026-11-26' }, everydayItem(), monthly(-2000, 1, { inRecord: true })]
+  it('with no records it starts at zero on the given day', () => {
+    const items = [monthly(100, 26), { ...monthly(-50, 1), every: { n: 1, unit: 'week' as const }, start: '2026-11-26' }]
     const p = project(proj({ horizonDays: 31, items }), [], '2026-11-26')
     expect(p.start).toEqual({ date: '2026-11-26', value: 0 })
-    expect(at(p, '2026-11-27')).toBe(0)
-    expect(at(p, '2026-12-01')).toBe(-2000) // in-record rent isn't skipped: no record lists it
-    expect(at(p, '2026-12-03')).toBe(-2050)
-    expect(at(p, '2026-12-26')).toBe(-2100) // 4 weekly −50s, +100 on the 26th
-    expect(p.results.everyday.used).toBe(0)
+    expect(at(p, '2026-12-03')).toBe(-50)
+    expect(at(p, '2026-12-26')).toBe(-100) // 4 weekly −50s, +100 on the 26th
   })
 
   it('a forecast from picked lines starts from just those', () => {
     const r = rec('2026-11-26', 0, [line('Checking', 4000), line('Amex', -500)])
     const p = project(proj({ start: { mode: 'lines', names: ['Checking'] }, horizonDays: 7, items: [monthly(-100, 28)] }), [r])
-    expect(p!.start.value).toBe(4000)
-    expect(p!.end.value).toBe(3900)
+    expect(p.start.value).toBe(4000)
+    expect(p.end.value).toBe(3900)
   })
 
-  void LEFT_SOURCE
-})
-
-describe('target lines', () => {
-  const once = (amount: number, date: string, target?: string): OneTime => ({ kind: 'oneTime', id: `o${amount}`, name: 'o', amount, date, ...(target != null ? { target } : {}) })
-
-  it('defaults: an average or rate of a line changes that line; amounts and net-equity rates are net only', () => {
-    expect(targetOf(fromRecords('rate', 'House'))).toBe('House')
-    expect(targetOf(fromRecords('average', 'Amex'))).toBe('Amex')
-    expect(targetOf(everydayItem())).toBe(NET_ONLY)
-    expect(targetOf(monthly(100, 1))).toBe(NET_ONLY)
-    expect(targetOf(monthly(100, 1, { target: 'Checking' }))).toBe('Checking')
-    expect(targetOf(fromRecords('rate', 'House', { target: '' }))).toBe(NET_ONLY)
-  })
-
-  it('the forecast’s lines: the start selection, then targets not among them', () => {
-    const r = rec('2026-11-01', 0, [line('Checking', 100), line('Amex', -50), line('Saving', 10)])
-    const p = proj({ start: { mode: 'lines', names: ['checking'] }, items: [monthly(5, 1, { target: 'Amex' }), monthly(5, 2, { target: 'Car' })] })
-    expect(forecastLineNames(p, r)).toEqual(['Checking', 'Amex', 'Car'])
-  })
-
-  it('splits the forecast per line; lines plus net-only add up to the total every day', () => {
-    const r = rec('2026-11-01', 950, [line('Checking', 1000), line('Amex', -50)])
-    const p = proj({
-      horizonDays: 40,
-      items: [
-        monthly(2000, 15, { target: 'Checking' }),
-        { ...everydayItem(), value: { mode: 'fixed', amount: -10 }, target: 'Amex' },
-        once(-300, '2026-11-20'),
-      ],
-    })
-    const f = project(p, [r])
-    expect(f.lines.map((l) => [l.name, l.start])).toEqual([['Checking', 1000], ['Amex', -50]])
-    f.series.forEach((pt, i) => {
-      const sum = f.lines.reduce((s, l) => s + l.values[i], 0) + f.netOnly[i]
-      expect(Math.round(sum * 100)).toBe(Math.round(pt.value * 100))
-    })
-    const on = forecastSheetOn(f, '2026-11-30')
-    expect(on.lines.map((l) => [l.name, l.amount])).toEqual([['Checking', 3000], ['Amex', -340]])
-    expect(on.netOnly).toBe(-300)
-    expect(on.total).toBe(2360)
-    // On or before the start: the starting sheet.
-    expect(forecastSheetOn(f, '2026-11-01').lines.map((l) => l.amount)).toEqual([1000, -50])
-  })
-
-  it('a rate of a line moves that line (an appreciating asset)', () => {
-    const recs = [rec('2026-01-01', 0, [line('House', 300000)]), rec('2026-03-02', 0, [line('House', 306000)])]
-    const f = project(proj({ horizonDays: 10, items: [{ ...fromRecords('rate', 'House'), every: { n: 1, unit: 'day' }, start: '2000-01-01' }] }), recs)
-    const house = f.lines.find((l) => l.name === 'House')!
-    expect(house.start).toBe(306000)
-    expect(house.values[9]).toBe(307000) // $6,000 over 60 days = $100/day
-    expect(f.netOnly[9]).toBe(0)
-  })
-
-  it('a target missing from the records starts at 0; with no records every line does', () => {
-    const f = project(proj({ horizonDays: 3, items: [once(25, '2026-12-02', 'Cash jar')] }), [], '2026-12-01')
-    expect(f.lines).toEqual([{ name: 'Cash jar', start: 0, values: [25, 25, 25] }])
-  })
-})
-
-describe('rate start point', () => {
-  const card = (balance: number, date: string) => rec(date, 0, [line('Capital One', balance)])
-  const pace = (from: RateStart, extra: Partial<Recurring> = {}) =>
-    fromRecords('rate', 'Capital One', { every: { n: 1, unit: 'day' }, start: '2000-01-01', ...extra, value: { mode: 'rate', source: 'Capital One', window: { mode: 'all' }, from } })
-
-  it('one record and "$0 on the 1st" give the cycle pace; the 28-day minimum doesn’t apply', () => {
-    const r = evaluateRecurring(pace({ amount: 0, day: 1 }), [card(-1500, '2026-11-26')], proj())
-    expect(r.perDay).toBe(-60)
-    expect(r.value).toBe(-60)
-    expect(r.count).toBe(1)
-    expect(r.days).toBe(25)
-    expect(r.span).toEqual({ from: { date: '2026-11-01', value: 0 }, to: { date: '2026-11-26', value: -1500 } })
-  })
-
-  it('records on or before the start point are left out; later ones count', () => {
-    const recs = [card(-900, '2026-10-20'), card(-400, '2026-11-11'), card(-1000, '2026-11-21')]
-    const r = evaluateRecurring(pace({ amount: 0, date: '2026-11-01' }), recs, proj())
-    expect(r.count).toBe(2)
-    expect(r.perDay).toBe(-50) // 0 → −1,000 over 20 days
-  })
-
-  it('a day of the month rolls back a month when it’s after the latest record', () => {
-    expect(rateStartDate({ amount: 0, day: 1 }, '2026-11-26')).toBe('2026-11-01')
-    expect(rateStartDate({ amount: 0, day: 15 }, '2026-11-10')).toBe('2026-10-15')
-    expect(rateStartDate({ amount: 0, day: 31 }, '2026-11-30')).toBe('2026-11-30')
-    expect(rateStartDate({ amount: 0, date: '2026-09-09' }, '2026-11-30')).toBe('2026-09-09')
-  })
-
-  it('needs a record after the start point', () => {
-    const r = evaluateRecurring(pace({ amount: 0, day: 26 }), [card(-1500, '2026-11-26')], proj())
-    expect(r.value).toBeNull()
-    expect(r.reason).toMatch(/No records after the start point/)
-  })
-
-  it('carries the card forward at that pace, on its own line', () => {
-    const f = project(proj({ horizonDays: 4, items: [pace({ amount: 0, day: 1 })] }), [card(-1500, '2026-11-26')])
-    const cap = f.lines.find((l) => l.name === 'Capital One')!
-    expect(cap.values).toEqual([-1560, -1620, -1680, -1740]) // Nov 30: ($1,740), the month-end balance
+  it('a new forecast is empty: nothing until you add amounts', () => {
+    expect(defaultProjection().items).toEqual([])
+    expect(defaultProjection().schema).toBe(4)
   })
 })

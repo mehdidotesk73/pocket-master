@@ -151,16 +151,14 @@ Future = forecast picker + **Edit** / **New** → `ForecastPanel`; `ForecastChar
 each day any projection changes the total — day-over-day differences of `project().contributions` — with
 the forecast total, starting balance included, as a step line — flat between event days, vertical on
 each — past records leading in); projections list + **Add** → `ProjectionPanel`
-(name with the type beside it, then compact three-column rows — Every · Unit · Starting, then
-Changes · Value · Line-or-Amount — with type, Unit and Value as `WheelPicker`s (ported from the bitcoin-explorer metric
+(name with the type beside it; Recurring: Every · Unit · Starting, then the amount; One-time: Amount ·
+Date — with type and Unit as `WheelPicker`s (ported from the bitcoin-explorer metric
 panel: one row at rest, a 3D drum overlay while touched, native scroll-snap; it changes only on
 the user's own gesture, so layout scrolls can't flip it);
-the records window and start point follow for Average / Rate; and a pinned, collapsed
-readback (one line plus a "N to check" pill; tap for the rest) from
-`readBack()` in `projectionText.ts`: the settings as one sentence, the total by the forecast's end, the
-target line's start → end, and warnings — an average repeating faster than monthly, measured on one line
-but changing another, a net-equity rate with no income listed). Average can't pick net equity and
-switches the repeat to monthly; `FutureView` passes the draft's `project()` result in as `result`. Both panels are `DockPanel`s (mid-height, bottom, page stays
+and a pinned, collapsed readback (one line plus a "N to check" pill; tap for the rest) from
+`readBack()` in `projectionText.ts`: the projection as one sentence, what it adds up to by the
+forecast's end, and a warning for a one-time date outside the forecast); `FutureView` passes the
+draft's `project()` result in as `result`. Both panels are `DockPanel`s (mid-height, bottom, page stays
 visible) editing drafts that drive the chart live; Save writes, Cancel discards. The header's ☰ (top left) opens `SideMenu`, a drawer from the left with collapsible
 sections (start collapsed); Records holds the Import / Export tag buttons. Future = projection picker (+ `ProjectionModal` for name / start lines / days ahead /
 duplicate / delete), chart, and a compact item list; "+ Add" menu → `ItemModal` per kind (built on
@@ -191,36 +189,23 @@ All sums in integer cents.
 - **`scheduledCents(s0, s1)`**, window (s0, s1]: signed recurring items on their clamped day (day 31 →
   last day); `inRecord` items count once at the start of each month after s0's month; signed one-time
   items on their date.
-- **Forecasts** (`ProjectionFile`, schema 3): `{ id, name, start, horizonDays, items[] }`. `start` is
-  `{ mode: 'all' }` (left so far) or `{ mode: 'lines', names }` — the starting total is the sum of
-  those lines in the latest record (`startValueCents`). Items (*projections*) are:
-  - `recurring`: `value` (`fixed` amount | `average` | `rate` of a `source` line — `LEFT_SOURCE` = the
-    starting total — over a `window`: all | last N days | last N records | between dates), `every`
-    `{ n, unit: day|week|month|year }` from `start` (`occursOn`: months/years use start's day,
-    clamped), and `inRecord` (fixed monthly only). Average = mean value per occurrence. Rate =
-    Σ changes ÷ span days (for the starting total, minus what fixed/one-time items explain via
-    `scheduledCents`) × `periodDays(every)` per occurrence. Null when the span < 28 days.
-    A rate may carry `from: RateStart` — `{ amount, date }` or `{ amount, day }` (day of the latest
-    record's month, rolling back a month when it falls after that record: `rateStartDate`). It's put
-    first as a point; window records on or before it are dropped; the 28-day minimum is skipped; it
-    needs at least one record after it. Rates return `span { from, to }` for the readback.
-  - `oneTime`: a signed amount on a date.
-  - Both may carry `target`, the **line it changes** (`targetOf`): absent = default — an average or
-    rate of a line changes that line; amounts and net-equity rates are net only (`NET_ONLY` = `''`).
-    Picking the default in the editor clears the field, so it keeps following the value's line.
-    Optional field, so no schema bump: older files read as "default".
-  Older shapes (monthly `amount`/`day`, `averaged`, `extrapolate`, `dir`, `manual`) are converted in
-  `normalizeItem`; extrapolate-to-month-end is dropped.
-- **`project(proj, records, startIfEmpty = today)`** (never null): from (latest.date, starting total) —
-  or ($0, today) when there are no records — each day adds every projection that
-  occurs that day (`inRecord` ones skipped in the latest record's month) and tracks each one's running
-  contribution (for the stacked bars), for `horizonDays` (≤ 1830).
-  It also returns **`lines`** — every line of the balance sheet day by day (`forecastLineNames`: the
-  start selection's lines from the latest record, then targets not among them, starting at 0) — and
-  **`netOnly`**, the running sum of net-only projections. Σ lines + netOnly = the total, every day.
-  **`forecastSheetOn(f, date)`** reads the forecast's balance sheet on a date (the start sheet on or
-  before the start).
-
+- **Forecasts** (`ProjectionFile`, schema 4): `{ id, name, start, horizonDays, items[] }`. `start` is
+  `{ mode: 'all' }` (net equity) or `{ mode: 'lines', names }`: the starting total is the sum of
+  those lines in the latest record (`startValueCents`). Items (*projections*) are **plain amounts**:
+  - `recurring`: `{ name, amount, every { n, unit: day|week|month|year }, start }`
+    (`occursOn`: months/years use start's day, clamped to month end);
+  - `oneTime`: `{ name, amount, date }`.
+  Nothing is worked out from records and nothing targets a line: the user reads Past and types.
+- **`project(proj, records, startIfEmpty = today)`** (never null): from (latest.date, starting total),
+  or ($0, today) with no records, each day adds every projection that falls on it and tracks each
+  one's running `contributions` (for the stacked bars), for `horizonDays` (≤ 1830).
+- **Old projections** (schema ≤ 3: Average / Rate of change of a line over a window, start points,
+  target lines, "in my records until paid", and every older shape) are read by `normalizeItem` into
+  `LegacyItem`s and frozen by `freezeItems` (`src/lib/legacy.ts`, tests in `legacy.test.ts`): fixed
+  amounts keep their amount; computed ones take the value they come to with the records loaded now
+  (`evaluateRecurring`, unchanged); ones that come to $0 are dropped; each conversion is logged.
+  `loadFrom` loads records **before** projections for this, and rewrites converted files once.
+  Imports freeze against the import's own records.
 
 ## §5 — Composables
 

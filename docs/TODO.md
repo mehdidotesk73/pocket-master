@@ -54,16 +54,17 @@ One-time setup — tick these off as they're done:
 
 (Features, refactoring, technical debt)
 
-Balance-sheet forecasts, in order (step 1, target lines, is done in v0.10.0):
+Forecasts (direction agreed 2026-11-27): analysis lives in Past; Future holds only amounts typed in.
 
-- [x] **Start point on Rate of change** (v0.11.0) — `RateStart`, `rateStartDate`, `span` on
-      `ItemResult`; "Start from a known value" in `ProjectionPanel`; `describeFrom`.
-- [ ] **Balance sheet on [date]** in Future — `forecastSheetOn` shown with the `BalanceSheet`
-      component, with an *End of month* shortcut.
-- [ ] **Past: monthly in / spent / net change** — worked out from records (net change − scheduled
-      income). Transfers between two same-day records (pay cards, move to saving) leave net equity
-      unchanged, so they count as neither.
-- [ ] Maybe: card payoff as a transfer projection (moves a projected balance between two lines).
+- [x] **Plain-amount projections** (v0.15.0) — recurring `{ name, amount, every, start }` and
+      one-time `{ name, amount, date }`, schema 4; computed / target-line / in-record projections
+      frozen once into amounts (`lib/legacy.ts` `freezeItems`).
+- [ ] **Past analysis charts** — Timeseries / Averages / Rates (PR #10).
+- [ ] **Monthly in / spent / net change** in Past (from records).
+- [ ] Mock-data page: the default forecasts it exports are off for now; set them up once the user
+      has decided how projections should look in practice.
+- Dropped: "Use as projection" (no link from Past to projections, by design); card payoff as a
+  transfer and the per-line balance sheet on a date (PR #9) — both needed projections tied to lines.
 
 ## Docs
 

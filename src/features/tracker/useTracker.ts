@@ -12,10 +12,7 @@ import {
   type BalanceRecord,
   type Every,
   type EveryUnit,
-  type RateStart,
   type RecordWindow,
-  type Recurring,
-  type RecurringValue,
   type ProjectionFile,
   type ProjectionItem,
   type RecordLine,
@@ -27,9 +24,7 @@ import {
   PREVIOUS_DEFAULT_TEMPLATE_IDS,
   defaultProjection,
   defaultTemplate,
-  everydayItem,
   monthlyStart,
-  itemResults,
   lineNames,
   byAt,
   makeRecord,
@@ -37,6 +32,7 @@ import {
   project,
   upsertRecord,
 } from '../../lib/finance'
+import { type LegacyItem, type LegacyRecurring, type RateStart, type RecurringValue, everydayItem, freezeItems } from '../../lib/legacy'
 import { atKey, isISODate, isLocalDateTime, localFromISO, roundMoney, today } from '../../lib/money'
 import { Store, getStore, init } from '../../lib/storage/store'
 import { logDebug } from '../../debug'
@@ -127,7 +123,7 @@ function normalizeEvery(v: unknown): Every {
   return { n: Math.max(1, Math.min(999, Math.round(num(e.n, 1)))), unit: UNITS.includes(e.unit as EveryUnit) ? (e.unit as EveryUnit) : 'month' }
 }
 
-const monthlyFixed = (id: string, name: string, amount: number, day: number, inRecord = false): Recurring => ({
+const monthlyFixed = (id: string, name: string, amount: number, day: number, inRecord = false): LegacyRecurring => ({
   kind: 'recurring',
   id,
   name,
@@ -157,7 +153,11 @@ function rateStart(v: Record<string, unknown>): { from?: RateStart } {
   return {}
 }
 
-function normalizeItem(x: Record<string, unknown>, kindHint?: string): ProjectionItem[] {
+/**
+ * Read one item of any stored shape into the old (legacy) form; normalizeProjection
+ * then freezes it into a plain amount (freezeItems).
+ */
+function normalizeItem(x: Record<string, unknown>, kindHint?: string): LegacyItem[] {
   const kind = (x.kind as string) ?? kindHint
   const id = str(x.id) || newId()
   const name = str(x.name)
@@ -181,6 +181,10 @@ function normalizeItem(x: Record<string, unknown>, kindHint?: string): Projectio
             inRecord: value.mode === 'fixed' && Boolean(x.inRecord),
           },
         ]
+      }
+      // v0.15+: a plain amount with every / start
+      if (x.every && typeof x.every === 'object') {
+        return [{ kind, id, name, value: { mode: 'fixed', amount: roundMoney(num(x.amount)) }, every: normalizeEvery(x.every), start: isISODate(x.start) ? x.start : monthlyStart(1), inRecord: false }]
       }
       return [monthlyFixed(id, name, signedAmount(x), clampDay(x.day), Boolean(x.inRecord ?? x.covered))]
     }
@@ -214,15 +218,32 @@ function normalizeStart(v: unknown): StartLines {
 }
 
 /**
- * Accepts a current projection file, the v0.3–v0.5 single projection file, the
- * v0.2 combined settings file, or the prototype's settings; returns a current
- * ProjectionFile.
+ * Accepts a current projection file, any older one (computed values, target
+ * lines, the v0.3–v0.5 single projection file, the v0.2 combined settings
+ * file, the prototype's settings) and returns a current ProjectionFile of plain
+ * amounts. Values that were worked out from records are frozen at what they
+ * come to with `recs` (by default the records loaded now); ones that come to
+ * $0 are dropped. Both are logged.
  */
-export function normalizeProjection(raw: unknown, fallback: { id?: string; name?: string; horizonDays?: number } = {}): ProjectionFile {
+export function normalizeProjection(
+  raw: unknown,
+  fallback: { id?: string; name?: string; horizonDays?: number } = {},
+  recs: BalanceRecord[] = records.value,
+): ProjectionFile {
   const r = (raw ?? {}) as Record<string, unknown>
+  const p = readLegacyProjection(r, fallback)
+  const { items, frozen } = freezeItems(p.items, recs, p.start)
+  const dropped = new Set(frozen.filter((f) => f.amount === 0).map((f) => f.id))
+  const kept = items.filter((it) => !dropped.has(it.id))
+  for (const f of frozen) {
+    logDebug(f.amount ? `“${f.name}” is now a fixed ${f.amount} each time (it was worked out from records)` : `Dropped “${f.name}”: it was worked out from records and came to $0`, 'warn')
+  }
+  return { ...p, schema: 4, items: kept }
+}
+
+function readLegacyProjection(r: Record<string, unknown>, fallback: { id?: string; name?: string; horizonDays?: number }) {
   const horizonDays = Math.min(MAX_HORIZON_DAYS, Math.max(1, Math.round(num(r.horizonDays ?? r.horizon, fallback.horizonDays ?? 90))))
   const base = {
-    schema: 3 as const,
     id: r.id ? safeId(r.id) : (fallback.id ?? newId()),
     name: str(r.name) || fallback.name || 'Everything',
     start: normalizeStart(r.start),
@@ -231,7 +252,7 @@ export function normalizeProjection(raw: unknown, fallback: { id?: string; name?
   if (Array.isArray(r.items)) return { ...base, items: arr(r.items).flatMap((x) => normalizeItem(x)) }
 
   // Older shapes: separate lists.
-  const items: ProjectionItem[] = [
+  const items: LegacyItem[] = [
     ...arr(r.recurring).flatMap((x) => normalizeItem(x, 'recurring')),
     ...arr(r.oneTime).flatMap((x) => normalizeItem(x, 'oneTime')),
   ]
@@ -317,6 +338,27 @@ async function loadFrom(store: Store) {
   const legacyHorizon = num(readPref('horizonDays'), 90)
   const hasProjections = () => store.list(PROJECTIONS_PREFIX).length > 0
 
+  // Records first: converting old projections freezes their values against them.
+  const recs: BalanceRecord[] = []
+  for (const m of store.list('records/')) {
+    try {
+      const rec = normalizeRecord(await store.readJSON(m.id))
+      if (!rec) {
+        logDebug(`Skipped malformed record ${m.id}`, 'warn')
+        continue
+      }
+      // Pre-v0.7 files are named by date only: rename to the date-time name.
+      if (m.id !== recordId(rec.at)) {
+        if (!store.has(recordId(rec.at))) await store.writeJSON(recordId(rec.at), rec)
+        await store.remove(m.id)
+      }
+      recs.push(rec)
+    } catch (e) {
+      logDebug(`Couldn’t read ${m.id}: ${(e as Error).message}`, 'error')
+    }
+  }
+  records.value = recs.sort(byAt)
+
   // v0.2 → split the combined settings file.
   if (store.has(LEGACY_SETTINGS_ID)) {
     const legacy = await readSafe(LEGACY_SETTINGS_ID)
@@ -344,7 +386,11 @@ async function loadFrom(store: Store) {
   const list: ProjectionFile[] = []
   for (const m of store.list(PROJECTIONS_PREFIX)) {
     const raw = await readSafe(m.id)
-    if (raw) list.push(normalizeProjection(raw, { id: m.id.slice(PROJECTIONS_PREFIX.length) }))
+    if (!raw) continue
+    const p = normalizeProjection(raw, { id: m.id.slice(PROJECTIONS_PREFIX.length) })
+    // Older shapes are rewritten once as plain amounts.
+    if ((raw as { schema?: unknown }).schema !== 4) await store.writeJSON(m.id, p)
+    list.push(p)
   }
   if (!list.length) {
     const p = defaultProjection()
@@ -364,25 +410,6 @@ async function loadFrom(store: Store) {
   }
   if (!store.has(TEMPLATE_ID)) await store.writeJSON(TEMPLATE_ID, template.value)
 
-  const recs: BalanceRecord[] = []
-  for (const m of store.list('records/')) {
-    try {
-      const rec = normalizeRecord(await store.readJSON(m.id))
-      if (!rec) {
-        logDebug(`Skipped malformed record ${m.id}`, 'warn')
-        continue
-      }
-      // Pre-v0.7 files are named by date only: rename to the date-time name.
-      if (m.id !== recordId(rec.at)) {
-        if (!store.has(recordId(rec.at))) await store.writeJSON(recordId(rec.at), rec)
-        await store.remove(m.id)
-      }
-      recs.push(rec)
-    } catch (e) {
-      logDebug(`Couldn’t read ${m.id}: ${(e as Error).message}`, 'error')
-    }
-  }
-  records.value = recs.sort(byAt)
 }
 
 let loading: Promise<void> | null = null
@@ -504,6 +531,9 @@ export function parseImportText(text: string): ImportBundle {
 
   const files: ImportBundle['files'] = []
   const add = (id: string, value: unknown) => files.push({ id, ext: 'json', text: JSON.stringify(value) })
+  // The import's own records, so old computed projections freeze against them.
+  const importedRecs = (Array.isArray(parsed.records) ? parsed.records : []).map((x: unknown) => normalizeRecord(x)).filter((x: BalanceRecord | null): x is BalanceRecord => !!x)
+  const freezeWith = importedRecs.length ? importedRecs : records.value
   const addProjection = (p: ProjectionFile) => add(projectionId(p.id), p)
   let kind: ImportBundle['kind']
 
@@ -512,13 +542,13 @@ export function parseImportText(text: string): ImportBundle {
       throw new Error('That export was made by a newer version of the app. Tap “Reload latest” first.')
     }
     kind = 'json'
-    for (const raw of arr(parsed.projections)) addProjection(normalizeProjection(raw))
-    if (parsed.projection) addProjection(normalizeProjection(parsed.projection, { id: 'everything' })) // format 1
+    for (const raw of arr(parsed.projections)) addProjection(normalizeProjection(raw, {}, freezeWith))
+    if (parsed.projection) addProjection(normalizeProjection(parsed.projection, { id: 'everything' }, freezeWith)) // format 1
     if (parsed.template) add(TEMPLATE_ID, normalizeTemplate(parsed.template))
   } else if (parsed.settings || Array.isArray(parsed.records)) {
     kind = 'prototype'
     if (parsed.settings) {
-      addProjection(normalizeProjection(parsed.settings, { id: 'everything' }))
+      addProjection(normalizeProjection(parsed.settings, { id: 'everything' }, freezeWith))
       add(TEMPLATE_ID, normalizeTemplate(parsed.settings))
     }
   } else {
@@ -584,9 +614,6 @@ const selected = computed(() => projections.value.find((p) => p.id === selectedI
 function projectFor(p: ProjectionFile) {
   return project(p, records.value)
 }
-function resultsFor(p: ProjectionFile) {
-  return itemResults(p, records.value)
-}
 const currentProjection = computed(() => (selected.value ? projectFor(selected.value) : null))
 
 export function useTracker() {
@@ -604,7 +631,6 @@ export function useTracker() {
     knownLines,
     currentProjection,
     projectFor,
-    resultsFor,
     saveRecord,
     deleteRecord,
     saveProjection,
