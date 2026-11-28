@@ -201,6 +201,10 @@ each new option needed another explanation, and real mistakes kept slipping thro
 whole card cycles flipping a card positive; an average added daily). What worked: show history
 plainly in Past (timeseries, averages, daily rate candles) and let the user type the amounts they
 expect. The old maths lives on in `legacy.ts` only to convert old files at the same values.
+PR #9, "Balance sheet on [date]" (each line's forecast on a chosen day, End of month by default),
+was closed unmerged for the same reason: it needed every projection tied to a line, and its
+month-end card balances kept building with no payoff, so they didn't match how the user reads a
+month. With plain amounts, the forecast total on any day is on the Future chart.
 
 ## Patterns Worth Reusing
 
