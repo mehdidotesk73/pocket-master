@@ -3,10 +3,12 @@
 // sheet it leaves the page above visible (and scrollable), so the forecast
 // chart can be watched while editing. Esc or ✕ closes. While open it counts as
 // an unsaved draft, so an app update waits (see pwa.ts).
+// `blur`: dim and blur the page behind (and stop it taking taps), for panels
+// where the page above isn't a live preview (e.g. Project this on Past).
 import { onBeforeUnmount, onMounted } from 'vue'
 import { markUnsaved } from '../../lib/storage/store'
 
-const props = defineProps<{ title: string; draftKey: string }>()
+const props = defineProps<{ title: string; draftKey: string; blur?: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 
 function onKey(e: KeyboardEvent) {
@@ -25,6 +27,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <div v-if="blur" class="scrim" aria-hidden="true"></div>
   <section class="dock" role="dialog" :aria-label="title">
     <header class="head">
       <h2>{{ title }}</h2>
@@ -100,11 +103,40 @@ onBeforeUnmount(() => {
 
 .foot {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.45rem;
   justify-content: flex-end;
-  padding: 0.5rem 1rem max(0.6rem, env(safe-area-inset-bottom));
+  padding: 0.4rem 1rem max(0.45rem, env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
   background: var(--panel-2);
+}
+
+/* compact action buttons (Save, Cancel, Remove, …) */
+.foot :slotted(.btn) {
+  min-height: 36px;
+  padding: 0 0.85rem;
+  font-size: 0.9rem;
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 89;
+  background: rgba(var(--shadow-rgb), 0.35);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: fade 0.18s ease-out;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrim {
+    animation: none;
+  }
 }
 </style>
 

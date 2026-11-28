@@ -170,7 +170,8 @@ and a pinned, collapsed readback (one line plus a "N to check" pill; tap for the
 `readBack()` in `projectionText.ts`: the projection as one sentence, what it adds up to by the
 forecast's end, and a warning for a one-time date outside the forecast); `FutureView` passes the
 draft's `project()` result in as `result`. Both panels are `DockPanel`s (mid-height, bottom, page stays
-visible) editing drafts that drive the chart live; Save writes, Cancel discards. The header's ☰ (top left) opens `SideMenu`, a drawer from the left with collapsible
+visible; compact 36px footer buttons; `blur` prop dims and blurs the page behind, used by
+`ProjectFromPast` but not Future's editors, whose page is the live preview) editing drafts that drive the chart live; Save writes, Cancel discards. The header's ☰ (top left) opens `SideMenu`, a drawer from the left with collapsible
 sections (start collapsed); Records holds the Import / Export tag buttons. Backup (export/import + storage health) is `BackupModal`, opened from the side menu
 and from Present's backup nudge. The New record sheet (`RecordModal`) is a compact list: name · ±
 toggle · amount · ✕, with a drag grip on the left (pointer events; a row swaps with its neighbour
