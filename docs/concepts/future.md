@@ -26,7 +26,7 @@ Pick one from **Forecast** at the top. You can keep several, for example:
 
 A projection is an amount you expect, typed in. Nothing is worked out from your records: look at the **Past** tab (Timeseries, Averages, Rates), decide what you expect, and enter it here.
 
-Tap **Add** to make one, or tap a projection to change it. Next to the name, pick the type:
+Tap **Add** to make one, or tap a projection to change it. To change the order, drag a projection by its grip (⋮⋮) on the left, or focus the grip and use the arrow keys. The order is saved, and the chart's colours follow it. Next to the name, pick the type:
 
 - **Recurring**: an amount that repeats **every N days, weeks, months or years**, starting on a date you pick. For months and years, the start date's day is used each time; days past a month's end land on its last day. For example: pay +$3,200 every month on the 2nd, rent ($2,030) every month on the 1st, card spending ($50) every day.
 - **One-time**: an amount on one date, e.g. a trip ($800) on Mar 3.

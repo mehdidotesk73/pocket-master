@@ -484,7 +484,20 @@ export type ImportBundle = {
   kind: 'zip' | 'json' | 'prototype'
   files: { id: string; ext: string; text: string }[]
   recordCount: number
+  /** Forecast files (projections/<id>.json). */
+  forecastCount: number
+  /** Projections inside those forecasts. */
   projectionCount: number
+}
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+
+/** "33 records, 1 forecast with 6 projections and a template" — what an import holds. */
+export function describeBundle(b: ImportBundle): string {
+  const parts = [plural(b.recordCount, 'record')]
+  if (b.forecastCount) parts.push(`${plural(b.forecastCount, 'forecast')} with ${plural(b.projectionCount, 'projection')}`)
+  const tail = b.files.some((f) => f.id === TEMPLATE_ID) ? ' and a template' : ''
+  return parts.join(', ') + tail
 }
 
 /** Identifies the clipboard / JSON export format. Bump `format` if its shape changes. */
@@ -513,7 +526,17 @@ const bundle = (kind: ImportBundle['kind'], files: ImportBundle['files']): Impor
   kind,
   files,
   recordCount: files.filter((f) => f.id.startsWith('records/')).length,
-  projectionCount: files.filter((f) => f.id.startsWith(PROJECTIONS_PREFIX)).length,
+  forecastCount: files.filter((f) => f.id.startsWith(PROJECTIONS_PREFIX)).length,
+  projectionCount: files
+    .filter((f) => f.id.startsWith(PROJECTIONS_PREFIX))
+    .reduce((n, f) => {
+      try {
+        const items = (JSON.parse(f.text) as { items?: unknown }).items
+        return n + (Array.isArray(items) ? items.length : 0)
+      } catch {
+        return n
+      }
+    }, 0),
 })
 
 /**

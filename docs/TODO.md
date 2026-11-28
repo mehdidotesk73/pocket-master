@@ -62,6 +62,12 @@ Forecasts (direction agreed 2026-11-27): analysis lives in Past; Future holds on
 - [x] **Plain-amount projections** (v0.15.0) — recurring `{ name, amount, every, start }` and
       one-time `{ name, amount, date }`, schema 4; computed / target-line / in-record projections
       frozen once into amounts (`lib/legacy.ts` `freezeItems`).
+- [x] **Reorder projections** (v0.15.1) — drag by the grip or arrow keys in `FutureView`; saved
+      as the forecast's item order.
+- [ ] **Projections linked live to Past** (next): pick a measure from Past (e.g. a card's average
+      fall over a window) and it becomes a projection whose amount is computed from records each
+      time. One-way and not editable: delete it and set up another to change it. Plain typed
+      amounts stay as they are.
 - [ ] **Monthly in / spent / net change** in Past (from records).
 - [ ] Mock-data page: the default forecasts it exports are off for now; set them up once the user
       has decided how projections should look in practice.
