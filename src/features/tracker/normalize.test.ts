@@ -78,7 +78,7 @@ describe('projections (every old shape becomes plain amounts)', () => {
   })
 
   it('keeps a projection linked to Past (and drops a link it can’t read)', () => {
-    const link = { measure: 'rate', line: 'Amex', window: { mode: 'last', days: 90 }, direction: 'falling' }
+    const link = { measure: 'rate', lines: ['Amex'], window: { mode: 'last', days: 90 }, direction: 'falling' }
     const cur = {
       schema: 4,
       id: 'x',

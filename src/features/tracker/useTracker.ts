@@ -160,10 +160,12 @@ const DIRECTIONS: RateDirection[] = ['both', 'rising', 'falling']
 /** A projection's link to Past, or nothing if it isn't a usable one. */
 function normalizeLink(v: unknown): { link?: PastLink } {
   const l = v as Record<string, unknown> | undefined
-  if (!l || typeof l !== 'object' || typeof l.line !== 'string') return {}
+  if (!l || typeof l !== 'object') return {}
+  const lines = Array.isArray(l.lines) ? l.lines.filter((n): n is string => typeof n === 'string') : typeof l.line === 'string' ? [l.line] : []
+  if (!lines.length) return {}
   const window = normalizeWindow(l.window)
-  if (l.measure === 'average') return { link: { measure: 'average', line: l.line, window } }
-  if (l.measure === 'rate') return { link: { measure: 'rate', line: l.line, window, direction: DIRECTIONS.includes(l.direction as RateDirection) ? (l.direction as RateDirection) : 'both' } }
+  if (l.measure === 'average') return { link: { measure: 'average', lines, window } }
+  if (l.measure === 'rate') return { link: { measure: 'rate', lines, window, direction: DIRECTIONS.includes(l.direction as RateDirection) ? (l.direction as RateDirection) : 'both' } }
   return {}
 }
 

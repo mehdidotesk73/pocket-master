@@ -56,13 +56,21 @@ export function describeWindow(w: RecordWindow): string {
 
 export const lineLabel = (line: string) => (line === LEFT_SOURCE ? 'Net equity' : line)
 
+/** "Amex", "Amex + Discover + Capital One", "Amex, Discover and 3 more lines". */
+export function linesLabel(lines: string[]): string {
+  const names = lines.map(lineLabel)
+  if (names.length <= 3) return names.join(' + ')
+  return `${names.slice(0, 2).join(', ')} and ${names.length - 2} more lines`
+}
+
 /** "Amex's average daily change, falling days only, over the past 90 days". */
 export function describeLink(l: PastLink): string {
   const what =
     l.measure === 'average'
       ? 'average'
       : `average daily change${l.direction === 'falling' ? ', falling days only,' : l.direction === 'rising' ? ', rising days only,' : ''}`
-  return `${lineLabel(l.line)}’s ${what} over ${describeWindow(l.window)}`
+  const who = linesLabel(l.lines)
+  return `${who}${who.endsWith('lines') ? '’' : '’s'} ${what} over ${describeWindow(l.window)}`
 }
 
 /** How a linked amount was worked out: "From 12 records, Sep 1 – Nov 28: −$1.07 a day × 30.44 days." */

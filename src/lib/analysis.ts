@@ -26,8 +26,9 @@ import { type ISODate, atNum, dayNum, fromCents, fromDayNum, toCents } from './m
 
 const norm = (s: string) => s.trim().toLowerCase()
 
-/** A line's value in a record (cents); several rows with the same name add up; missing = 0. */
-function valueCents(r: BalanceRecord, name: string): number {
+/** A line's value in a record (cents); several rows with the same name add up; missing = 0. Several lines: their sum. */
+function valueCents(r: BalanceRecord, name: string | string[]): number {
+  if (Array.isArray(name)) return name.reduce((s, n) => s + valueCents(r, n), 0)
   if (name === LEFT_SOURCE) return toCents(r.left)
   const k = norm(name)
   return r.lines.filter((l) => norm(l.name) === k).reduce((s, l) => s + toCents(l.amount), 0)
@@ -87,7 +88,7 @@ export interface DayCandle {
  *   small candle of that average daily change
  * The daily changes add up to the whole change from first record to last.
  */
-export function dailyCandles(records: BalanceRecord[], name: string): DayCandle[] {
+export function dailyCandles(records: BalanceRecord[], name: string | string[]): DayCandle[] {
   const sorted = [...records].sort(byAt)
   if (sorted.length < 2) return []
   // records grouped by date, in order
@@ -168,13 +169,13 @@ export function measurePast(records: BalanceRecord[], link: PastLink): PastMeasu
   const from = inWin[0].date
   const to = inWin[inWin.length - 1].date
   if (link.measure === 'average') {
-    const cents = inWin.reduce((s, r) => s + valueCents(r, link.line), 0) / inWin.length
+    const cents = inWin.reduce((s, r) => s + valueCents(r, link.lines), 0) / inWin.length
     return { value: fromCents(cents), count: inWin.length, from, to }
   }
   const days = dayNum(to) - dayNum(from)
   if (days <= 0) return { value: 0, count: inWin.length, from, to, days: 0 }
   let cents = 0
-  for (const c of dailyCandles(records, link.line)) {
+  for (const c of dailyCandles(records, link.lines)) {
     if (c.date <= from || c.date > to) continue
     const ch = toCents(c.close) - toCents(c.open)
     if (link.direction === 'both' || (link.direction === 'rising' ? ch > 0 : ch < 0)) cents += ch

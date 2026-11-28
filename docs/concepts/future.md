@@ -41,7 +41,7 @@ Amounts are **+** (coming in) or **−** (going out): tap the sign to switch. Ow
 
 On the Past tab, **Project this** (under Averages and Rates) makes a Recurring projection whose amount comes from your records instead of being typed:
 
-- **Average**: a line's average over the records you pick, e.g. Capital One's average balance over the past 90 days, every month.
+- **Average** (from Averages): the Total of the lines you left in, averaged over the records you picked, e.g. your three cards' average balance over the past 90 days, every month.
 - **Daily change**: how much a line moves per day on average over the records you pick: every day, or only the **rising** or **falling** days. For a card, *falling days* is your spending with payments left out. Repeating every week or month multiplies it by the days in between (7, or 30.44).
 
 Its card says *Recurring · linked to Past* and, in one line, what it's measured from, e.g. *Amex's average daily change, falling days only, over the past 90 days*. The amount is **worked out again whenever your records change**, so it follows your latest spending.

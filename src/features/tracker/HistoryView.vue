@@ -102,16 +102,19 @@ const editing = ref<BalanceRecord | null>(null)
 
 // ---- "Project this": a recurring projection locked to what this chart shows
 const emit = defineEmits<{ (e: 'open-future'): void }>()
-const projecting = ref<{ measure: 'average' | 'rate'; line: string; window: RecordWindow; direction?: 'both' | 'rising' | 'falling' } | null>(null)
+const projecting = ref<{ measure: 'average' | 'rate'; lines: string[]; window: RecordWindow; direction?: 'both' | 'rising' | 'falling' } | null>(null)
 const added = ref('')
+/** Averages: the Total in the middle, i.e. the lines left in, over the window picked above. */
 function projectAverage() {
   added.value = ''
-  const first = mixSlices.value.find((s) => !s.off)
-  projecting.value = { measure: 'average', line: first?.name ?? LEFT_SOURCE, window: { ...mixWindow.value } }
+  const lines = mixSlices.value.filter((s) => !s.off).map((s) => s.name)
+  if (!lines.length) return
+  projecting.value = { measure: 'average', lines, window: { ...mixWindow.value } }
 }
+/** Rates: the line and Rising / Falling picked above; the window is picked in the panel. */
 function projectRate() {
   added.value = ''
-  projecting.value = { measure: 'rate', line: rateLine.value, window: { mode: 'last', days: 90 }, direction: rateShow.value === 'up' ? 'rising' : rateShow.value === 'down' ? 'falling' : 'both' }
+  projecting.value = { measure: 'rate', lines: [rateLine.value], window: { mode: 'last', days: 90 }, direction: rateShow.value === 'up' ? 'rising' : rateShow.value === 'down' ? 'falling' : 'both' }
 }
 function onAdded(forecast: string) {
   projecting.value = null
@@ -157,7 +160,7 @@ function onAdded(forecast: string) {
           <WindowPicker v-model="mixWindow" />
           <DonutChart v-if="mixSlices.length" :slices="mixSlices" centre-label="Total" :centre-value="fmtMoney(mixTotal, { whole: true })" @toggle="toggleMix" />
           <p v-else class="muted small">No lines with a value in these records.</p>
-          <button class="btn small-btn project" @click="projectAverage"><Link2 class="ic" aria-hidden="true" />Project this</button>
+          <button class="btn small-btn project" :disabled="!mixSlices.some((s) => !s.off)" @click="projectAverage"><Link2 class="ic" aria-hidden="true" />Project this</button>
           <p class="muted small note">
             Each line's average across {{ mix.count }} record{{ mix.count === 1 ? '' : 's' }}<template v-if="mix.from">
               ({{ fmtDate(mix.from, { short: true }) }} – {{ fmtDate(mix.to!, { short: true }) }})</template

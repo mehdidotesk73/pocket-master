@@ -397,13 +397,14 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ### v0.16.0 — 2026-11-28
 - **Added:** projections linked to Past. **Project this** under Past's Averages and Rates makes a
-  Recurring projection whose amount is a line's average, or its average daily change (every day,
-  rising or falling days), over a window of records, worked out again whenever records change. Its
+  Recurring projection whose amount is the Averages Total (the lines left in, added up), or a line's
+  average daily change (every day, rising or falling days), over a window of records. What was
+  picked on the chart shows as fixed values in the panel; only the Rates window is picked there. It's worked out again whenever records change. Its
   card says what it's measured from; in the editor the amount (and type) are locked, while the
   name, repeat and start can still change. To change the measure, remove it and make another.
-- **Defaults:** Daily change repeats every day, Average every month (until the repeat is changed);
-  from Rates the window is the past 90 days and the Rising / Falling filter carries over; from
-  Averages the window and the first line left in carry over. Weekly / monthly repeats of a rate
+- **Defaults:** Daily change repeats every day, Average every month; from Rates the window starts
+  at the past 90 days and the Rising / Falling filter carries over; from Averages the window and
+  the lines left in carry over, fixed. Weekly / monthly repeats of a rate
   multiply it by 7 / 30.44 days.
 - **Docs:** Help (Past, Future), system-design §3b / §4 / §4a, TODO.
 

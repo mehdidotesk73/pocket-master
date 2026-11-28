@@ -89,16 +89,16 @@ export type RateDirection = 'both' | 'rising' | 'falling'
 
 /**
  * A measure of past records that a projection's amount is locked to (worked
- * out in lib/analysis.ts, measurePast). `line` is a record line's name, or
- * LEFT_SOURCE for net equity.
- * - average: the line's average value over the window's records
+ * out in lib/analysis.ts, measurePast). `lines` are record line names, added
+ * up (LEFT_SOURCE = net equity).
+ * - average: their total's average value over the window's records
  * - rate:    its average change per day over the window (by date, as the Rates
  *            candles), optionally counting only rising or falling days;
  *            × the days between occurrences
  */
 export type PastLink =
-  | { measure: 'average'; line: string; window: RecordWindow }
-  | { measure: 'rate'; line: string; window: RecordWindow; direction: RateDirection }
+  | { measure: 'average'; lines: string[]; window: RecordWindow }
+  | { measure: 'rate'; lines: string[]; window: RecordWindow; direction: RateDirection }
 
 /** Repeats every `every` from `start` (its day of month / month of year set the rhythm). */
 export interface Recurring {

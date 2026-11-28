@@ -147,8 +147,9 @@ OPFS root
 Three tabs, **Past · Present · Future** (default Present): `HistoryView`, `TodayView`,
 `FutureView`. **Naming in the UI:** a stored `ProjectionFile` is a *forecast*; its items are
 *projections*: Recurring or One-time.
-Past's Averages and Rates views have **Project this** → `ProjectFromPast` (a `DockPanel`: Average /
-Daily change, line, which days count, window, every · unit · starting, name, forecast; shows the
+Past's Averages and Rates views have **Project this** → `ProjectFromPast` (a `DockPanel`. Fixed, from
+the chart: Averages → the lines left in (the donut's Total) and its window; Rates → the line and
+Both / Rising / Falling. Then: the window (Rates only), every · unit · starting, name, forecast; shows the
 amount now and how it's worked out; adds a linked Recurring item and offers *See it in Future*,
 which `HistoryView` emits as `open-future` to `App.vue`). Future's list marks linked items
 "Recurring · linked to Past" with a `describeLink` line; `ProjectionPanel` shows their amount locked.
@@ -189,8 +190,8 @@ from a record counts as $0 there.
   `between { from, to, perDay }`. Daily changes sum to the whole change. → *Rates*
   (`CandleChart`; record-less days drawn lighter; Rising / Falling filter hides candles without
   rescaling).
-- `measurePast(records, link)`: the measure a linked projection is locked to, over `recordsInWindow`:
-  `average` = the line's mean value; `rate` = Σ daily-candle changes (`close − open`) for dates in
+- `measurePast(records, link)`: the measure a linked projection is locked to, over `recordsInWindow`,
+  of the sum of `link.lines` (`valueCents` and `dailyCandles` take a list): `average` = mean value; `rate` = Σ daily-candle changes (`close − open`) for dates in
   (first window record date, last], counting all, only rising or only falling days, ÷ the days in
   between (0 with records on one date only). `linkedAmount(item, records)` = average, or rate ×
   `periodDays(every)`, in cents. `resolveLinks(forecast, records)` returns the forecast with every
@@ -223,8 +224,9 @@ All sums in integer cents.
   - `recurring`: `{ name, amount, every { n, unit: day|week|month|year }, start }`
     (`occursOn`: months/years use start's day, clamped to month end);
   - `oneTime`: `{ name, amount, date }`.
-  A recurring item may carry `link?: PastLink` (`{ measure: 'average', line, window }` or
-  `{ measure: 'rate', line, window, direction: both|rising|falling }`, `line` '' = net equity): its
+  A recurring item may carry `link?: PastLink` (`{ measure: 'average', lines, window }` or
+  `{ measure: 'rate', lines, window, direction: both|rising|falling }`; `lines` are added up, '' = net
+  equity; a single `line` from the first preview is read as `[line]`): its
   amount is then locked to `measurePast` and worked out again on every records change (see §4a).
   It's made once from Past ("Project this", `ProjectFromPast.vue`); the editor locks the amount and
   the type, leaving name / every / start. Nothing targets a line. Schema-4 files load through

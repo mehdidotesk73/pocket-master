@@ -1,39 +1,38 @@
 <script setup lang="ts">
-// "Project this" from the Past tab: turn a measure of past records into a
-// Recurring projection whose amount is locked to that measure (a line's average,
-// or its average daily change) and worked out again whenever records change.
-// Everything about the measure is chosen here, once: in Future only the name,
-// repeat and start can change. To measure something else, remove it and make another.
-import { computed, ref, watch } from 'vue'
-import { type EveryUnit, LEFT_SOURCE, type PastLink, type RateDirection, type RecordWindow, type Recurring, newId } from '../../lib/finance'
+// "Project this" from the Past tab: turn what the chart shows into a Recurring
+// projection whose amount is locked to it and worked out again whenever records
+// change. What was picked on the chart is shown fixed here:
+//   Averages → the lines left in (their Total) and the records window
+//   Rates    → the line and which days count; the window is picked here
+// Then the repeat, start, name and forecast. In Future only the name, repeat
+// and start can change; to measure something else, remove it and make another.
+import { computed, ref } from 'vue'
+import { type EveryUnit, type PastLink, type RateDirection, type RecordWindow, type Recurring, newId } from '../../lib/finance'
 import { linkedAmount, measurePast } from '../../lib/analysis'
 import { fmtMoney, isISODate, today } from '../../lib/money'
 import DockPanel from './DockPanel.vue'
 import WheelPicker from './WheelPicker.vue'
 import WindowPicker from './WindowPicker.vue'
-import { describeLink, describeMeasure, lineLabel } from './projectionText'
+import { describeMeasure, describeWindow, linesLabel } from './projectionText'
 import { useTracker } from './useTracker'
 
-const props = defineProps<{ measure: PastLink['measure']; line: string; window: RecordWindow; direction?: RateDirection }>()
+const props = defineProps<{ measure: PastLink['measure']; lines: string[]; window: RecordWindow; direction?: RateDirection }>()
 const emit = defineEmits<{ (e: 'added', forecast: string): void; (e: 'cancel'): void }>()
 
-const { records, knownLines, projections, selected, saveProjection, selectProjection } = useTracker()
+const { records, projections, selected, saveProjection, selectProjection } = useTracker()
 
-const measure = ref(props.measure)
-const line = ref(props.line)
-const win = ref<RecordWindow>(props.window)
-const direction = ref<RateDirection>(props.direction ?? 'both')
-const every = ref<{ n: number; unit: EveryUnit }>({ n: 1, unit: props.measure === 'rate' ? 'day' : 'month' })
+// Fixed from the chart.
+const measure = props.measure
+const lines = [...props.lines]
+const direction: RateDirection = props.direction ?? 'both'
+// Averages: fixed from the chart too. Rates: picked here.
+const win = ref<RecordWindow>({ ...props.window })
+// A rate is naturally daily, an average naturally monthly.
+const every = ref<{ n: number; unit: EveryUnit }>({ n: 1, unit: measure === 'rate' ? 'day' : 'month' })
 const start = ref(today())
 const forecastId = ref(selected.value?.id ?? projections.value[0]?.id ?? '')
 
-// A rate is naturally daily, an average naturally monthly: follow the measure until the repeat is changed by hand.
-const everyTouched = ref(false)
-watch(measure, (m) => {
-  if (!everyTouched.value) every.value = { n: 1, unit: m === 'rate' ? 'day' : 'month' }
-})
 function setEvery(p: Partial<{ n: number; unit: EveryUnit }>) {
-  everyTouched.value = true
   every.value = { ...every.value, ...p }
 }
 const int = (v: string, d: number) => Math.max(1, Math.round(Number(v)) || d)
@@ -45,20 +44,17 @@ const UNITS: { id: EveryUnit; one: string; many: string }[] = [
 ]
 const unitOptions = computed(() => UNITS.map((u) => ({ id: u.id, label: every.value.n === 1 ? u.one : u.many })))
 
-const link = computed<PastLink>(() =>
-  measure.value === 'average'
-    ? { measure: 'average', line: line.value, window: win.value }
-    : { measure: 'rate', line: line.value, window: win.value, direction: direction.value },
-)
+const link = computed<PastLink>(() => (measure === 'average' ? { measure, lines, window: win.value } : { measure, lines, window: win.value, direction }))
+const what = measure === 'average' ? 'Average' : direction === 'falling' ? 'Daily change, falling days only' : direction === 'rising' ? 'Daily change, rising days only' : 'Daily change, every day'
 const amount = computed(() => linkedAmount({ every: every.value, link: link.value }, records.value))
 const how = computed(() => describeMeasure(link.value, measurePast(records.value, link.value), every.value))
 
 // The name follows the choices until it's typed in.
-const autoName = computed(() => {
-  const l = lineLabel(line.value)
-  if (measure.value === 'average') return `${l} average`
-  return direction.value === 'falling' ? `${l} falling` : direction.value === 'rising' ? `${l} rising` : `${l} change`
-})
+const autoName = (() => {
+  const l = lines.length === 1 ? linesLabel(lines) : lines.length <= 3 ? linesLabel(lines) : 'Total'
+  if (measure === 'average') return `${l} average`
+  return direction === 'falling' ? `${l} falling` : direction === 'rising' ? `${l} rising` : `${l} change`
+})()
 const name = ref('')
 const nameTouched = ref(false)
 
@@ -71,7 +67,7 @@ async function add() {
   const item: Recurring = {
     kind: 'recurring',
     id: newId(),
-    name: (nameTouched.value ? name.value.trim() : '') || autoName.value,
+    name: (nameTouched.value ? name.value.trim() : '') || autoName,
     amount: amount.value,
     every: { ...every.value },
     start: start.value,
@@ -85,29 +81,19 @@ async function add() {
 
 <template>
   <DockPanel title="Project this" draft-key="project-from-past" @close="emit('cancel')">
-    <div class="seg two" role="radiogroup" aria-label="Measure">
-      <button role="radio" :aria-checked="measure === 'average'" :class="{ on: measure === 'average' }" @click="measure = 'average'">Average</button>
-      <button role="radio" :aria-checked="measure === 'rate'" :class="{ on: measure === 'rate' }" @click="measure = 'rate'">Daily change</button>
-    </div>
-
-    <label class="field">
-      <span>Line</span>
-      <select v-model="line" class="select">
-        <option :value="LEFT_SOURCE">Net equity</option>
-        <option v-for="n in knownLines" :key="n" :value="n">{{ n }}</option>
-      </select>
-    </label>
+    <!-- what the chart showed: fixed -->
+    <dl class="fixed">
+      <dt>{{ lines.length > 1 ? 'Lines (their total)' : 'Line' }}</dt>
+      <dd>{{ linesLabel(lines) }}</dd>
+      <dt>Measure</dt>
+      <dd>{{ what }}</dd>
+      <template v-if="measure === 'average'">
+        <dt>Records</dt>
+        <dd>{{ describeWindow(win) }}</dd>
+      </template>
+    </dl>
 
     <div v-if="measure === 'rate'" class="field">
-      <span>Count</span>
-      <div class="seg three" role="radiogroup" aria-label="Which days count">
-        <button v-for="d in (['both', 'rising', 'falling'] as const)" :key="d" role="radio" :aria-checked="direction === d" :class="{ on: direction === d }" @click="direction = d">
-          {{ d === 'both' ? 'Every day' : d === 'rising' ? 'Rising days' : 'Falling days' }}
-        </button>
-      </div>
-    </div>
-
-    <div class="field">
       <span>Measured over</span>
       <WindowPicker v-model="win" />
     </div>
@@ -144,10 +130,7 @@ async function add() {
 
     <template #summary>
       <div class="now">
-        <span class="small"
-          >Each time: <b class="money" :class="{ neg: amount < 0, pos: amount > 0 }">{{ fmtMoney(amount, { sign: true }) }}</b> —
-          {{ describeLink(link) }}.</span
-        >
+        <span class="small">Each time: <b class="money" :class="{ neg: amount < 0, pos: amount > 0 }">{{ fmtMoney(amount, { sign: true }) }}</b></span>
         <span class="small muted">{{ how }} It's worked out again whenever your records change.</span>
       </div>
     </template>
@@ -179,39 +162,29 @@ async function add() {
   color: var(--mute);
 }
 
-.seg {
+.fixed {
   display: grid;
-  border: 1px solid var(--btn-border);
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.3rem 0.8rem;
+  margin: 0 0 0.7rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--line);
   border-radius: var(--btn-radius);
-  overflow: hidden;
+  background: var(--panel-2);
+  font-size: 0.9rem;
 }
 
-.seg.two {
-  grid-template-columns: 1fr 1fr;
-  margin-bottom: 0.55rem;
+.fixed dt {
+  color: var(--mute);
+  font-weight: 600;
+  font-size: 0.8rem;
+  align-self: center;
 }
 
-.seg.three {
-  grid-template-columns: repeat(3, 1fr);
-}
-
-.seg button {
-  min-height: 34px;
-  border: none;
-  background: var(--btn-bg);
-  color: var(--btn-text);
-  font-weight: 550;
-  font-size: 0.82rem;
-  padding: 0 0.2rem;
-}
-
-.seg button + button {
-  border-left: 1px solid var(--btn-border);
-}
-
-.seg button.on {
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-text);
+.fixed dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .row2,
