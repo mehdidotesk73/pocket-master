@@ -64,13 +64,17 @@ Forecasts (direction agreed 2026-11-27): analysis lives in Past; Future holds on
       frozen once into amounts (`lib/legacy.ts` `freezeItems`).
 - [x] **Reorder projections** (v0.15.1) — drag by the grip or arrow keys in `FutureView`; saved
       as the forecast's item order.
-- [ ] **Projections linked live to Past** (next): pick a measure from Past (e.g. a card's average
-      fall over a window) and it becomes a projection whose amount is computed from records each
-      time. One-way and not editable: delete it and set up another to change it. Plain typed
-      amounts stay as they are.
-- [ ] **Monthly in / spent / net change** in Past (from records).
-- [ ] Mock-data page: the default forecasts it exports are off for now; set them up once the user
-      has decided how projections should look in practice.
+- [ ] **Projections linked live to Past** (next, design agreed 2026-11-28): not a new type — a
+      **Recurring** projection (name, start, every N unit as usual) whose **amount is locked** to a
+      live measure from Past, e.g. "Amex · daily rate · past 90 days" or "Capital One · average ·
+      past 90 days", recomputed from records whenever they change. Its card says in one line what
+      it's doing (e.g. *Every day: Amex's average daily change over the past 90 days (−$32.10)*).
+      One-way and not editable: delete it and set up another to change it. Plain typed amounts stay
+      as they are. Open: where it's created (suggested: "Project this" on the Past chart).
+- [ ] ~~Monthly in / spent / net change in Past~~ — not convinced it's needed (user, 2026-11-28);
+      parked.
+- [x] Mock-data page: default forecast set up from the user's own layout (paychecks, card
+      projections, rent, rounded).
 - Dropped: "Use as projection" (no link from Past to projections, by design); card payoff as a
   transfer and the per-line balance sheet on a date (PR #9, closed) — both needed projections tied
   to lines.
@@ -78,6 +82,9 @@ Forecasts (direction agreed 2026-11-27): analysis lives in Past; Future holds on
 ## Docs
 
 (Documentation gaps, missing help content, outdated instructions)
+
+- [x] **CLAUDE.md refresh** (v0.15.2) — describes the three tabs, plain-amount forecasts and the
+      current file map; Help → About and system-design §3b stale projection text fixed.
 
 ## UI / UX
 

@@ -395,6 +395,12 @@ on focus, and reject more than two decimals instead of rounding them away.
 
 ## Version History
 
+### v0.15.2 — 2026-11-28
+- **Docs only, no app change:** `CLAUDE.md` rewritten for the app as it is (Past · Present ·
+  Future, typed-amount forecasts, current file map and tests); Help → About no longer mentions
+  average / rate projections; `system-design.md` §3b drops the old `ProjectionModal` / `ItemModal`
+  text.
+
 ### v0.15.1 — 2026-11-28
 - **Added:** projections can be reordered: drag by the grip, or arrow keys on the grip. The order
   is saved; colours follow the order.
