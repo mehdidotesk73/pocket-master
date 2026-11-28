@@ -402,6 +402,8 @@ on focus, and reject more than two decimals instead of rounding them away.
   or tracking (the only request is the app's own update check), works offline; then Past · Present
   · Future in a line each.
 - **Changed:** Future's forecast picker, Edit and New are compact (36px).
+- **Changed:** Present's "Start with your first record" card folds its explanation (what a
+  record is) into an ⓘ; the welcome tagline ends "Forecast what's ahead."
 
 ### v0.16.3 — 2026-11-28
 - **Moved:** the Netlify site is now `ledgerful.netlify.app` and the repo `mehdidotesk73/ledgerful`

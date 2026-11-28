@@ -25,7 +25,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
       <header class="hero">
         <img class="logo" src="/favicon.svg" alt="" width="56" height="56" />
         <h1 id="welcome-title">Ledgerful</h1>
-        <p class="tagline">Keep records of your money. See the patterns. Plan what's next.</p>
+        <p class="tagline">Keep records of your money. See the patterns. Forecast what's ahead.</p>
       </header>
 
       <section class="block">
